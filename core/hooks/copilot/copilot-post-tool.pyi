@@ -1,0 +1,6 @@
+from _typeshed import Incomplete
+
+HOOKS: Incomplete
+
+def emit_allow(messages: list[str] | None = None) -> None: ...
+def main() -> int: ...

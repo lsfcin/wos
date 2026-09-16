@@ -1,0 +1,126 @@
+# Usage: core/run tools/links/cfpages <cmd> [args] — named short links: add, find, rm, build, check
+import argparse
+import pathlib
+import sys
+
+_HERE = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE))
+sys.path.insert(0, str(_HERE.parent))
+import tool_law  # noqa: E402
+
+tool_law.require('link-shortener')
+
+import links_core  # noqa: E402
+
+ROOT = _HERE.parents[2]
+# Under outputs/ and not code/: it holds no source, only what `build` regenerates from links.txt,
+# and code/ is for software projects — which is exactly the scope the Git Flow branch gate covers.
+# Losing this clone costs one `gh repo clone`; the map it is built from is the versioned half.
+PUBLISH = ROOT / 'outputs' / 'links'
+
+# The published site is redirects and nothing else. An index listing every short name would hand a
+# stranger the whole map, which is the one thing the private-subtree refusal exists to prevent —
+# so the root is a dead end on purpose.
+INDEX = "<!doctype html><meta charset=utf-8><title>lsf</title><p>Nothing to see here.\n"
+
+
+def cmd_add(short_name: str, url: str, owner: str, home: str) -> None:
+    row = links_core.add(short_name, url, owner=owner, home=home)
+    print(f"{links_core.base()}/{row['short_name']}  ->  {row['url']}")
+    print(f"  owner: {row['owner']}   added: {row['added']}")
+    print(f"  not live until: core/run tools/links/cfpages build --push")
+
+
+def cmd_find(term: str) -> None:
+    rows = links_core.find(term) if term else links_core.load()
+    for r in rows:
+        print(f"{links_core.base()}/{r['short_name']}\t{r['url']}\t{r['owner']}\t{r['added']}")
+    print(f"── {len(rows)} short name(s)", file=sys.stderr)
+
+
+def cmd_rm(short_name: str) -> None:
+    row = links_core.remove(short_name)
+    print(f"Removed {row['short_name']} (was {row['url']})")
+    print(f"  still live until: core/run tools/links/cfpages build --push")
+
+
+def cmd_build(publish: pathlib.Path, push: bool) -> None:
+    rows = links_core.load()
+    findings = links_core.check(rows)
+    if findings:
+        # A broken map must never reach the site: a bad row here is a link handed to a room.
+        print("Refusing to build — the map has findings:", file=sys.stderr)
+        for f in findings:
+            print(f"  {f}", file=sys.stderr)
+        raise SystemExit(1)
+    if not publish.exists():
+        raise SystemExit(
+            f"{publish} does not exist.\n"
+            f"  It is the publish repo — create it, then rerun:\n"
+            f"    gh repo create lsf-links --public --clone {publish}"
+        )
+    (publish / '_redirects').write_text(links_core.redirects(rows), encoding="utf-8", newline="\n")
+    (publish / 'index.html').write_text(INDEX, encoding="utf-8", newline="\n")
+    print(f"Wrote {len(rows)} redirect(s) to {publish}/_redirects")
+    if not push:
+        print("  --push to commit and deploy")
+        return
+    import subprocess
+    subprocess.run(['git', 'add', '_redirects', 'index.html'], cwd=publish, check=True)
+    # Nothing staged means nothing to COMMIT, never nothing to push: a commit made by an earlier
+    # run that failed at the push is exactly the state where the site is still stale.
+    if subprocess.run(['git', 'diff', '--cached', '--quiet'], cwd=publish).returncode:
+        subprocess.run(['git', 'commit', '-m', f'{len(rows)} redirects'], cwd=publish, check=True)
+    # -u origin HEAD: the same call works on the first push, when there is no upstream yet, and on
+    # every one after. A publish repo is re-cloned often enough that "first push" is not a one-off.
+    subprocess.run(['git', 'push', '-u', 'origin', 'HEAD'], cwd=publish, check=True)
+    print(f"  pushed — Cloudflare Pages deploys in ~30s, then {links_core.base()}/<name> is live")
+
+
+def cmd_check() -> None:
+    findings = links_core.check(links_core.load())
+    for f in findings:
+        print(f)
+    print(f"── {len(findings)} finding(s)", file=sys.stderr)
+    raise SystemExit(1 if findings else 0)
+
+
+def main():
+    p = argparse.ArgumentParser(prog="cfpages")
+    sub = p.add_subparsers(dest="cmd")
+
+    pa = sub.add_parser("add")
+    pa.add_argument("short_name", help="ai4good, or ai4good/setup — one level, sayable out loud")
+    pa.add_argument("url")
+    pa.add_argument("--owner", default="", help="what the short name belongs to (default: its first segment)")
+    pa.add_argument("--for", dest="home", default="",
+                    help="workspace path recording this link; branches/ is refused")
+
+    pf = sub.add_parser("find")
+    pf.add_argument("term", nargs="?", default="", help="matched against short_name, url and owner")
+
+    pr = sub.add_parser("rm")
+    pr.add_argument("short_name")
+
+    pb = sub.add_parser("build")
+    pb.add_argument("--dir", dest="publish", default=str(PUBLISH))
+    pb.add_argument("--push", action="store_true", help="commit and push the publish repo")
+
+    sub.add_parser("check")
+
+    args = p.parse_args()
+    try:
+        if   args.cmd == "add":   cmd_add(args.short_name, args.url, args.owner, args.home)
+        elif args.cmd == "find":  cmd_find(args.term)
+        elif args.cmd == "rm":    cmd_rm(args.short_name)
+        elif args.cmd == "build": cmd_build(pathlib.Path(args.publish), args.push)
+        elif args.cmd == "check": cmd_check()
+        else:                     p.print_help()
+    except links_core.Refused as e:
+        # A refusal already names its own fix — printing a traceback over it buries the fix.
+        print(e, file=sys.stderr)
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    main()

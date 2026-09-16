@@ -1,0 +1,23 @@
+from _typeshed import Incomplete
+from pathlib import Path
+
+WORKSPACE_ROOT: Incomplete
+ROUTING_START: str
+ROUTING_END: str
+TRUNCATED_ROW: Incomplete
+TREE_GLYPH: Incomplete
+PATH_BULLET: Incomplete
+PATH_TABLE_ROW: Incomplete
+INVENTORY_HEADING: Incomplete
+GOAL_LINE: Incomplete
+
+def check_inventory(path: Path) -> str | None: ...
+
+CONSTRAINT: Incomplete
+
+def context_head(path: Path) -> str: ...
+def check_misplaced_answer(path: Path, head_warn: int) -> str | None: ...
+def check_description(path: Path) -> str | None: ...
+def check_truncation(path: Path) -> str | None: ...
+def is_project(path: Path) -> bool: ...
+def check_goal_link(path: Path) -> str | None: ...

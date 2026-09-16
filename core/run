@@ -1,0 +1,103 @@
+#!/bin/sh
+# The one command that runs anything in core/: find this clone's interpreter, then exec with it.
+#
+# WHY A CALLER CANNOT JUST NAME THE INTERPRETER. A hooks config is data, read before any of our code
+# runs, so it cannot ask platform_law.py which Python to use -- the answer would have to be spelled
+# in the config, and the spelling differs per machine: `.venv/bin/python3` on POSIX,
+# `.venv/Scripts/python.exe` on Windows. A config carrying a per-machine value has to be rewritten
+# by an install step, and then a tracked file is dirty on every clone that is not the author's.
+# This file moves that one unknown behind a stable name, so every shim in the workspace can be
+# versioned verbatim and no install step touches them.
+#
+# WHY IT SITS IN core/ AND NOT core/hooks/. A shebang cannot resolve a relative path, so the 33
+# tools under core/tools/ carried an absolute one, naming one machine's venv, plus an
+# install step that rewrote it per clone. That is the same per-machine value in a versioned file
+# this file exists to remove, so core/tools/SPECS.md § The interpreter and core/hooks/SPECS.md
+# directly contradicted each other and only one could be right. A tool is now spawned the way a
+# gate is: `core/run tools/video/video`. The argument is relative to core/, and SETUP.md's
+# § Workspace path -- a `sed -i` over tracked files -- died with the asymmetry.
+#
+# WHY THE BARE WORD `python3` IS NOT AN OPTION, and what it cost: on Windows that name reaches a
+# Microsoft Store execution alias which prints an advert and exits 9009. The gate never runs and the
+# caller reads the advert as the gate's own output -- a silent pass wearing a failure's coat. Every
+# Claude Code and ZCode hook in this workspace was spelled that way, so on a Windows clone the
+# enforcement layer had never once fired while the config read as correct.
+#
+# WHY THIS IS NOT THE PER-OS FORK THE RATCHET FORBIDS. There is one file here, not a pair, and it
+# asks the filesystem which venv layout is present rather than asking which operating system this
+# is. The platform question itself is still answered in exactly one module, platform_law.py, and no
+# .ps1/.bat sibling sits beside a .sh. The list below is ordered, not branched: the first candidate
+# that exists wins.
+set -e
+
+# Every gate here prints ⛔ ✓ ⚠ ↑, and Python otherwise encodes stdout with the console codepage --
+# cp1252 on a Windows clone, where those characters raise UnicodeEncodeError. A gate then dies
+# inside its own message, so the caller sees a traceback where a verdict belonged. Named once here
+# rather than in each gate, for the same reason the interpreter is.
+PYTHONIOENCODING=utf-8
+export PYTHONIOENCODING
+
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+target=$1
+[ -n "$target" ] || { echo "core/run: names nothing to run" >&2; exit 1; }
+shift
+
+# `run --python` PRINTS the interpreter instead of running anything, and that arm is why this file
+# stays the only one besides platform_law.py allowed to know both layouts. A shell script that must
+# spawn Python inline -- a `-c` one-liner, a heredoc -- cannot pass through the arm above, and
+# otherwise has to spell a venv path itself. That is how the workspace ended up with bare `python3`
+# in twenty places: the word reaches a Microsoft Store alias on Windows that prints an advert and
+# exits 9009, and every one of those sites swallowed it. One question, one answer.
+for py in "$root/.venv/bin/python3" "$root/.venv/Scripts/python.exe"; do
+    [ -x "$py" ] || continue
+    [ "$target" = "--python" ] && { echo "$py"; exit 0; }
+    # `run --script <name>` PRINTS the path of a console script installed INTO the venv -- stubgen,
+    # yt-dlp, pip. Same reason as --python, one step further: not every dependency is importable as
+    # `-m module` (stubgen has no __main__), so a shell caller that needs one would otherwise spell
+    # `.venv/bin/stubgen` and break on a Windows clone. platform_law.venv_script() is this answer
+    # for Python callers; this arm is it for shell, which cannot import anything yet.
+    if [ "$target" = "--script" ]; then
+        bin=$(dirname -- "$py")
+        [ -x "$bin/$1" ] && { echo "$bin/$1"; exit 0; }
+        [ -x "$bin/$1.exe" ] && { echo "$bin/$1.exe"; exit 0; }
+        echo "core/run: no venv script named $1 -- see core/tools/deps.txt" >&2
+        exit 1
+    fi
+    # A SHEBANG, NEVER TWO LETTERS ANYWHERE ON THE LINE. This matched `*bash*` and `*sh*` against
+    # the whole first line, so any tool whose opening comment happened to contain those letters
+    # inside an ordinary word was handed to `sh`. `gdrive` and `gdocs` both list `share` among
+    # their subcommands, so every one of their calls died with `import: not found` and a syntax
+    # error the shell blamed on Python -- an error naming the wrong layer entirely, with nothing
+    # in it pointing back here. The interpreter is the LAST PATH SEGMENT of a real `#!` line, and
+    # `#!/usr/bin/env bash` names it one word further on.
+    target_path="$root/core/$target"
+    if [ -f "$target_path" ]; then
+        first_line=$(head -n 1 "$target_path" 2>/dev/null || true)
+        case "$first_line" in
+            '#!'*)
+                shebang=${first_line#\#!}
+                shebang=${shebang# }
+                interp=${shebang%% *}
+                interp=${interp##*/}
+                if [ "$interp" = env ]; then
+                    rest=${shebang#* }
+                    interp=${rest%% *}
+                    interp=${interp##*/}
+                fi
+                # Anything else -- python3 included -- falls through to the venv interpreter
+                # below, which is the point: a Python target runs under THIS clone's venv, never
+                # under whatever `python3` its own shebang happens to name.
+                case "$interp" in
+                    bash)    exec bash "$target_path" "$@" ;;
+                    sh|dash) exec sh "$target_path" "$@" ;;
+                esac
+                ;;
+        esac
+    fi
+    exec "$py" "$root/core/$target" "$@"
+done
+
+# Exit 1, never 2: a missing interpreter is this workspace being half-installed, not the tool call
+# being wrong, and a PreToolUse hook that exits 2 blocks the call it was only meant to observe.
+echo "core/run: no interpreter under $root/.venv -- run /install" >&2
+exit 1

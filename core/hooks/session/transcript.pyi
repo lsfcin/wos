@@ -1,0 +1,6 @@
+from _typeshed import Incomplete
+
+TAIL_BYTES: Incomplete
+
+def find(raw: dict, session_id: str, cwd: str) -> str: ...
+def last_context(path: str) -> int: ...

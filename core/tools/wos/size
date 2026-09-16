@@ -1,0 +1,188 @@
+# how big the authored .md corpus is, and how much of it this session added or removed, and where.
+# Zero-token, no network. Called by core/tools/wos/roundup at every close (ROADMAP.md § Cost:
+# "every session reports whether the workspace got smaller"), and runnable alone any time.
+#
+# Vendored and generated files are excluded through core/hooks/file_law.py — the one reader of
+# vendored.txt / generated.txt. A second copy of that list here is the drift the checks exist to
+# catch. Targets are NOT printed: they live in ROADMAP.md, and a target quoted into a second file
+# goes stale the day the roadmap moves.
+import argparse
+import json
+import subprocess
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+_WS = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(_WS / 'core' / 'hooks'))
+sys.path.insert(0, str(_WS / 'core' / 'tools'))
+import file_law  # noqa: E402
+import tool_law  # noqa: E402
+
+
+def git(root, *args):
+    r = subprocess.run(['git', *args], cwd=root, capture_output=True, text=True, encoding='utf-8')
+    return r.stdout if r.returncode == 0 else ''
+
+
+# The repo: the workspace describing itself. Content trees (academy/, branches/, code/,
+# models/) grow because Lucas is doing his work, and so do his own files inside brain/ — goals,
+# memories, drafts and saved attachments are what this repo serves rather than part of it
+# (Lucas, 2026-09-11, when the size target they inflated was rejected). What is left is the part a
+# stranger cloning this repo would get.
+SCOPES = {'repo': ('core/', 'brain/')}
+EXCLUDED = {'repo': ('brain/goals/', 'brain/memory/', 'brain/drafts/', 'brain/attachments/')}
+
+
+def in_scope(rel, scope):
+    """Root files plus the named prefixes, less the content the scope excludes. A root `.md` is
+    this repo by definition — there is nothing else at the top of this tree."""
+    if not scope:
+        return True
+    if rel.startswith(EXCLUDED[scope]):
+        return False
+    return '/' not in rel or rel.startswith(SCOPES[scope])
+
+
+def authored_md(root, scope=''):
+    """Tracked .md paths that a human wrote — the only ones a size number may claim."""
+    out = []
+    for rel in git(root, 'ls-files', '--', '*.md').splitlines():
+        p = root / rel
+        if file_law.is_vendored(p, root) or file_law.is_generated_artifact(p, root):
+            continue
+        if not in_scope(rel, scope):
+            continue
+        out.append(rel)
+    return out
+
+
+def corpus(root, scope=''):
+    files = authored_md(root, scope)
+    lines = 0
+    for rel in files:
+        p = root / rel
+        try:
+            lines += p.read_text(encoding='utf-8', errors='replace').count('\n')
+        except OSError:
+            continue
+    return len(files), lines
+
+
+def base_commit(root, session_id):
+    """The commit HEAD sat on when this session started, found from the transcript's first
+    timestamp. The transcript is the only record of when the session began; git alone cannot
+    tell this session's commits from yesterday's."""
+    name = str(root).replace('/', '-')
+    path = Path.home() / '.claude' / 'projects' / name / f'{session_id}.jsonl'
+    try:
+        with open(path, encoding='utf-8') as f:
+            for line in f:
+                ts = json.loads(line).get('timestamp')
+                if ts:
+                    return git(root, 'log', '-1', f'--before={ts}', '--format=%H').strip()
+    except (OSError, ValueError):
+        return ''
+    return ''
+
+
+def delta(root, base, scope=''):
+    """+/- authored .md lines between base and HEAD, and which directories moved.
+
+    Scoped through the SAME `in_scope` the corpus counter uses. It was unscoped until 2026-09-12,
+    so `--scope repo --since` counted 199 repo files and then credited that repo with
+    every line a content tree had moved — two answers to "what is this repo" in one file, which
+    is the drift every other law module here is built to prevent.
+    """
+    added = removed = 0
+    by_dir = defaultdict(int)
+    raw = git(root, 'diff', '--numstat', f'{base}..HEAD', '--', '*.md')
+    for line in raw.splitlines():
+        parts = line.split('\t')
+        if len(parts) != 3 or '-' in (parts[0], parts[1]):
+            continue
+        a, d, rel = int(parts[0]), int(parts[1]), parts[2]
+        p = root / rel
+        if file_law.is_vendored(p, root) or file_law.is_generated_artifact(p, root):
+            continue
+        if not in_scope(rel, scope):
+            continue
+        added += a
+        removed += d
+        top = rel.rsplit('/', 1)[0] if '/' in rel else '.'
+        top = '/'.join(top.split('/')[:2])
+        by_dir[top] += a - d
+    movers = sorted(by_dir.items(), key=lambda kv: abs(kv[1]), reverse=True)
+    return added, removed, [m for m in movers[:2] if m[1]]
+
+
+def weighted(root, scope=''):
+    """The corpus priced in ATTENTION rather than in disk: lines served per session.
+
+    The disk number can be "paid" by deleting a file no session ever opens, which is exactly the
+    cut this workspace nearly made to core/experiments/ — 1,403 lines, 0 reads in 88 sessions, and
+    the WOS paper's data (Lucas, 2026-09-15). This number cannot be paid that way: a line that
+    nobody is served costs nothing here, so only cutting what IS read moves it.
+
+    Weights come from core/tools/wos/session/session_reads.py; the arithmetic lives there, once.
+
+    IMPORTED HERE, not at the top. The corpus count is this tool's job and runs in any git repo —
+    including the throwaway ones the suite builds — while the transcript readers need a harness
+    project to exist. Loading them eagerly made every `size` run in a tmp repo print nothing at all.
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parent / 'session'))
+    from session_reads import PROJECT, file_reads, weights
+    files, sessions = file_reads(PROJECT)
+    weighed = weights(files, len(sessions), root)
+    rows = [(rel, weighed[rel]['weight']) for rel in authored_md(root, scope) if rel in weighed]
+    return sorted(rows, key=lambda r: -r[1]), len(sessions)
+
+
+def main():
+    tool_law.require('size')  # before argparse: off means off, including --help
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--session', help='session id; adds this session\'s +/- delta')
+    ap.add_argument('--since', help='base commit for the delta, instead of --session')
+    ap.add_argument('--root', default='.', help='repo to measure (default: cwd)')
+    ap.add_argument('--scope', choices=sorted(SCOPES),
+                    help='restrict to one part of the tree (repo: root + core/ + brain/)')
+    ap.add_argument('--weighted', action='store_true',
+                    help='price the corpus in lines served per session instead of lines on disk')
+    ap.add_argument('--top', type=int, default=12, help='rows to list under --weighted')
+    args = ap.parse_args()
+
+    root = Path(git(Path(args.root).resolve(), 'rev-parse', '--show-toplevel').strip() or '')
+    if not root.is_dir():
+        print('not a git repo', file=sys.stderr)
+        return 64
+
+    scope = args.scope or ''
+    files, lines = corpus(root, scope)
+    parts = [f'{files:,} .md files', f'{lines:,} lines']
+    if scope:
+        parts.insert(0, scope)
+
+    base = args.since or (base_commit(root, args.session) if args.session else '')
+    if base:
+        added, removed, movers = delta(root, base, scope)
+        net = added - removed
+        parts.append(f'session +{added}/-{removed} = {net:+d}')
+        if movers:
+            parts.append(', '.join(f'{d} {n:+d}' for d, n in movers))
+
+    print('size: ' + ' · '.join(parts))
+
+    if args.weighted:
+        rows, population = weighted(root, scope)
+        total = sum(w for _, w in rows)
+        print(f'weight: {total:,.0f} lines served per session over {population} sessions · '
+              f'{len(rows)} of {files} files were ever opened')
+        for rel, w in rows[:args.top]:
+            print(f'  {w:>7.1f}  {rel}')
+        print('  a file missing from this list weighs 0 — no session opened it, which is a fact '
+              'about reading and not a licence to delete')
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

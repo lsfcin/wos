@@ -1,0 +1,39 @@
+# Neutral permission levels: what an agent may do without asking.
+# Tab-separated columns:
+#   kind   level | rule
+#   level   guarded | standard | open
+#   key    summary | tradeoff | mode (for kind=level); allow | ask | deny (for kind=rule)
+#   value  prose (for kind=level); neutral action name (for kind=rule)
+#
+kind	level	key	value
+level	guarded	summary	Asks before editing files, running mutating commands, or pushing code.
+level	guarded	tradeoff	Highest safety; frequent prompts slow down autonomous operation.
+level	guarded	mode	default
+rule	guarded	allow	read-workspace
+rule	guarded	allow	run-readonly
+rule	guarded	ask	edit-workspace
+rule	guarded	ask	run-any
+rule	guarded	ask	delete
+rule	guarded	ask	push
+rule	guarded	deny	secrets
+
+level	standard	summary	Allows reading and editing workspace files freely, asks before executing arbitrary commands or pushing.
+level	standard	tradeoff	Balanced workflow; prompts for command execution and pushing code.
+level	standard	mode	acceptEdits
+rule	standard	allow	read-workspace
+rule	standard	allow	edit-workspace
+rule	standard	allow	run-readonly
+rule	standard	ask	run-any
+rule	standard	ask	delete
+rule	standard	ask	push
+rule	standard	deny	secrets
+
+level	open	summary	Autonomous execution for reading, editing, running commands, and managing repository state.
+level	open	tradeoff	Lowest friction; requires full trust in the agent.
+level	open	mode	bypassPermissions
+rule	open	allow	read-workspace
+rule	open	allow	edit-workspace
+rule	open	allow	run-readonly
+rule	open	allow	run-any
+rule	open	allow	delete
+rule	open	allow	push

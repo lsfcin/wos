@@ -1,0 +1,149 @@
+# Usage: Core/tools/mail/gmail <command> [options] — read-only Gmail integration for workspace OS
+# Commands: auth <alias> [--reauth], fetch [--since N] [--account A], triage, sync, attachments [--id ID]
+import sys, json, pathlib, argparse
+
+_HERE = pathlib.Path(__file__).resolve().parent
+# Boundaries sit beside the CLI. Two shared modules hang off the tools root: auth/gauth.py
+# (every provider tool) and attachments_util.py (shared with video/).
+sys.path.insert(0, str(_HERE))
+sys.path.insert(0, str(_HERE.parent))
+sys.path.insert(0, str(_HERE.parent / 'auth'))
+import gmail_fetch, gmail_triage, gmail_attachments, gauth
+import tool_law
+
+CONFIG_DIR = pathlib.Path.home() / ".config" / "workspace-gmail"
+CACHE_FILE = CONFIG_DIR / "fetch_cache.json"
+
+
+def _load_accounts() -> list:
+    f = CONFIG_DIR / "accounts.json"
+    return json.loads(f.read_text(encoding='utf-8')).get("accounts", []) if f.exists() else []
+
+
+def _resolve(alias: str) -> str:
+    """Resolve any alias to primary (first) alias. Falls back to input if unknown."""
+    for acct in _load_accounts():
+        if alias in acct.get("aliases", []):
+            return acct["aliases"][0]
+    return alias
+
+
+def _accounts() -> list:
+    """Return list of primary aliases (one per account)."""
+    return [a["aliases"][0] for a in _load_accounts() if a.get("aliases")]
+
+
+def _cache_write(emails: list) -> None:
+    CACHE_FILE.write_text(json.dumps(emails, ensure_ascii=False, indent=2), encoding='utf-8', newline='\n')
+
+
+def _cache_read() -> list:
+    return json.loads(CACHE_FILE.read_text(encoding='utf-8')) if CACHE_FILE.exists() else []
+
+
+def cmd_auth(alias: str, reauth: bool) -> None:
+    if not (CONFIG_DIR / "credentials.json").exists():
+        print(f"ERROR: Download credentials.json from Google Cloud Console → {CONFIG_DIR}/")
+        sys.exit(1)
+    primary = _resolve(alias)
+    token = CONFIG_DIR / f"{primary}.token.json"
+    if reauth and token.exists():
+        # drop the stale token so a revoked/expired one can't dead-end on refresh
+        token.unlink()
+        print(f"Removed stale token: {token}")
+    print(f"Opening browser for OAuth ({primary})...")
+    gmail_fetch.auth(primary)
+    print(f"Done. Token saved: {token}")
+
+
+def cmd_fetch(account: str, since_days: int) -> list:
+    aliases = _accounts() if account == "all" else [_resolve(account)]
+    if not aliases:
+        print("No accounts configured. Run: gmail auth <alias>")
+        sys.exit(1)
+    print(f"Fetching last {since_days}d from: {', '.join(aliases)}")
+    emails = gmail_fetch.fetch_all(aliases, since_days)
+    _cache_write(emails)
+    print(f"Total: {len(emails)} emails cached.")
+    return emails
+
+
+def cmd_triage(emails: list | None = None) -> list:
+    if emails is None:
+        emails = _cache_read()
+    if not emails:
+        print("No cached emails. Run: gmail fetch first.")
+        sys.exit(1)
+    print(f"Classifying {len(emails)} emails via Claude...")
+    classified = gmail_triage.classify(emails)
+    _cache_write(classified)
+
+    groups = {"task:today": [], "task:week": [], "task:month": [], "task:backlog": [], "delete": []}
+    for e in classified:
+        groups.setdefault(e.get("route", "task:backlog"), []).append(e)
+
+    for route, group in groups.items():
+        if not group:
+            continue
+        print(f"\n── {route.upper()} ({len(group)}) ──")
+        for e in group:
+            flag = "📎 " if e.get("attachments") else ""
+            reply = "↩ " if e.get("needs_reply") else ""
+            print(f"  {flag}{reply}[{e['alias']}] {e['subject'][:55]}")
+            print(f"    {e.get('summary_pt', e.get('snippet', ''))[:80]}")
+
+    return classified
+
+
+def cmd_sync(account: str, since_days: int) -> list:
+    return cmd_triage(cmd_fetch(_resolve(account), since_days))
+
+
+def cmd_attachments(email_id: str | None) -> None:
+    emails = _cache_read()
+    targets = [e for e in emails if e.get("attachments") and (not email_id or e["id"] == email_id)]
+    if not targets:
+        print("No emails with attachments in cache.")
+        return
+    for e in targets:
+        service = gmail_fetch.get_service(e["alias"])
+        for att in e["attachments"]:
+            path = gmail_attachments.download(service, e["alias"], e["id"], att, e)
+            if path:
+                print(f"  Saved:   {path}")
+                print(f"  Summary: {path.parent / (path.stem + '.summary.md')}")
+
+
+def main():
+    tool_law.require('mail')  # before argparse: off means off, including --help
+    p = argparse.ArgumentParser(prog="gmail")
+    sub = p.add_subparsers(dest="cmd")
+
+    pa = sub.add_parser("auth")
+    pa.add_argument("alias")
+    pa.add_argument("--reauth", action="store_true", help="drop the existing token and re-consent (fixes revoked/expired)")
+
+    pf = sub.add_parser("fetch")
+    pf.add_argument("--since", type=int, default=7, metavar="N")
+    pf.add_argument("--account", default="all")
+
+    sub.add_parser("triage")
+
+    ps = sub.add_parser("sync")
+    ps.add_argument("--since", type=int, default=7, metavar="N")
+    ps.add_argument("--account", default="all")
+
+    patt = sub.add_parser("attachments")
+    patt.add_argument("--id", dest="email_id", default=None)
+
+    args = p.parse_args()
+    if   args.cmd == "auth":        cmd_auth(args.alias, args.reauth)
+    elif args.cmd == "fetch":       cmd_fetch(args.account, args.since)
+    elif args.cmd == "triage":      cmd_triage()
+    elif args.cmd == "sync":        cmd_sync(args.account, args.since)
+    elif args.cmd == "attachments": cmd_attachments(args.email_id)
+    else:                           p.print_help()
+
+
+if __name__ == "__main__":
+    gauth.run(main)

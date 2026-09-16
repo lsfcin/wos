@@ -1,0 +1,133 @@
+# Usage: core/tools/wos/deps [--check] [--feature <name>] — check every dependency declared in core/tools/deps.txt, reporting what each miss breaks; --check exits 1 on any miss
+from __future__ import annotations
+
+import argparse
+import subprocess
+import sys
+from pathlib import Path
+from shutil import which
+
+ROOT = Path(__file__).resolve().parents[3]
+DECLARED = ROOT / 'core' / 'tools' / 'deps.txt'
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(ROOT / 'core' / 'hooks'))
+import platform_law  # noqa: E402
+import tool_law  # noqa: E402
+
+# `apt` names one machine's package manager and `system` asks which one is here. Both are kept: the
+# rows still spelled `apt` were declared before this tool could tell the difference, and rewriting
+# them blind would claim a portability nobody checked. A row moves to `system` when someone verifies
+# the same name resolves on all three managers, which is exactly what `gh` needed.
+#
+# The three remaining `apt` rows were checked on 2026-09-01 and stay: `winget show --moniker` finds
+# no poppler-utils, no tesseract-ocr and no ddgr. Recorded so the next reader does not re-check them
+# to reach the same answer — what _install_line does about it is below.
+INSTALL = {
+    'pip': '{pip} install {name}',
+    'apt': 'sudo apt-get install -y {name}',
+    'system': None,   # resolved per machine by platform_law — see _install_line
+    'npm': 'npm install -g {name}',
+    'npx': 'npx --yes {name}   # no install needed, but the first run must reach the registry',
+    'binary': 'see SETUP.md — {name} has its own installer',
+    'service': None,  # nothing to install — see _install_line
+}
+
+
+def _install_line(row: dict) -> str:
+    """What to run to install this dependency, on THIS machine.
+
+    A printed install line that cannot run is worse than none: it reads as an answer, gets pasted,
+    and fails somewhere the reader does not connect back to here. That was true of the `apt` rows on
+    a machine with no apt: `sudo apt-get install -y poppler-utils` printed on a Windows clone, three
+    rows at a time, and the reader is left to work out that the tool meant a different computer.
+
+    So the miss is named instead. NOT by rewriting the row — deps.txt forbids claiming a portability
+    nobody checked, and the three were checked on 2026-09-01 and are genuinely absent from winget — and
+    NOT by asking which OS this is, which would put a platform fork outside the boundary. `apt-get` is
+    asked of the filesystem, the way find_tsc() asks for tsc: shutil already knows the difference.
+    """
+    if row['kind'] == 'service':
+        # Nothing to install, so the line says what CAN be done instead. A remote API is missing by
+        # someone else's decision — rate limit, outage, a moved endpoint — and the reader's real
+        # question is whether to wait or to route around it, which is why the fallback is named.
+        return (f"nothing to install — {row['name']} is a remote service and is refusing or timing "
+                f"out. Re-run to tell a rate limit from an outage; if it stays down, reach the "
+                f"sources through `core/run tools/web/search` with venue-host targeting instead")
+    if row['kind'] == 'system':
+        return ' '.join(platform_law.package_install(row['name']))
+    if row['kind'] == 'apt' and not which('apt-get'):
+        return (f"no installer here — {row['name']} is declared apt-only and this machine has no "
+                f"apt-get. Install it by hand, or verify the name on this machine's package "
+                f"manager and move the row to `system` in core/tools/deps.txt")
+    return INSTALL[row['kind']].format(name=row['name'], pip=platform_law.venv_script('pip'))
+
+
+def rows() -> list[dict]:
+    """Parse deps.txt: '#' comments dropped, first surviving line is the header."""
+    lines = [ln.rstrip('\n') for ln in DECLARED.read_text(encoding='utf-8').splitlines()
+             if ln.strip() and not ln.startswith('#')]
+    header = lines[0].split('\t')
+    return [dict(zip(header, ln.split('\t'))) for ln in lines[1:]]
+
+
+def check(spec: str) -> bool:
+    """Present = the check exits 0. Never trust config; run the thing.
+
+    `spec` is `<verb>:<arg>` (core/tools/deps.txt § check). The two venv-shaped verbs ask
+    platform_law where this clone keeps things, which is the whole point: the column used to spell
+    the POSIX venv bin directory per row, so on a Windows clone the check could not run and every dep
+    reported MISSING -- a wrong answer that reads exactly like a real one.
+    """
+    verb, _, arg = spec.partition(':')
+    if verb == 'import':
+        cmd = [platform_law.interpreter(), '-c', f'import {arg}']
+    elif verb == 'venv-script':
+        script = platform_law.venv_script(arg)
+        if not script.exists():
+            return False
+        cmd = [str(script), '--version']
+    elif verb == 'cmd':
+        cmd = arg
+    else:
+        raise SystemExit(f'core/tools/deps.txt: unknown check verb {verb!r} in {spec!r}')
+    try:
+        r = subprocess.run(cmd, shell=isinstance(cmd, str), cwd=ROOT,
+                           capture_output=True, timeout=60)
+        return r.returncode == 0
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+
+
+def main() -> int:
+    tool_law.require('declared-deps')  # before argparse: off means off, including --help
+    ap = argparse.ArgumentParser(add_help=True)
+    ap.add_argument('--check', action='store_true', help='exit 1 if anything is missing')
+    ap.add_argument('--feature', help='check only the deps owned by one feature name')
+    args = ap.parse_args()
+
+    wanted = [r for r in rows() if not args.feature or r['feature'] == args.feature]
+    if not wanted:
+        print(f'no declared dependency for feature {args.feature!r}', file=sys.stderr)
+        return 1
+
+    missing = []
+    for r in wanted:
+        ok = check(r['check'])
+        print(f"{'ok     ' if ok else 'MISSING'}  {r['name']:26s} {r['feature']}")
+        if not ok:
+            missing.append(r)
+
+    if missing:
+        print(f'\n{len(missing)} missing — install, then re-run this command:\n')
+        for r in missing:
+            print(f"  # {r['name']}: {r['breaks']}")
+            print(f"  {_install_line(r)}\n")
+    else:
+        print(f'\nall {len(wanted)} declared dependencies present.')
+
+    return 1 if (missing and args.check) else 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

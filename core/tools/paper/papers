@@ -1,0 +1,114 @@
+# Usage: core/tools/paper/papers <query> [--n N] [--cat CATEGORY] [--id ARXIV_ID] [--ss] [--min-cit N] [--reviewed] — search academic papers via arXiv (default) or Semantic Scholar (--ss, reports venue + peer_reviewed); returns JSON
+import argparse, json, pathlib, sys, urllib.request, urllib.parse, xml.etree.ElementTree as ET
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import tool_law  # noqa: E402
+
+_NS = {'a': 'http://www.w3.org/2005/Atom'}
+
+def _arxiv_search(query, n, cat):
+    q = f'({query}) AND cat:{cat}' if cat else query
+    url = 'https://export.arxiv.org/api/query?' + urllib.parse.urlencode(
+        {'search_query': q, 'max_results': n, 'sortBy': 'relevance'}
+    )
+    with urllib.request.urlopen(url, timeout=30) as r:
+        root = ET.parse(r).getroot()
+    out = []
+    for e in root.findall('a:entry', _NS):
+        aid = e.find('a:id', _NS).text.split('/')[-1]
+        out.append({
+            'arxiv_id': aid,
+            'title': e.find('a:title', _NS).text.strip().replace('\n', ' '),
+            'authors': [a.find('a:name', _NS).text for a in e.findall('a:author', _NS)],
+            'published': e.find('a:published', _NS).text[:10],
+            'abstract': e.find('a:summary', _NS).text.strip().replace('\n', ' ')[:500],
+            'url': f'https://arxiv.org/abs/{aid}',
+            'pdf': f'https://arxiv.org/pdf/{aid}',
+        })
+    return {'source': 'arxiv', 'results': out}
+
+def _arxiv_id(aid):
+    url = f'https://export.arxiv.org/api/query?id_list={aid}'
+    with urllib.request.urlopen(url, timeout=30) as r:
+        root = ET.parse(r).getroot()
+    entries = root.findall('a:entry', _NS)
+    if not entries:
+        return {'error': f'arxiv id not found: {aid}'}
+    e = entries[0]
+    return {
+        'arxiv_id': aid,
+        'title': e.find('a:title', _NS).text.strip(),
+        'authors': [a.find('a:name', _NS).text for a in e.findall('a:author', _NS)],
+        'published': e.find('a:published', _NS).text[:10],
+        'abstract': e.find('a:summary', _NS).text.strip(),
+        'url': f'https://arxiv.org/abs/{aid}',
+        'pdf': f'https://arxiv.org/pdf/{aid}',
+    }
+
+_SS_FIELDS = 'title,authors,year,citationCount,externalIds,abstract,url,venue,publicationVenue,publicationTypes'
+_PREPRINT_VENUES = {'', 'arxiv', 'arxiv.org', 'ssrn', 'biorxiv', 'medrxiv', 'openreview'}
+
+def _venue_of(p):
+    """Venue string + peer-review status. Empty/preprint server venue => not peer reviewed."""
+    venue = p.get('venue') or ''
+    if not venue:
+        pv = p.get('publicationVenue') or {}
+        venue = pv.get('name') or ''
+    reviewed = venue.strip().lower() not in _PREPRINT_VENUES
+    return venue, reviewed
+
+def _ss_search(query, n, min_cit, reviewed_only):
+    url = 'https://api.semanticscholar.org/graph/v1/paper/search?' + urllib.parse.urlencode(
+        {'query': query, 'fields': _SS_FIELDS, 'limit': n}
+    )
+    req = urllib.request.Request(url, headers={'User-Agent': 'research-agent'})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        data = json.loads(r.read())
+    out = []
+    for p in data.get('data', []):
+        ext = p.get('externalIds') or {}
+        aid = ext.get('ArXiv')
+        venue, reviewed = _venue_of(p)
+        cites = p.get('citationCount', 0)
+        if cites < min_cit:
+            continue
+        if reviewed_only and not reviewed:
+            continue
+        out.append({
+            'title': p.get('title', ''),
+            'authors': [a['name'] for a in p.get('authors', [])],
+            'year': p.get('year'),
+            'venue': venue,
+            'peer_reviewed': reviewed,
+            'doi': ext.get('DOI'),
+            'citations': cites,
+            'abstract': (p.get('abstract') or '')[:500],
+            'arxiv_id': aid,
+            'url': p.get('url') or (f'https://arxiv.org/abs/{aid}' if aid else None),
+        })
+    return {'source': 'semantic_scholar', 'results': out}
+
+def main():
+    tool_law.require('latex')  # before argparse: off means off
+    p = argparse.ArgumentParser()
+    p.add_argument('query', nargs='?', default='')
+    p.add_argument('--n', type=int, default=10)
+    p.add_argument('--cat', help='arXiv category, e.g. cs.CV, gr-qc, cs.LG')
+    p.add_argument('--id', metavar='ARXIV_ID', help='fetch a specific arXiv paper by ID')
+    p.add_argument('--ss', action='store_true', help='use Semantic Scholar instead of arXiv')
+    p.add_argument('--min-cit', type=int, default=0, help='--ss only: drop papers below N citations')
+    p.add_argument('--reviewed', action='store_true', help='--ss only: keep only papers with a real venue (drop preprints)')
+    args = p.parse_args()
+    try:
+        if args.id:
+            print(json.dumps(_arxiv_id(args.id), indent=2))
+        elif args.ss:
+            print(json.dumps(_ss_search(args.query, args.n, args.min_cit, args.reviewed), indent=2))
+        else:
+            print(json.dumps(_arxiv_search(args.query, args.n, args.cat), indent=2))
+    except Exception as e:
+        print(json.dumps({'error': str(e)}), file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == '__main__':
+    main()

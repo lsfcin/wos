@@ -1,0 +1,175 @@
+# Usage: core/tools/wos/permissions [--set <level>] [--check] — print the permission levels declared in core/permissions.txt with the one this machine answered in core/profile.txt; --set switches level and re-renders every harness config; --check exits 1 when a rendered config no longer matches the answer
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / 'core' / 'hooks'))
+
+sys.path.insert(0, str(ROOT / 'core' / 'tools'))
+import feature_law as law  # noqa: E402  — path is set above, which is the house pattern
+import platform_law  # noqa: E402
+import tool_law  # noqa: E402
+
+REGISTRY = ROOT / 'core' / 'permissions.txt'
+PROFILE = ROOT / 'core' / 'profile.txt'
+DEFAULT_LEVEL = 'guarded'
+
+# The Claude Code adapter: one neutral action -> the patterns that harness understands. This table
+# is the ONLY place a harness's syntax appears; core/permissions.txt stays readable by whoever has
+# to choose a level. A second harness is a second table, never a second policy.
+#
+# `secrets` renders under `ask`/`deny` only. There is no pattern that means "you may read a
+# credential" — the permission IS the absence of the deny, so an `allow secrets` row emits nothing
+# and says so by rendering empty rather than by being a special case somewhere else.
+CLAUDE = {
+    'read-workspace': ['Read(./**)', 'Glob(./**)', 'Grep(./**)'],
+    'edit-workspace': ['Edit(./**)', 'Write(./**)'],
+    'run-readonly': ['Bash(git status:*)', 'Bash(git log:*)', 'Bash(git diff:*)',
+                     'Bash(git show:*)', 'Bash(git branch:*)', 'Bash(ls:*)',
+                     # BOTH spellings on purpose: the rendered config is versioned and serves two
+                     # machines, so this row cannot ask which one is running. It asks the boundary for
+                     # the two names instead of spelling them — same data, one home.
+                     f'Bash({platform_law.POSIX_VENV_BIN}/pytest:*)',
+                     f'Bash({platform_law.WINDOWS_VENV_BIN}/pytest.exe:*)'],
+    'run-any': ['Bash'],
+    'delete': ['Bash(rm:*)', 'Bash(git clean:*)'],
+    'push': ['Bash(git push:*)'],
+    'secrets': ['Read(./.credentials.json)', 'Read(./**/.env)', 'Read(~/.claude/.credentials.json)',
+                'Read(~/.config/workspace-*/**)'],
+}
+SECRET_ONLY_EFFECTS = ('ask', 'deny')
+
+
+def _rows() -> list:
+    """The registry, as dicts. Blank lines and comments are the file's own structure, not data."""
+    out = []
+    for line in REGISTRY.read_text(encoding='utf-8').splitlines():
+        if not line.strip() or line.startswith('#'):
+            continue
+        parts = line.split('\t')
+        if len(parts) != 4 or parts[0] == 'kind':
+            continue
+        out.append(dict(zip(('kind', 'level', 'key', 'value'), parts)))
+    return out
+
+
+def levels() -> dict:
+    """{level: {'summary': ..., 'tradeoff': ..., 'mode': ..., 'rules': [(effect, action)]}}."""
+    out: dict = {}
+    for row in _rows():
+        seat = out.setdefault(row['level'], {'summary': '', 'tradeoff': '', 'mode': 'default',
+                                            'rules': []})
+        if row['kind'] == 'level':
+            seat[row['key']] = row['value']
+        elif row['kind'] == 'rule':
+            seat['rules'].append((row['key'], row['value']))
+    return out
+
+
+def render_claude(level: str) -> dict:
+    """The `permissions` block Claude Code reads, for one level."""
+    spec = levels()[level]
+    block: dict = {'defaultMode': spec['mode'], 'allow': [], 'ask': [], 'deny': []}
+    for effect, action in spec['rules']:
+        if action == 'secrets' and effect not in SECRET_ONLY_EFFECTS:
+            continue
+        block[effect].extend(CLAUDE.get(action, []))
+    for effect in ('allow', 'ask', 'deny'):
+        block[effect] = sorted(dict.fromkeys(block[effect]))
+    return block
+
+
+def _target() -> Path:
+    """.claude/settings.local.json — machine state, git-ignored, and that is the whole design.
+
+    The POLICY is versioned in core/permissions.txt so a reviewer can read what this workspace
+    permits; the RENDERED config is not, because it is an answer about one machine and because a
+    versioned `bypassPermissions` would arrive switched on for whoever cloned next.
+    """
+    return ROOT / '.claude' / 'settings.local.json'
+
+
+def _load(path: Path) -> dict:
+    try:
+        return json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}
+
+
+def write_shims(level: str) -> list:
+    """Render every harness config. Only `permissions` is replaced — anything else the file carries
+    is somebody's deliberate local setting and is none of this tool's business."""
+    path = _target()
+    data = _load(path)
+    data['permissions'] = render_claude(level)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2) + '\n', encoding='utf-8', newline='\n')
+    return [path]
+
+
+def _set(level: str) -> int:
+    if level not in levels():
+        print(f'no such level: {level!r} — declared levels are {", ".join(sorted(levels()))}',
+              file=sys.stderr)
+        return 1
+    lines = PROFILE.read_text(encoding='utf-8').splitlines(keepends=True)
+    for i, line in enumerate(lines):
+        parts = line.rstrip('\n').split('\t')
+        if len(parts) == 3 and parts[0] == 'setting' and parts[1] == 'permissions':
+            lines[i] = f'setting\tpermissions\t{level}\n'
+            break
+    else:
+        print('core/profile.txt has no `setting permissions` line to answer', file=sys.stderr)
+        return 1
+    PROFILE.write_text(''.join(lines), encoding='utf-8', newline='\n')
+    for path in write_shims(level):
+        print(f'{level} -> {path.relative_to(ROOT).as_posix()}')
+    return 0
+
+
+def _check() -> int:
+    level = law.setting('permissions', DEFAULT_LEVEL)
+    live = _load(_target()).get('permissions')
+    if live == render_claude(level):
+        print(f'permissions: {level} — rendered config matches')
+        return 0
+    print(f'permissions: {level} declared, but .claude/settings.local.json does not match it. '
+          f'Re-render with `core/tools/wos/permissions --set {level}`', file=sys.stderr)
+    return 1
+
+
+def _listing() -> int:
+    """What the installer reads out. The sentences are the registry's, never this tool's — a second
+    copy of an explanation is the drift every law file in this workspace exists to catch."""
+    active = law.setting('permissions', DEFAULT_LEVEL)
+    for level, spec in levels().items():
+        mark = '->' if level == active else '  '
+        print(f'\n{mark} {level}')
+        print(f'     {spec["summary"]}')
+        print(f'     {spec["tradeoff"]}')
+    print(f'\nThis machine answered: {active}. Change it with --set <level>.')
+    return 0
+
+
+def main() -> int:
+    # Through the shared guard, not a hand-rolled one. This refused with exit 1, which is what
+    # every real error here also exits with — so an ablation arm could not tell "switched off"
+    # from "ran and failed", the one distinction OFF_EXIT exists to carry (core/SPECS.md § AD-14).
+    tool_law.require('permissions')
+    ap = argparse.ArgumentParser(add_help=True)
+    ap.add_argument('--set', dest='level')
+    ap.add_argument('--check', action='store_true')
+    args = ap.parse_args()
+    if args.level:
+        return _set(args.level)
+    if args.check:
+        return _check()
+    return _listing()
+
+
+if __name__ == '__main__':
+    sys.exit(main())

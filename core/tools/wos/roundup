@@ -1,0 +1,211 @@
+# Usage: core/tools/wos/roundup [--no-promote <reason>] [--leave-dirty] — the deterministic half of
+# the /roundup ritual. Verification gate, entropy regen, branch promotion. Prints the state facts
+# /handoff copies and anything that needs a decision; nothing else.
+#
+# WHICH lines print is this file's business alone. The skills copy them and never name them: a
+# label list in prose is a second copy that rots without failing anything, which is how both
+# skills promised three lines while this printed six (fixed 2026-08-25).
+#
+# Same name as core/skills/roundup.md on purpose: one ritual, two layers. Judgment — what to delete,
+# where knowledge goes, what the INBOX means — stays in the skill; everything with one right answer
+# lives here, where it costs one tool call instead of prose reasoned about at the most expensive
+# turns a session ever has (core/SPECS.md § AD-09). Lucas types /roundup; the skill calls this.
+#
+# PORTED FROM BASH 2026-08-29, and ISSUES.md B9 is why: the gate shelled `make`, which this machine
+# does not have, so the close exited before writing either generated block — and § Verification went
+# on asserting `green (572 passed)` while the suite measured 516/78. A close that cannot run is a
+# list that cannot be corrected, which is why that block was never the thing to edit by hand.
+import sys
+from pathlib import Path
+
+# SET BEFORE THE FIRST IMPORT BELOW, and not a micro-optimisation: this script's own imports write
+# __pycache__ directories INTO the repo it is about to inspect for uncommitted work. In a workspace
+# whose .gitignore covers them that is invisible; in one whose does not, the close stops on dirt it
+# created itself and blames the operator for it. A tool that judges a tree may not change it first.
+sys.dont_write_bytecode = True
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+for _dir in (SCRIPT_DIR / 'close', SCRIPT_DIR.parents[1] / 'hooks',
+             SCRIPT_DIR.parents[1] / 'hooks/entropy', SCRIPT_DIR.parents[1] / 'tools/verify'):
+    sys.path.insert(0, str(_dir))
+import artifacts  # noqa: E402
+import branches  # noqa: E402
+import contract  # noqa: E402
+from artifacts import git, out, spawn  # noqa: E402
+from platform_law import interpreter, posix, session_state  # noqa: E402
+from projects import sweep  # noqa: E402
+from repomap import redraw  # noqa: E402
+
+WORKSPACE = SCRIPT_DIR.parents[2]
+
+# The close's state block: WHICH lines exist and in WHAT ORDER, in the one place that knows. The
+# skills copy these lines and never name them — a label list in prose is a second copy that rots
+# without failing anything, which is how both skills promised three while this printed six.
+# Ruled 2026-08-25: cost and size lead, because they are the two facts Lucas reads the block for and
+# the rest is state the next session needs. Both print bare — they are sentences, not labelled state.
+# `trace` sits with them from 2026-09-15, ruled by Lucas: the close prints every spawn, the clock
+# split and the loudest tools, always. It is bare for the same reason the other two are — it writes
+# its own labelled lines, and a label around a labelled block would read twice.
+STATE = ('cost', 'size', 'trace', 'verify', 'sync', 'projects', 'map', 'entropy', 'diagram',
+         'compaction', 'permissions')
+BARE = ('cost', 'size', 'trace')
+
+
+def verify(root: Path) -> tuple:
+    """(verdict, label, log). `no contract` is its own answer — never a pass, never a failure."""
+    declared = contract.discover(root, 'full')
+    if not declared:
+        return 'no contract', 'no contract', ''
+    code, log = contract.run(root, declared)
+    if code != 0:   # None means the runner is absent; either way nothing green was produced
+        return 'red', declared[0], log
+    # EVERY PASS, NOT THE LAST ONE. verify.py runs the suite twice when xdist is present — the cases
+    # that dirty the real tree alone, then the rest in parallel — and `counts[-1]` reported whichever
+    # finished last as if it were the whole run. It recorded `green (1 passed, 695 deselected)` into
+    # the list on 2026-09-02: a measured number, in the file whose own head forbids a copied count.
+    counts = [line.strip() for line in log.splitlines() if ' passed' in line]
+    return (f'green ({" · ".join(counts)})' if counts else 'green'), declared[0], log
+
+
+def permissions(root: Path) -> str:
+    """Re-render the harness permission configs from the profile. Silent unless it acted.
+
+    A session that approves a new command leaves an extra allow-entry in the gitignored
+    `.claude/settings.local.json`, so the rendered file drifts from core/profile.txt — and the
+    SessionStart heal then warns about it in every later session, which reddened a mirror test on
+    output that was entirely correct. Per-session accretion into a rendered file wants a
+    re-render, and the close is when the session's approvals are finally all in.
+
+    Not the same as applying a level that ARRIVED — core/profile.txt is this clone's own answer,
+    tracked, and the level is read from it rather than chosen here (ruled 2026-09-11, Lucas).
+    """
+    if spawn(root, interpreter(), str(SCRIPT_DIR / 'permissions'), '--check').returncode == 0:
+        return ''
+    try:   # imported late: the close is copied into throwaway repos that carry no core/hooks
+        import feature_law  # noqa: PLC0415
+        level = feature_law.setting('permissions')
+    except ImportError:
+        return ''
+    if not level:
+        return 'declared level missing from core/profile.txt'
+    done = spawn(root, interpreter(), str(SCRIPT_DIR / 'permissions'), '--set', level)
+    return f'{level} re-rendered' if done.returncode == 0 else f'{level} re-render failed'
+
+
+def session_id(root: Path) -> str:
+    """The newest transcript under this repo's project name — the id both `usage --session` and the
+    compaction counter are keyed by. Best-effort: a close must never fail because a report did."""
+    folder = Path.home() / '.claude' / 'projects' / posix(root).replace(':', '').replace('/', '-')
+    logs = sorted(folder.glob('*.jsonl'), key=lambda p: p.stat().st_mtime) if folder.is_dir() else []
+    return logs[-1].stem if logs else ''
+
+
+def compaction(sid: str) -> str:
+    """Adoption, not savings: rtk gain measures the tokens saved, this measures whether the shim is
+    reaching the commands at all. A flat 0% here is what the multi-line bug looked like."""
+    tsv = session_state(f'claude_rtk_compact_{sid}.tsv')
+    if not (tsv.is_file() and tsv.stat().st_size):
+        return ''
+    rows = [r for r in tsv.read_text(encoding='utf-8', errors='replace').splitlines() if r]
+    rewrote = sum(1 for r in rows if 'rewrote' in r.split('\t')[0])
+    return f'{rewrote * 100 // len(rows)}% of {len(rows)} bash calls rewritten'
+
+
+def report(root: Path, sid: str) -> tuple:
+    """(cost, size, trace) — all best-effort, all spawned through interpreter() rather than by path.
+
+    Best-effort is the whole contract: a close must never fail because a report did. The two
+    transcript readers need a session id and return nothing without one, which is also what a close
+    run outside a harness gets.
+    """
+    size = spawn(root, interpreter(), str(SCRIPT_DIR / 'size'), *(['--session', sid] if sid else []))
+    cost = spawn(root, interpreter(), str(SCRIPT_DIR / 'session/usage'), '--session', sid) \
+        if sid else None
+    trace = spawn(root, interpreter(), str(SCRIPT_DIR / 'session/trace'), '--session', sid) \
+        if sid else None
+    return ((cost.stdout.strip() if cost and cost.returncode == 0 else ''),
+            (size.stdout.strip() if size.returncode == 0 else ''),
+            (trace.stdout.strip() if trace and trace.returncode == 0 else ''))
+
+
+def main(argv: list) -> int:
+    no_promote, leave_dirty, rest = '', False, argv[1:]
+    while rest:
+        if rest[0] == '--no-promote' and len(rest) > 1:
+            no_promote, rest = rest[1], rest[2:]
+        elif rest[0] == '--leave-dirty':
+            leave_dirty, rest = True, rest[1:]
+        else:
+            print(f'Usage: {argv[0]} [--no-promote <reason>] [--leave-dirty]', file=sys.stderr)
+            return 64
+    top = out(Path.cwd(), 'rev-parse', '--show-toplevel')
+    if not top:
+        print(f'not a git repo: {Path.cwd()}', file=sys.stderr)
+        return 64
+    root = Path(top)
+    branch = out(root, 'rev-parse', '--abbrev-ref', 'HEAD')
+
+    # Uncommitted work is the agent's call (a commit message is judgment), so stop. The one message
+    # here naming two actions, because the question is binary and the script cannot answer it: dirt
+    # may be this session's or a parallel session's. Asserting the first was the defect — it asked
+    # for a commit that would have swept another session's half-done work into main.
+    dirty = [l for l in out(root, 'status', '--porcelain').splitlines() if l]
+    if dirty and not leave_dirty:
+        print(f'{len(dirty)} uncommitted on {branch} — whose?')
+        print('\n'.join(out(root, 'status', '--short').splitlines()[:20]))
+        print("Yours: commit, then rerun.\nAnother session's: rerun with --leave-dirty.")
+        return 2
+
+    # BEFORE the suite runs, so it reads a cured tree: two cases assert what the SessionStart heal
+    # says, and a drifted permission config makes both of them red over nothing.
+    perms = permissions(root) if root == WORKSPACE else ''
+
+    # Measured BEFORE the verify block is written — artifacts.regenerate says why.
+    clean = git(root, 'diff', '--quiet', 'ISSUES.md').returncode == 0
+    verdict, label, log = verify(root)
+    # Both generated blocks land in ISSUES.md, so they settle once, in one commit. Workspace repo
+    # only: the dashboard scans the whole tree, nested repos included.
+    entropy = diagram = drawn = ''
+    # ASKED BEFORE THE BLOCK IS WRITTEN, because the block has to know it: the close used to publish
+    # a finding that its own branch was ahead of main, seconds before merging it. All four facts are
+    # in hand here (--leave-dirty too: promote() refuses under it). Why: branch_debt.
+    gitflow = branches.gitflow(WORKSPACE, root)
+    promoting = branch if (verdict != 'red' and not no_promote and gitflow
+                           and not leave_dirty) else ''
+    if root == WORKSPACE:
+        artifacts.verify_block(root / 'ISSUES.md', label, verdict, log)
+        entropy, diagram = artifacts.regenerate(root, leave_dirty, clean, promoting)
+        drawn = redraw(root, leave_dirty)   # before promotion, so the map rides into develop
+
+    git(root, 'fetch', '--quiet')
+    git(root, 'push', '-q', 'origin', branch)   # post-commit already does this for feature/*
+    code = 0
+    if verdict == 'red':
+        sync, code = f'not promoted — verify red. {branch} pushed only', 1
+    elif no_promote:
+        sync = f'not promoted — {no_promote}. {branch} pushed only'
+    elif not gitflow:
+        sync = f'{branch} pushed (repo outside gitflow scope — no merges)'
+    else:
+        refused = branches.promote(root, branch, leave_dirty)
+        sync, code = (refused, 1) if refused else (branches.promoted_line(root, branch), 0)
+
+    sid = session_id(root)
+    cost, size, trace = report(root, sid)
+    said = {'cost': cost, 'size': size, 'trace': trace,
+            'verify': verdict, 'sync': sync, 'entropy': entropy,
+            'projects': sweep(root) if root == WORKSPACE else '', 'map': drawn,
+            'diagram': diagram, 'compaction': compaction(sid) if sid else '',
+            'permissions': perms}
+    for label in STATE:
+        value = said[label]
+        if value:
+            print(value if label in BARE else f'{label}: {value}')
+    if verdict == 'red':
+        print('--- verify tail ---')
+        print('\n'.join(log.splitlines()[-20:]))
+    return code
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))

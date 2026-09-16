@@ -1,0 +1,115 @@
+# Usage: core/tools/wos/session/trace [--project <name>] [--session <id>] [--commands] — what a session did
+# rather than what it cost: every subagent it spawned and what that one spent, the clock split into
+# working and waiting, and which tools returned the most bytes. Reads the local transcripts; no
+# network, no model.
+#
+# ONE REPORT, NO --brief. The close prints this whole thing (Lucas, 2026-09-15), so a second shorter
+# rendering would be a second copy of the same decision — the defect `roundup`'s STATE comment names.
+#
+# The fourth instrument beside `usage`, `context` and `reads`, and it exists because three ROADMAP
+# items met on one `timestamp` read: the close could not say which models and agents a session
+# spent, a session's wall-clock had never been split, and what our own tools print had never been
+# measured. Ruled by Lucas 2026-09-15: the close carries all three, always.
+import re
+import sys
+from pathlib import Path
+
+# NAMED, NEVER INHERITED — core/tools/test/workspace/test_encoding_ratchet.py. This report prints
+# `·`, and a console codepage cannot encode it: the tool would die mid-report, after doing the work.
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from session_commands import commands
+from session_log import project_name
+from session_trace import IDLE_SECONDS, clock, loudest, main_cost, spawns
+
+TOP = 10
+SHAPES = 30
+
+
+def hours(seconds: float) -> str:
+	return f'{seconds / 3600:.2f}h'
+
+
+def short(model: str) -> str:
+	"""The model name without the vendor prefix or the dated build suffix. Both are noise in a
+	column: every row carries the same vendor, and the build date never varies within a level."""
+	return re.sub(r'-\d{8}$', '', model.replace('claude-', '')) or '?'
+
+
+def spawn_lines(rows: list, main_turns: int, main_spend: float) -> list:
+	"""The delegation block: the headline share first, then one line per worker.
+
+	The share is the number that says whether delegating pays, so it leads. A session that spawned
+	nothing says so in one line and stops — that is the common case and it must not print a header
+	over an empty table.
+	"""
+	spent = sum(row['cost'] for row in rows)
+	whole = main_spend + spent
+	if not rows:
+		return [f'spawns: none · {main_turns:,} turns on the main thread alone']
+	loose = sum(1 for row in rows if not row['claimed'])
+	share = f'{spent / whole:.1%}' if whole else 'unpriced'
+	head = f'spawns: {len(rows)} · ${spent:,.2f} = {share} of session'
+	lines = [head + (f' · {loose} continued by SendMessage, no spawn record' if loose else '')]
+	for row in sorted(rows, key=lambda r: -r['cost']):
+		models = '+'.join(short(m) for m in row['models']) or 'no transcript'
+		lines.append(f'  {row["type"]:<16} {models:<12} {row["turns"]:>3} turns '
+		             f'${row["cost"]:>7.3f}  {row["task"]}')
+	return lines
+
+
+def clock_line(split: dict) -> str:
+	"""Span, and the two halves of it. A gap is idle over the declared threshold, never measured."""
+	if not split['span']:
+		return 'clock: one event — no span to split'
+	waiting = split['waiting'] / split['span']
+	gaps = split['gaps']
+	return (f'clock: {hours(split["span"])} span · {hours(split["working"])} working · '
+	        f'{waiting:.0%} waiting in {gaps} gap{"" if gaps == 1 else "s"} over {IDLE_SECONDS:.0f}s')
+
+
+def loud_lines(ranked: list) -> list:
+	"""What came back, ranked. Our own tools appear under their own names, never inside `Bash`."""
+	if not ranked:
+		return ['loudest: no tool returned anything']
+	total = sum(chars for _n, chars, _c in ranked)
+	lines = [f'loudest tools by bytes returned — {total:,} chars over {len(ranked)} tools']
+	for name, chars, calls in ranked[:TOP]:
+		lines.append(f'  {name:<34} {chars:>9,}  {calls:>4} calls  {chars // calls:>7,} avg')
+	return lines
+
+
+def command_lines(rows: list, calls: int) -> list:
+	"""What we keep typing, ranked. Behind --commands and not in the close: this answers a design
+	question about which shapes deserve a command of their own, and asking it every session would
+	print thirty rows nobody acts on."""
+	if not rows:
+		return ['commands: no bash call in this population']
+	stages = sum(n for _s, n, _c in rows)
+	lines = [f'bash by shape — {calls:,} calls · {stages:,} stages · {len(rows)} distinct shapes',
+	         '  a shape with many stages and few bytes wants a command of its own; many stages AND '
+	         'many bytes wants better compression']
+	for name, n, chars in rows[:SHAPES]:
+		lines.append(f'  {name:<30} {n:>5} stages  {chars:>10,} chars  {chars // n:>7,} avg')
+	return lines
+
+
+def main() -> None:
+	args = sys.argv[1:]
+	project = args[args.index('--project') + 1] if '--project' in args else project_name()
+	session = args[args.index('--session') + 1] if '--session' in args else ''
+	rows = spawns(project, session)
+	main_turns, main_spend = main_cost(project, session)
+	if not main_turns and not rows:
+		sys.exit(f'{project}: no assistant turns with usage')
+	printed = (spawn_lines(rows, main_turns, main_spend)
+	           + [clock_line(clock(project, session))]
+	           + loud_lines(loudest(project, session)))
+	if '--commands' in args:
+		printed += command_lines(*commands(project, session))
+	print('\n'.join(printed))
+
+
+if __name__ == '__main__':
+	main()

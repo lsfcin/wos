@@ -1,0 +1,77 @@
+# Every external dependency the core/tools surface needs, declared: what installs it, what checks it, and what its absence breaks. Read by core/tools/wos/deps
+# (the check runner) and by core/tools/test/wos/test_deps.py (the class check).
+#
+# WHY THIS FILE EXISTS: four features were installed straight into .venv to unblock a tool and
+# never written down, so a fresh clone lost them SILENTLY — the tool did not crash, it returned a
+# worse answer or a misleading error. The `breaks` column is the cure: it says what the failure
+# LOOKS like, because the expensive case (secretstorage) reads like bad credentials.
+#
+# Tab-separated. Columns:
+#   name     the installable name, exactly as the install command spells it
+#   kind     pip | system | apt | npm | npx | binary | service — how it arrives, which fixes how it is
+#            installed. `system` asks platform_law.package_install which manager this machine has;
+#            `apt` names one. A row earns `system` only when its name is VERIFIED to resolve on the
+#            others — ffmpeg does (winget Gyan.FFmpeg, checked 2026-08-30), tesseract-ocr,
+#            poppler-utils and ddgr do not, so they stay `apt` rather than claim a portability
+#            nobody checked. `service` is the one kind NOTHING INSTALLS: a remote API this surface
+#            depends on, which is present or absent by someone else's decision. It was added
+#            2026-09-13 because every other row here asks whether a module IMPORTS, and a whole
+#            research run found core/tools/paper/papers dead on both arms while `deps` reported
+#            all declared dependencies present — the first measured instance of ROADMAP.md
+#            § Portability's *no check falsely greens*. A check that cannot fail is not a check.
+#   import   the python module it provides, or - for anything not imported by our code.
+#            THIS IS THE JOIN KEY: test_deps.py fails on any third-party import missing from here.
+#   check    HOW to ask whether the dep is here, as `<verb>:<arg>`. Three verbs, dispatched in
+#            core/tools/wos/deps:
+#              import:<module>      import it with this clone's interpreter (platform_law)
+#              venv-script:<name>   a console script installed INTO the venv (platform_law)
+#              cmd:<command>        a binary on PATH; run from the workspace root
+#            IT USED TO BE A RAW SHELL COMMAND, and 17 of 27 rows spelled the POSIX venv bin directory -- a
+#            directory that is `.venv/Scripts` on Windows. So on any clone but the authoring one
+#            every one of those checks failed to RUN and the tool reported the dependency MISSING:
+#            the same false answer the old `make verify-fast` gate gave. The registry's own rule is
+#            that a dependency has one name; a per-machine spelling per row broke it.
+#   feature  the feature name that owns it — same names SETUP.md declares per step
+#   floor    the OLDEST version that still works, or `-` when nobody has established one. A FLOOR
+#            AND NOT A CEILING, which is what ROADMAP.md asked for: the portability failure here is
+#            an apt or a distro shipping something too old, never a release from the future. A
+#            clone with an older build does not crash — it loses a capability quietly, which is the
+#            same silence the `breaks` column exists to end.
+#            `-` IS THE HONEST DEFAULT AND MOST ROWS KEEP IT. A number here is a CLAIM that the
+#            version below it was seen to fail, so stamping whatever this machine happens to run
+#            would manufacture 31 facts out of one laptop — the same error that split profile.txt
+#            into a versioned base and a per-machine local. Fill a row when a real break is found,
+#            and write where it was found; never on installation.
+#   breaks   what stops working without it, written in the words the FAILURE uses
+#
+name	kind	import	check	feature	floor	breaks
+pytest	pip	pytest	import:pytest	verify-suite	-	verify.py cannot run the suite at all, so the pre-commit gate has nothing to check
+pytest-xdist	pip	xdist	import:xdist	verify-suite	-	verify.py fast falls over on the -n auto it passes; without it the suite is serial and a commit costs 167 s instead of 45 s
+mypy	pip	-	venv-script:stubgen	interface-stubs	-	interface stubs stop regenerating on save; the .pyi files go stale without anything saying so
+pyyaml	pip	yaml	import:yaml	latex	-	core/tools/paper/terms dies on import, so the pre-commit term-consistency gate silently skips every paper
+requests	pip	requests	import:requests	notes-notion	-	core/tools/notes/notion cannot reach the API
+anthropic	pip	anthropic	import:anthropic	mail	-	gmail attachment + triage paths lose their model calls
+pillow	pip	PIL	import:PIL	asset-inspect	-	core/tools/assets/inspect cannot open an image; the video OCR and VLM paths lose frame handling
+google-auth	pip	google	import:google.oauth2.credentials	google-auth	-	every Google-backed tool (mail, calendar, files, slides, forms, docs) fails before it reaches the network
+google-auth-oauthlib	pip	google_auth_oauthlib	import:google_auth_oauthlib	google-auth	-	the first-run OAuth consent flow cannot start, so no account can be added
+google-api-python-client	pip	googleapiclient	import:googleapiclient	google-auth	-	mail, calendar, files, slides, forms and docs have no API client to call
+yt-dlp	pip	-	venv-script:yt-dlp	video-text	-	core/tools/video/video returns nothing for every video link
+gallery-dl	pip	-	venv-script:gallery-dl	video-text	-	image posts and Instagram carousels fall back to yt-dlp, which reports "No video formats found" — reads like an auth failure, is not one
+secretstorage	pip	-	import:secretstorage	video-text	-	yt-dlp cannot decrypt the Brave cookie DB and fails with "failed to decrypt cookie (AES-CBC) ... Possibly the key is wrong?" — reads like a wrong password, is a missing module. Cost a full session to diagnose.
+faster-whisper	pip	faster_whisper	import:faster_whisper	video-text	-	local transcription (level speech) is unavailable; the tool stops at captions
+pytesseract	pip	pytesseract	import:pytesseract	video-text	-	burned-in text OCR (level ocr) is unavailable
+torch	pip	torch	import:torch	video-text	-	the visual captioning level cannot load a model
+transformers	pip	transformers	import:transformers	video-text	-	the visual captioning level cannot load a model
+accelerate	pip	-	import:accelerate	video-text	-	visual captioning loads without device_map and either runs on CPU or exhausts VRAM
+pypandoc-binary	pip	-	cmd:pandoc --version	latex	-	core/tools/paper/parse cannot read .docx or .pptx — it falls through to the plain-text arm and returns mojibake rather than an error
+poppler-utils	apt	-	cmd:pdftotext -v	latex	-	core/tools/paper/parse cannot read a PDF, which is its most common input
+ffmpeg	system	-	cmd:ffmpeg -version	video-text	-	audio extraction and frame sampling fail, so the speech and ocr levels cannot start
+tesseract-ocr	apt	-	cmd:tesseract --version	video-text	-	pytesseract imports fine and then fails at call time — the module is the wrapper, this is the engine
+ddgr	apt	-	cmd:ddgr --version	web-search	-	the fallback backend is gone, so a missing or rate-limited Exa key leaves no search at all
+nodejs	binary	-	cmd:node --version	opencode-plugin	-	the opencode policy plugin cannot load, and every npm/npx-backed gate below loses its runtime
+typescript	npm	-	cmd:tsc --version	interface-stubs	-	.d.ts stubs stop regenerating for TypeScript projects
+jscpd	npx	-	cmd:npx --yes jscpd --version	duplication-gate	-	the copy-paste gate SKIPS instead of blocking, printing one warning line that is easy to miss — a gate that silently stops gating
+rtk	binary	-	cmd:rtk --version	rtk-compaction	-	tool output reaches the context raw; nothing breaks, the session just costs 60-90% more
+gh	system	-	cmd:gh auth status	github-auth	-	auto-push fails on every feature/* commit, /roundup cannot promote, and the agent loses PRs and issues
+arxiv-api	service	-	cmd:core/run tools/paper/papers quantum --n 1	latex	-	core/tools/paper/papers returns {"error": "The read operation timed out"} on its DEFAULT arm, so a sota or scout run silently loses arXiv and falls back to web search — the JSON still parses, it just has no results
+semantic-scholar-api	service	-	cmd:core/run tools/paper/papers quantum --n 1 --ss	latex	-	core/tools/paper/papers --ss returns {"error": "HTTP Error 429: "}, so a run loses the venue, peer_reviewed and citations fields the tool exists to supply and has to establish venue by fetching every page by hand

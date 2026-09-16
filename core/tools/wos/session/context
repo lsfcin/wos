@@ -1,0 +1,169 @@
+# Usage: core/tools/wos/session/context [--project <name>] [--top N] — what fills the context
+# window: what is already in it at turn 1, what the CONTEXT.md chain costs, what grows it turn over
+# turn, and what a subagent starts with. Reads the local transcripts; no network, no model.
+#
+# Exists because a session cannot answer this about itself: the window
+# is invisible from inside, so every claim about what fills it was an estimate. The transcript
+# labels its own injected blocks, so this attributes what is labelled and reports the rest as a
+# named remainder rather than burying it in a total. Replay and attribution: session_log.py.
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'hooks'))
+from session_log import attribute, median, project_name, spread, walk
+from platform_law import WORKSPACE_ROOT as WORKSPACE  # noqa: E402
+
+ROOT = Path.home() / '.claude' / 'projects'
+PROSE_RATE = 3.8  # chars/token for ordinary prose and code — the yardstick, not a measurement
+
+# Injected into the system prompt, invisible to the transcript, paid by every session in the tree.
+# Measured on disk so the memory store's cost is separable from everything else's — 3.1's question.
+ALWAYS_LOADED = {
+	'CLAUDE.md chain': [Path.home() / '.claude/CLAUDE.md', Path.home() / '.claude/RTK.md',
+	                    WORKSPACE / 'CLAUDE.md', WORKSPACE / 'AGENTS.md'],
+	# The store moved into the workspace 2026-08-15; the harness path is now a symlink to it.
+	'memory index': [WORKSPACE / 'brain/memory/MEMORY.md'],
+}
+
+
+def on_disk() -> dict:
+	return {name: sum(p.stat().st_size for p in paths if p.is_file())
+	        for name, paths in ALWAYS_LOADED.items()}
+
+
+def scan(paths: list, sidechain: bool = False) -> dict:
+	"""Replay a population of transcripts and pool what each turn's growth is attributed to."""
+	found: dict = {'starts': [], 'firsts': [], 'ratios': [], 'peaks': [], 'walked': [],
+	               'growth': defaultdict(lambda: [0.0, 0]), 'appears': defaultdict(int),
+	               'turns': 0}
+	for path in paths:
+		session = walk(path, sidechain)
+		start, grown, first, per_token = attribute(session)
+		if not per_token:
+			continue
+		found['starts'].append(start)
+		found['firsts'].append(first)
+		found['ratios'].append(per_token)
+		found['peaks'].append(session['peak'])
+		found['walked'].append(session)
+		found['turns'] += len(session['turns'])
+		for name, (tokens, chars) in grown.items():
+			found['growth'][name][0] += tokens
+			found['growth'][name][1] += chars
+		for name, count in session['appears'].items():
+			found['appears'][name] += count
+	return found
+
+
+def report_start(found: dict) -> None:
+	print('1. SESSION START — what the window already holds before the first tool call\n')
+	pooled: dict = defaultdict(list)
+	for start in found['starts']:
+		for name, (_tok, chars) in start.items():
+			pooled[name].append(chars)
+	labelled = {n: median(v) for n, v in pooled.items()}
+	disk = on_disk()
+	first = median(found['firsts']) or 1.0
+	residual = first - (sum(labelled.values()) + sum(disk.values())) / PROSE_RATE
+
+	print(f"   {'source':<32} {'chars':>9} {'~tok':>8} {'share':>7}")
+	rows = [(n, c, 'logged') for n, c in labelled.items()]
+	rows += [(n, c, 'disk') for n, c in disk.items()]
+	last = None
+	for name, chars, origin in sorted(rows, key=lambda r: (r[2], -r[1])):
+		if origin != last:
+			print('   ── on disk, folded into the system prompt — never in the transcript'
+			      if origin == 'disk' else '   ── labelled by the transcript')
+			last = origin
+		print(f'   {name:<32} {chars:>9,.0f} {chars / PROSE_RATE:>8,.0f} '
+		      f'{chars / PROSE_RATE / first:>6.1%}')
+	print('   ── harness residual: system prompt + tool schemas, not attributable from here')
+	print(f"   {'residual':<32} {'':>9} {residual:>8,.0f} {residual / first:>6.1%}")
+	low, mid, high = spread(found['firsts'])
+	print(f"   {'':<32} {'':>9} {'—' * 8:>8}")
+	print(f"   {'turn-1 context (measured)':<32} {'':>9} {mid:>8,.0f}"
+	      f'   p25 {low:,.0f} · p75 {high:,.0f}\n')
+
+
+def report_cascade(found: dict) -> None:
+	reads = [s['reads'] for s in found['walked']]
+	gated = [s for s in found['walked'] if s['gates']]
+	print('2. THE CONTEXT.md CASCADE — what the chain costs once the session is running\n')
+	print(f"   sessions where the gate fired      {len(gated):>6} of {len(found['walked'])}")
+	print(f'   CONTEXT.md reads per session       {median(reads):>6,.0f} median · '
+	      f'{max(reads or [0]):,} worst · {sum(reads):,} total')
+	print(f'   gate firings, when it fires        {median([s["gates"] for s in gated]):>6,.0f} '
+	      f"median · {sum(s['gates'] for s in found['walked']):,} total\n")
+
+
+def report_growth(found: dict, top: int) -> None:
+	growth, turns = found['growth'], found['turns'] or 1
+	total = sum(t for t, _c in growth.values()) or 1.0
+	bulk = sum(c for _t, c in growth.values()) or 1.0
+	print('3. GROWTH — where the window fills after turn 1, by what entered\n')
+	print(f"   {'source':<32} {'Mtok':>9} {'share':>7} {'Mchars':>9}  turns")
+	for name, (tokens, chars) in sorted(growth.items(), key=lambda kv: -kv[1][0])[:top]:
+		seen = found['appears'].get(name, 0) / turns
+		# Attribution splits each turn's delta by LOGGED char share, so anything riding along with
+		# unlogged material claims tokens it did not bring. The tell is a token share far above the
+		# char share — that is how a constant 121-char reminder once read as 16% of all growth.
+		flag = ' †' if tokens / total > 2 * chars / bulk else ''
+		print(f'   {name:<32} {tokens / 1e6:>9.2f} {tokens / total:>6.1%} '
+		      f'{chars / 1e6:>9.2f} {seen:>6.0%}{flag}')
+	low, mid, high = spread(found['peaks'])
+	print(f'\n   † claims more tokens than its characters can explain — it rides along with material\n'
+	      f'   the transcript does not log. An upper bound, never a finding.')
+	print(f'   peak context: {mid:,.0f} median · p25 {low:,.0f} · p75 {high:,.0f} · '
+	      f"{max(found['peaks'] or [0]):,} worst")
+
+
+def report_subagents(found: dict) -> None:
+	if not found['walked']:
+		print('\n4. SUBAGENTS — none on disk for this project.')
+		return
+	low, mid, high = spread(found['firsts'])
+	peak = spread(found['peaks'])
+	print(f"\n4. SUBAGENTS — {len(found['walked'])} workers, {found['turns']:,} turns "
+	      f"(their own transcripts, invisible to every report above)\n")
+	print(f'   turn-1 context   {mid:>8,.0f} median · p25 {low:,.0f} · p75 {high:,.0f}')
+	print(f"   peak context     {peak[1]:>8,.0f} median · {max(found['peaks']):,} worst")
+	print(f"   spend            ${sum(s['spend'] for s in found['walked']):>7,.2f} total")
+
+
+def main() -> None:
+	args = sys.argv[1:]
+	project = args[args.index('--project') + 1] if '--project' in args else project_name()
+	top = int(args[args.index('--top') + 1]) if '--top' in args else 14
+	directory = ROOT / project
+	if not directory.is_dir():
+		sys.exit(f'no such project: {directory}')
+
+	main_paths = sorted(directory.glob('*.jsonl'))
+	sub_paths = sorted(directory.glob('*/subagents/*.jsonl'))
+	found = scan(main_paths)
+	subs = scan(sub_paths, sidechain=True)
+	if not found['walked']:
+		sys.exit(f'{project}: no sessions with usage')
+
+	skipped = len(main_paths) - len(found['walked'])
+	others = sorted(p.name for p in ROOT.iterdir() if p.is_dir() and p.name != project)
+	print(f"{project} · {len(found['walked'])} sessions · {found['turns']:,} turns · "
+	      f"${sum(s['spend'] for s in found['walked']):,.2f}")
+	print(f'scanned {len(main_paths)} transcripts ({skipped} had too few turns to calibrate) '
+	      f"and {len(sub_paths)} subagent transcripts.")
+	print(f"not scanned: {', '.join(others) or 'nothing'} — pass --project to include one.\n")
+
+	report_start(found)
+	report_cascade(found)
+	report_growth(found, top)
+	report_subagents(subs)
+	per_token = median(found['ratios'])
+	print(f'\nmeasured {per_token:.2f} chars/token against a prose rate of {PROSE_RATE} — roughly '
+	      f'{max(0.0, 1 - per_token / PROSE_RATE):.0%} of growth is material the transcript\n'
+	      f'does not log. Shares above are shares of logged material; chars are exact.')
+
+
+if __name__ == '__main__':
+	main()

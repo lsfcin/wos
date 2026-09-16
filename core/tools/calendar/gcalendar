@@ -1,0 +1,88 @@
+# gcalendar — Google Calendar read-only CLI for workspace OS — commands: auth, upcoming, range, calendars
+import sys, pathlib, argparse
+from datetime import datetime, timezone, timedelta
+
+_HERE = pathlib.Path(__file__).resolve().parent
+# Boundaries sit beside the CLI; gauth is its own family, shared by every provider tool.
+sys.path.insert(0, str(_HERE))
+sys.path.insert(0, str(_HERE.parent / 'auth'))
+import calendar_fetch, gauth
+
+
+def _print_events(events: list, alias: str) -> None:
+    if not events:
+        print("  (nenhum evento)")
+        return
+    for e in calendar_fetch.fmt_events(events):
+        start = e["start"][:16].replace("T", " ") if "T" in e["start"] else e["start"]
+        loc = f"  📍 {e['location']}" if e["location"] else ""
+        print(f"  [{alias}] {start}  {e['title']}{loc}")
+        if e["description"]:
+            print(f"    {e['description'][:100]}")
+
+
+def cmd_auth(alias: str, reauth: bool) -> None:
+    primary = gauth.resolve_alias(alias)
+    token = gauth.config_dir("calendar") / f"{primary}.token.json"
+    if reauth and token.exists():
+        # drop the stale token so a revoked/expired one can't dead-end on refresh
+        token.unlink()
+        print(f"Removed stale token: {token}")
+    print(f"Opening browser for OAuth — Calendar ({primary})...")
+    calendar_fetch.get_service(primary)
+    print(f"Done. Token saved: {token}")
+
+
+def cmd_calendars(account: str) -> None:
+    aliases = gauth.primary_aliases() if account == "all" else [gauth.resolve_alias(account)]
+    for alias in aliases:
+        print(f"\n── Calendars ({alias}) ──")
+        for cal in calendar_fetch.list_calendars(alias):
+            primary_marker = " ★" if cal.get("primary") else ""
+            print(f"  {cal.get('summary', '?')}{primary_marker}  id:{cal['id']}")
+
+
+def cmd_upcoming(account: str, days: int) -> None:
+    aliases = gauth.primary_aliases() if account == "all" else [gauth.resolve_alias(account)]
+    for alias in aliases:
+        print(f"\n── Próximos {days}d ({alias}) ──")
+        _print_events(calendar_fetch.upcoming_events(alias, days), alias)
+
+
+def cmd_range(account: str, date_from: str, date_to: str) -> None:
+    aliases = gauth.primary_aliases() if account == "all" else [gauth.resolve_alias(account)]
+    for alias in aliases:
+        print(f"\n── {date_from} → {date_to} ({alias}) ──")
+        _print_events(calendar_fetch.events_in_range(alias, date_from + "T00:00:00Z", date_to + "T23:59:59Z"), alias)
+
+
+def main():
+    p = argparse.ArgumentParser(prog="gcalendar")
+    sub = p.add_subparsers(dest="cmd")
+
+    pa = sub.add_parser("auth")
+    pa.add_argument("alias")
+    pa.add_argument("--reauth", action="store_true", help="drop the existing token and re-consent (fixes revoked/expired)")
+
+    pc = sub.add_parser("calendars")
+    pc.add_argument("--account", default="all")
+
+    pu = sub.add_parser("upcoming")
+    pu.add_argument("--account", default="all")
+    pu.add_argument("--days", type=int, default=7)
+
+    pr = sub.add_parser("range")
+    pr.add_argument("--account", default="all")
+    pr.add_argument("from_date")
+    pr.add_argument("to_date")
+
+    args = p.parse_args()
+    if   args.cmd == "auth":      cmd_auth(args.alias, args.reauth)
+    elif args.cmd == "calendars": cmd_calendars(args.account)
+    elif args.cmd == "upcoming":  cmd_upcoming(args.account, args.days)
+    elif args.cmd == "range":     cmd_range(args.account, args.from_date, args.to_date)
+    else:                         p.print_help()
+
+
+if __name__ == "__main__":
+    gauth.run(main)

@@ -1,0 +1,13 @@
+from _typeshed import Incomplete
+from pathlib import Path
+
+NORMS_DIR: Incomplete
+AGENTS_FILE: Incomplete
+START: str
+END: str
+FRONTMATTER: Incomplete
+
+def body(path: Path) -> str: ...
+def published() -> list: ...
+def block() -> str: ...
+def sync() -> int: ...

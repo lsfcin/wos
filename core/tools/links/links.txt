@@ -1,0 +1,18 @@
+# Every short link this workspace hands out: the short name someone is told out loud, and where it
+# really goes. Read by core/tools/links/links_core.py; published as _redirects by `cfpages build`.
+#
+# Queried with `cfpages find <term>`, never read whole — that is what keeps a file that grows one
+# row per link cheap to consult. A CONTEXT.md elsewhere carries the short link and never the
+# mapping; this is the one place the target is written down.
+# Root url = lucassf.pages.dev/
+short_name	url	owner	added
+ai4good	https://seasoned-bladder-7d0.notion.site/T-picos-em-IA-AI4Good-25d1656e2069803ea564d510d9db8307	ai4good	2026-09-08
+ai4good/painel	https://docs.google.com/spreadsheets/d/1IgBJWxItjmolBgwsnjlER894V6BP9nns8dFcc-NhStY/edit?gid=1005981620#gid=1005981620	ai4good	2026-09-16
+ai4good/setup	https://docs.google.com/forms/d/e/1FAIpQLSfESI8OWLI1JSALkpAAtbRkqRzKxP6az3NCd9mi5Mop_697kQ/viewform	ai4good	2026-09-06
+home	https://seasoned-bladder-7d0.notion.site/Lucas-S-Figueiredo-3695d139d7924e52b896d608086a68a5	home	2026-09-08
+p1	https://seasoned-bladder-7d0.notion.site/Programa-o-1-1d51656e2069803a8569e85611aa4dfb	p1	2026-09-08
+rva-chico	https://docs.google.com/presentation/d/1FrVUudBNRPUE4dJRAhyYRIyQigQBAa0mJ93ggmLZ1kQ/edit	rva-chico	2026-09-07
+techedu	https://seasoned-bladder-7d0.notion.site/Tecnologias-na-Educa-o-0bd17453ea834019ba3822a79d0114ce	techedu	2026-09-08
+techedu/draw	https://excalidraw.com/#room=0b5980e37afbc3e7f464,h3zc7ZhzOxGn7sTPfFB2QQ	techedu	2026-09-08
+techedu/painel	https://docs.google.com/spreadsheets/d/1vf_OdrC64M7ULsEpbuv8itu7bJ_3Zm51esll5bVvhBU/edit?gid=1005981620#gid=1005981620	techedu	2026-09-16
+techedu/setup	https://docs.google.com/forms/d/e/1FAIpQLScOoEjTI-l64rgUSBMQ198J_B9ssrai_tIVAcPAOYe-uWklww/viewform	techedu	2026-09-08

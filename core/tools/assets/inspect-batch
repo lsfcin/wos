@@ -1,0 +1,97 @@
+# Usage: Core/tools/assets/inspect-batch <paper-path> [--check] — generate .pngif/.csvif stubs for all assets missing interfaces
+from __future__ import annotations
+import subprocess, sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import tool_law  # noqa: E402
+
+IMG_EXTS = {'.png', '.jpg', '.jpeg', '.tiff', '.tif', '.eps', '.svg'}
+CSV_EXTS = {'.csv', '.tsv'}
+ALL_EXTS = IMG_EXTS | CSV_EXTS
+
+INSPECT = Path(__file__).parent / 'inspect'
+
+
+def iface_path(p: Path) -> Path:
+    return Path(str(p) + 'if')
+
+
+def needs_description(ipath: Path) -> bool:
+    if not ipath.exists():
+        return False
+    return any(
+        line.startswith("description:") and "TODO" in line
+        for line in ipath.read_text(encoding='utf-8').splitlines()
+    )
+
+
+def main() -> int:
+    tool_law.require('asset-inspect')  # before argparse: off means off.
+    # Second entrypoint of this capability; the registry names core/tools/assets/inspect as
+    # primary. Both carry the guard so the feature cannot be half switched off
+    # (core/SPECS.md AD-14).
+    import argparse
+    ap = argparse.ArgumentParser(description="Batch-generate asset interface stubs for a paper.")
+    ap.add_argument("paper", help="Paper root directory")
+    ap.add_argument("--check", action="store_true", help="Report missing/TODO interfaces without generating")
+    args = ap.parse_args()
+
+    paper = Path(args.paper).resolve()
+    if not paper.is_dir():
+        print(f"⛔ Not a directory: {paper}", file=sys.stderr)
+        return 1
+
+    assets = sorted(f for f in paper.rglob("*") if f.suffix.lower() in ALL_EXTS and 'build' not in f.parts)
+
+    if not assets:
+        print("No image or CSV assets found.")
+        return 0
+
+    missing_iface: list[Path] = []
+    todo_desc: list[Path] = []
+    up_to_date: list[Path] = []
+
+    for asset in assets:
+        iface = iface_path(asset)
+        if not iface.exists():
+            missing_iface.append(asset)
+        elif needs_description(iface):
+            todo_desc.append(asset)
+        else:
+            up_to_date.append(asset)
+
+    if args.check:
+        if missing_iface:
+            print(f"⛔ MISSING interface ({len(missing_iface)} files):")
+            for f in missing_iface:
+                print(f"  {f.relative_to(paper)}")
+        if todo_desc:
+            print(f"⚠  TODO description ({len(todo_desc)} files):")
+            for f in todo_desc:
+                print(f"  {f.relative_to(paper)}  →  {iface_path(f).name}")
+        if up_to_date:
+            print(f"✓ Up to date: {len(up_to_date)} files")
+        return 1 if (missing_iface or todo_desc) else 0
+
+    created = 0
+    for asset in missing_iface:
+        result = subprocess.run([sys.executable, str(INSPECT), str(asset)], capture_output=True, text=True, encoding='utf-8')
+        if result.returncode == 0:
+            rel = asset.relative_to(paper)
+            print(f"  + {rel}if  (TODO description)")
+            created += 1
+        else:
+            print(f"  ✗ {asset.name}: {result.stderr.strip()}")
+
+    print(f"\n{created} interfaces created. {len(todo_desc)} already had TODO descriptions.")
+    if missing_iface or todo_desc:
+        print(f"\nFill descriptions:")
+        for f in missing_iface + todo_desc:
+            rel = f.relative_to(paper)
+            print(f"  Core/tools/assets/inspect {rel} --desc \"...\"")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

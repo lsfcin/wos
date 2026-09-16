@@ -1,0 +1,153 @@
+# Usage: core/tools/notes/notion <cmd> [args] — Notion CLI: auth, whoami, list, search, read, apply, text
+import sys, json, getpass, pathlib, argparse
+
+_HERE = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE))
+sys.path.insert(0, str(_HERE.parent))  # tools root: the shared feature switch
+import notion_auth, notion_core, notion_outline, notion_write
+import tool_law
+
+
+def cmd_auth(alias: str) -> None:
+    """The secret arrives on stdin — as an argument it would sit in argv and shell history."""
+    prompt = f"Paste the Notion integration secret for '{alias}': "
+    secret = (sys.stdin.readline() if not sys.stdin.isatty() else getpass.getpass(prompt)).strip()
+    if not secret:
+        sys.exit(notion_auth.setup_text(alias))
+    path = notion_auth.save_token(alias, secret)
+    who = notion_core.whoami(alias)
+    reach = notion_core.search(alias, limit=100)
+    print(f"Stored: {path} (mode 600)")
+    print(f"Integration: {who.get('name', '?')}  id:{who.get('id', '?')}")
+    print(f"Reaches {len(reach)} shared object(s)."
+          + ("" if reach else "  Nothing is connected yet — share a page with the integration."))
+
+
+def cmd_whoami(account: str) -> None:
+    who = notion_core.whoami(account)
+    owner = who.get("bot", {}).get("workspace_name", "?")
+    print(f"[{account}] integration '{who.get('name', '?')}' on workspace '{owner}'"
+          f"  id:{who.get('id', '?')}")
+
+
+def _print_objects(items: list, name: str = "") -> None:
+    shown = 0
+    for item in items:
+        title = notion_outline.title_of(item)
+        if name and name.lower() not in title.lower():
+            continue
+        shown += 1
+        print(f"  [{item.get('object', '?')}] {title}"
+              f"  ({item.get('last_edited_time', '')[:10]})  id:{item.get('id', '?')}")
+    if not shown:
+        print("  (nothing shared with the integration matches)")
+
+
+def cmd_list(account: str, kind: str, name: str) -> None:
+    print(f"\n── Notion ({account}) ──")
+    _print_objects(notion_core.search(account, "", kind, 0), name)
+
+
+def cmd_search(account: str, query: str, kind: str, limit: int) -> None:
+    print(f"\n── '{query}' ({account}) ──")
+    _print_objects(notion_core.search(account, query, kind, limit))
+
+
+def cmd_read(account: str, ident: str, depth: int, limit: int, as_json: bool,
+             verbose: bool) -> None:
+    obj = notion_core.fetch(account, ident)
+    if obj.get("object") == "database":
+        entries = notion_core.rows(account, obj["id"], limit)
+        if as_json:
+            print(json.dumps({"database": obj, "rows": entries}, ensure_ascii=False, indent=2))
+            return
+        print(f"# {notion_outline.title_of(obj)}  (database)")
+        print(f"  id: {obj.get('id', '?')}\n  {len(entries)} row(s)\n")
+        print("\n".join(notion_outline.row_line(row) for row in entries))
+        return
+    content = notion_core.blocks(account, obj["id"], depth)
+    print(json.dumps({"page": obj, "blocks": content}, ensure_ascii=False, indent=2) if as_json
+          else notion_outline.outline(obj, content, verbose))
+
+
+def _write(account: str, operations: list, dry_run: bool, done_line: str) -> None:
+    """Both write commands end here, so --dry-run means the same thing in each."""
+    if dry_run:
+        print(f"── {len(operations)} operation(s), nothing sent ──")
+        for method, path, body in notion_write.plan(operations):
+            payload = f"  {json.dumps(body, ensure_ascii=False)}"[:160] if body else ""
+            print(f"  {method} {path}{payload}")
+        return
+    notion_write.apply(account, operations)
+    print(done_line)
+
+
+def cmd_apply(account: str, path: str, dry_run: bool) -> None:
+    """The general boundary: a JSON array of operations, each one an id-addressed write."""
+    operations = notion_write.load(path)
+    _write(account, operations, dry_run, f"Applied {len(operations)} operation(s) on {account}")
+
+
+def cmd_text(account: str, block_id: str, source: str, dry_run: bool) -> None:
+    """Replace one block's text from a file written with **bold** and [label](url)."""
+    text = pathlib.Path(source).read_text(encoding="utf-8").rstrip("\n")
+    _write(account, [notion_write.text_op(account, block_id, text)], dry_run,
+           f"Rewrote block {block_id} from {source}\n  {notion_core.url(block_id)}")
+
+
+def main():
+    tool_law.require('notes-notion')  # before argparse: off means off, including --help
+    p = argparse.ArgumentParser(prog="notion")
+    sub = p.add_subparsers(dest="cmd")
+
+    pa = sub.add_parser("auth", help="store an integration secret (prompted, never in argv)")
+    pa.add_argument("alias", nargs="?", default="personal")
+
+    pw = sub.add_parser("whoami", help="prove the stored token is alive")
+    pw.add_argument("--account", default="personal")
+
+    pl = sub.add_parser("list", help="everything shared with the integration")
+    pl.add_argument("--account", default="personal")
+    pl.add_argument("--kind", default="", choices=["", "page", "database"])
+    pl.add_argument("--name", default="", help="filter by title substring")
+
+    ps = sub.add_parser("search")
+    ps.add_argument("--account", default="personal")
+    ps.add_argument("--kind", default="", choices=["", "page", "database"])
+    ps.add_argument("--n", type=int, default=25, dest="limit")
+    ps.add_argument("query")
+
+    pr = sub.add_parser("read", help="page as navigable text, or a database as rows")
+    pr.add_argument("--account", default="personal")
+    pr.add_argument("--depth", type=int, default=3, help="how far to follow nested blocks")
+    pr.add_argument("--n", type=int, default=50, dest="limit", help="database rows to fetch")
+    pr.add_argument("--json", dest="as_json", action="store_true", help="raw API JSON")
+    pr.add_argument("--verbose", action="store_true", help="include blocks that carry no text")
+    pr.add_argument("target", help="page/database id, or a pasted Notion URL")
+
+    pap = sub.add_parser("apply", help="a JSON array of update/append/delete operations")
+    pap.add_argument("--account", default="personal")
+    pap.add_argument("--dry-run", dest="dry_run", action="store_true",
+                     help="print the calls the batch would make, and send none of them")
+    pap.add_argument("operations_json")
+
+    pt = sub.add_parser("text", help="rewrite one block from **bold** / [label](url) source")
+    pt.add_argument("--account", default="personal")
+    pt.add_argument("--dry-run", dest="dry_run", action="store_true")
+    pt.add_argument("block_id")
+    pt.add_argument("source", help="file whose text REPLACES the block's own")
+
+    args = p.parse_args()
+    if   args.cmd == "auth":   cmd_auth(args.alias)
+    elif args.cmd == "whoami": cmd_whoami(args.account)
+    elif args.cmd == "list":   cmd_list(args.account, args.kind, args.name)
+    elif args.cmd == "search": cmd_search(args.account, args.query, args.kind, args.limit)
+    elif args.cmd == "read":   cmd_read(args.account, args.target, args.depth, args.limit,
+                                        args.as_json, args.verbose)
+    elif args.cmd == "apply":  cmd_apply(args.account, args.operations_json, args.dry_run)
+    elif args.cmd == "text":   cmd_text(args.account, args.block_id, args.source, args.dry_run)
+    else:                      p.print_help()
+
+
+if __name__ == "__main__":
+    notion_core.run(main, notion_write.OpRefused)

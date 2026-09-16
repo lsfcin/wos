@@ -1,0 +1,87 @@
+# Usage: core/run tools/chat/wazip <export.zip>... --out <dir> [--prompt-file <carrier.txt>] [--keep-media <dir>]
+# — a WhatsApp export becomes navigable text: audios transcribed inline, bot menus dropped, secrets redacted.
+#
+# Takes MANY zips on purpose: a project's conversations arrive as a batch (one per person), and a
+# step that costs one invocation per file is the step that gets done for the two easy ones only.
+import sys, pathlib, argparse, zipfile, tempfile, shutil
+
+_HERE = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE))
+sys.path.insert(0, str(_HERE.parent))
+import tool_law  # noqa: E402
+import chat_transcribe, chat_stitch  # noqa: E402
+
+# WhatsApp names the transcript after the contact; everything else in the zip is media.
+TRANSCRIPT_SUFFIX = ".txt"
+# Enough prose to keep punctuation without teaching any vocabulary — a caller with jargon passes
+# --prompt-file. A bare word list here would suppress punctuation, which is the whole point.
+DEFAULT_PROMPT = ("Oi, tudo bem? Olha, é o seguinte: eu ia te falar sobre aquilo que a gente "
+                  "conversou. Depois eu te retorno, tá bom? Abraço.")
+
+
+def transcript_in(folder: pathlib.Path) -> pathlib.Path | None:
+    """The one .txt WhatsApp writes. Sidecars we produce are `.opus.txt`, never plain `.txt`."""
+    found = [p for p in folder.iterdir()
+             if p.suffix == TRANSCRIPT_SUFFIX and not p.name.endswith(".opus.txt")]
+    return found[0] if len(found) == 1 else None
+
+
+def contact_of(zip_path: pathlib.Path) -> str:
+    """`Conversa do WhatsApp com Marcelo Regional (1).zip` -> `Marcelo Regional`."""
+    name = zip_path.stem
+    for prefix in ("Conversa do WhatsApp com ", "WhatsApp Chat with "):
+        name = name.removeprefix(prefix)
+    while name.endswith(")") and "(" in name:
+        name = name[:name.rindex("(")].strip()
+    return name.strip()
+
+
+def file_name_of(contact: str) -> str:
+    keep = [c.lower() if c.isalnum() else "-" for c in contact]
+    return "-".join(part for part in "".join(keep).split("-") if part)
+
+
+def one(zip_path: pathlib.Path, out_dir: pathlib.Path, prompt: str,
+        keep_media: pathlib.Path = None) -> tuple[pathlib.Path, int]:
+    """Unpack, transcribe, stitch, write. Returns the written file and how many audios it carries."""
+    work = pathlib.Path(tempfile.mkdtemp(prefix="wazip-"))
+    try:
+        with zipfile.ZipFile(zip_path) as z:
+            z.extractall(work)
+        chat_transcribe.run(work, prompt)
+        export = transcript_in(work)
+        if export is None:
+            raise SystemExit(f"{zip_path.name}: nenhum .txt de conversa dentro do zip")
+        contact = contact_of(zip_path)
+        target = out_dir / f"{file_name_of(contact)}.txt"
+        count = chat_stitch.run(export, target, contact)
+        if keep_media is not None:
+            shutil.copytree(work, keep_media / file_name_of(contact), dirs_exist_ok=True)
+        return target, count
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def main():
+    tool_law.require('wazip')  # before argparse: off means off, including --help
+    p = argparse.ArgumentParser(prog="wazip")
+    p.add_argument("zips", nargs="+")
+    p.add_argument("--out", required=True, help="directory the .txt conversations are written to")
+    p.add_argument("--prompt-file", default=None,
+                   help="prose priming the transcription — put your domain's vocabulary in sentences")
+    p.add_argument("--keep-media", default=None,
+                   help="also copy the unpacked media here; by default the zip stays the archive")
+    args = p.parse_args()
+
+    prompt = (pathlib.Path(args.prompt_file).read_text(encoding="utf-8").strip()
+              if args.prompt_file else DEFAULT_PROMPT)
+    out_dir = pathlib.Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    media = pathlib.Path(args.keep_media) if args.keep_media else None
+    for raw in args.zips:
+        target, count = one(pathlib.Path(raw), out_dir, prompt, media)
+        print(f"{target}  ·  {count} áudios costurados")
+
+
+if __name__ == "__main__":
+    main()

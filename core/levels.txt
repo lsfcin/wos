@@ -1,0 +1,42 @@
+# What KIND OF WORK gets which level. The horizontal axis; core/tools/wos/levels is the vertical
+# one — which concrete model fills a level, per harness — and that is the ONLY place a model id
+# appears. A level is a capacity, never a vendor's product name (core/hooks/entropy/entropy_vendor.py).
+#
+# WHY THIS FILE EXISTS: the split was 99.4% opus over 94 sessions, and some of that is typing. The
+# only routing that ever ran was inside /craft, which declares a level per step — and it WORKS: every
+# craft-low turn measured ran at the low level and every craft-medium turn at the medium one. Every
+# subagent outside that flow inherits its parent, so 16 read-only searches ran at the dearest level
+# there is. Numbers: core/experiments/delegation.md.
+#
+# WHERE THE MONEY IS: delegated work is 2.5% of spend, so routing every spawn to the cheapest level
+# saves under 2% of the bill. The other 97.5% is the main thread — and its level IS reachable, which
+# this file denied until 2026-09-15: `claude --effort <level>` at launch, `effortLevel` in settings,
+# `CLAUDE_CODE_EFFORT_LEVEL` in the environment, and a running session can audit its own level from
+# `$CLAUDE_EFFORT`. A level here is therefore a claim about the main thread too, not only a map for
+# spawns and rendered agent files.
+#
+# THE ROWS BELOW ARE CLAIMS, NOT SETTLED LAW. The `why` column is falsifiable and one pair has now
+# been tested: on a `test`-shaped task, low and high both scored full marks and high cost 2.1x —
+# core/experiments/effort-policy.md. Test a row before paying for its headroom.
+#
+# `max` is not in this table and that is deliberate: it is an ESCALATION target, reached when a
+# level below it failed twice, never a kind of work anyone picks up front (core/flows/craft/craft.md
+# § Autorouting owns the escalation rule).
+#
+# Tab-separated. Columns:
+#   work   one word, the shape of the work. One idea, one word: if two rows want the same word,
+#          one of them is not a distinct kind of work.
+#   level  low | medium | high — the capacity the work needs.
+#   tell   how to recognise this case, in one sentence, from the task alone.
+#   why    what goes wrong ONE LEVEL DOWN. A row that cannot answer this is a row asking for
+#          headroom it has not justified, which is how everything ended up at the top level.
+#
+work	level	tell	why
+search	low	Find where something is and report it; reads only, changes nothing.	Recall and pattern-matching, with the answer checkable against the tree. Nothing is decided, so there is nothing to decide badly.
+sweep	low	Apply an already-decided edit across many files; the rule is written down.	The judgment happened when the rule was written. What is left is typing, and a wrong edit shows up in the diff.
+verify	low	Run a suite, a gate or a build and report the result verbatim.	The suite is the authority. A level that reasons about the output instead of quoting it is the failure mode, not the fix.
+draft	medium	Write code or prose against a plan that already names the files and the contract.	One level down loses the plan's constraints between files and re-invents what the plan settled.
+test	medium	Tests first, then code until green, against a contract that is already written.	Green is the oracle, so the work is bounded — but a test that passes for the wrong reason is invisible at the level below.
+survey	high	Gather evidence AND rank how good it is; the sources disagree and none of them is the authority.	One level down collects competently and grades everything alike, so a weak source reaches Lucas's academic output wearing the same confidence as a strong one. `search` is the row for finding something whose answer the tree can settle; this is the row for when nothing can settle it but judgment (Lucas, 2026-09-15).
+plan	high	Decide what to build, or what shape the code takes.	A wrong plan is cheap to fix here and expensive everywhere after. This is the one place headroom pays for itself.
+review	high	Judge finished work adversarially against a standard.	A reviewer that misses the defect is worse than no reviewer: it turns an open question into false confidence.

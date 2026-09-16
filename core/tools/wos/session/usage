@@ -1,0 +1,184 @@
+# Usage: core/tools/wos/session/usage [--project <name>] [--session <id>] — where session spend goes:
+# by model, by context size, by billed component, and what one more turn costs. Reads the local
+# transcripts; no network, no model.
+#
+# Exists because the cost model was steered for weeks by numbers from a single 24h window, two
+# of which were false. Any claim about where usage goes should be re-runnable in one command.
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+# NAMED, NEVER INHERITED — the law is core/tools/test/workspace/test_encoding_ratchet.py. This
+# report prints `→`, and a console codepage cannot encode it: the tool dies mid-report, after doing
+# all the work. The gates get this from core/run; a tool invoked directly says it itself.
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from session_cost import COMPONENTS, UNPRICED
+from session_log import project_name
+from session_turns import turns
+
+BUCKETS = [50, 100, 150, 200, 250, 300, 400, 10 ** 6]
+# What each component is called on screen, and the multiple of a fresh input token it is billed at.
+LABELS = {'input': 'fresh input', 'write_1h': 'cache write 1h', 'write_5m': 'cache write 5m',
+          'cache_read': 'cache read', 'output': 'output'}
+
+
+def bucket_of(context: int) -> int:
+	return next(edge for edge in BUCKETS if context < edge * 1000)
+
+
+def self_authored(rows) -> tuple:
+	"""How much of a turn's context the agent itself wrote, and what that does to an output token.
+	A *logged* output token is not paid once: it lands in the thread and every later turn re-reads
+	it. Only logged output accumulates — thinking is billed inside `output_tokens` but never enters
+	a later turn's context, so charging it the re-read multiplier is what inflated this to 75%.
+	Capped at 1.0 per turn — cumulative output ignores compaction, so past the cap the ratio would
+	measure the cap rather than the thread. That makes the mean an upper estimate."""
+	cum: dict = defaultdict(float)
+	shares = []
+	attributable = total = out = 0.0
+	for context, comp, _model, session, _out_tokens, logged in rows:
+		share = min(cum[session] / context, 1.0) if context else 0.0
+		shares.append(share)
+		cost = sum(comp.values())
+		# The input side of this turn is context re-read; `share` of it exists because of our
+		# own earlier output. The turn's own output is attributable in full.
+		attributable += (cost - comp['output']) * share + comp['output']
+		total += cost
+		out += comp['output']
+		cum[session] += logged
+	mean = sum(shares) / len(shares) if shares else 0.0
+	attr_share = attributable / total if total else 0.0
+	out_share = out / total if total else 0.0
+	return mean, attr_share, (attr_share / out_share if out_share else 0.0)
+
+
+def brief(rows) -> None:
+	"""The per-session block /roundup prints. Shares and $/turn only — absolute spend is list price
+	and has never been checked against a bill, so it is not a number to hand a session close.
+
+	UNPRICED TURNS ARE COUNTED AND NAMED, never averaged in. They cost 0 by construction
+	(session_cost.RATES), so dividing the bill by every turn would quietly report a session as
+	cheaper the less we know about it — the same direction of error b20260905 was about.
+	"""
+	by_model: dict = defaultdict(float)
+	total = out = 0.0
+	unpriced = 0
+	for _context, comp, model, _session, _out_tokens, _logged in rows:
+		if model.startswith(UNPRICED):
+			unpriced += 1
+			continue
+		cost = sum(comp.values())
+		by_model[model] += cost
+		total += cost
+		out += comp['output']
+	priced_turns = len(rows) - unpriced
+	if not priced_turns or not total:
+		print(f'cost: {len(rows):,} turns · unpriced — no turn carries a rate we hold')
+		return
+	_mean, attr_share, multiplier = self_authored(rows)
+	split = ' · '.join(f'{model.replace("claude-", "")} {cost / total:.0%}'
+	                   for model, cost in sorted(by_model.items(), key=lambda kv: -kv[1]))
+	tail = f' · {unpriced:,} of {len(rows):,} turns unpriced' if unpriced else ''
+	print(f'cost: {priced_turns:,} turns · ${total / priced_turns:.3f}/turn · {split}{tail}')
+	print(f'output: {out / total:.0%} of the bill at list price, {attr_share:.0%} once you count '
+	      f'every later turn re-reading it ({multiplier:.1f}x what it looks like)')
+
+
+def main() -> None:
+	args = sys.argv[1:]
+	project = args[args.index('--project') + 1] if '--project' in args else project_name()
+	session = args[args.index('--session') + 1] if '--session' in args else ''
+	rows = list(turns(project, session))
+	if not rows:
+		sys.exit(f'{project}: no assistant turns with usage')
+	if session:
+		brief(rows)
+		return
+
+	total = sum(sum(comp.values()) for _c, comp, _m, _s, _o, _l in rows)
+	by_model: dict = defaultdict(float)
+	by_model_out: dict = defaultdict(float)
+	by_model_turns: dict = defaultdict(int)
+	by_bucket: dict = defaultdict(lambda: [0, 0.0])
+	by_session: dict = defaultdict(float)
+	by_component: dict = defaultdict(float)
+	reread = billed_out = logged_out = 0.0
+	for context, comp, model, session_id, out_tokens, logged in rows:
+		cost = sum(comp.values())
+		billed_out += out_tokens
+		logged_out += logged
+		by_model[model] += cost
+		by_model_out[model] += comp['output']
+		by_model_turns[model] += 1
+		slot = by_bucket[bucket_of(context)]
+		slot[0] += 1
+		slot[1] += cost
+		by_session[session_id] += cost
+		for name, value in comp.items():
+			by_component[name] += value
+		reread += context
+
+	print(f'{project} · {len(by_session)} sessions · {len(rows):,} turns · ${total:,.2f}\n')
+
+	print('by model — and how much of each is the model talking rather than reading')
+	for model, cost in sorted(by_model.items(), key=lambda kv: -kv[1]):
+		# A row with no rate prints its turn count instead of a dollar share. It is not zero spend,
+		# it is spend this workspace cannot price, and the two must not read the same (b20260905).
+		if not cost:
+			print(f'  {model:<28} {by_model_turns[model]:>9,} turns   no rate held — see '
+			      f'session_cost.RATES')
+			continue
+		print(f'  {model:<28} ${cost:9,.2f}  {cost / total:5.1%}'
+		      f'   output {by_model_out[model] / cost:5.1%}')
+
+	print('\nby billed component — output looks small here, and that is the trap')
+	for name in COMPONENTS:
+		cost = by_component[name]
+		if cost:
+			print(f'  {LABELS[name]:<28} ${cost:9,.2f}  {cost / total:5.1%}')
+	# Splitting the output line matters because only one half is re-read. `unlogged` is a residual,
+	# not a measurement: thinking is billed here but its text is never written to the transcript,
+	# and anything else the transcript drops lands in this number too.
+	# Capped at 1.0: logged tokens are an estimate off a declared chars/token, so a turn that is
+	# almost all tool-call JSON can estimate above what was billed. Never print a negative residual.
+	share = min(1.0, logged_out / billed_out) if billed_out else 0.0
+	print(f'    of which logged    {share:5.1%} — text and tool-call arguments, re-read every turn')
+	print(f'    of which unlogged  {1 - share:5.1%} — thinking and whatever else is not '
+	      f'transcribed; paid once')
+
+	print('\nby the context the turn carried — the cost of one more turn, and what it adds up to')
+	# The last column is the share of spend at or above this row's *lower* edge — read the <200k
+	# row as "this much is paid from 150k up". It is the number that sets CTX_WARN/CTX_LOUD.
+	print(f"  {'context':>9} {'turns':>7} {'$/turn':>8} {'spent':>10} {'share':>7} {'>=floor':>8}")
+	above = total
+	for edge in BUCKETS:
+		count, cost = by_bucket[edge]
+		if not count:
+			continue
+		label = f'<{edge}k' if edge < 10 ** 6 else '>400k'
+		print(f'  {label:>9} {count:>7,} {cost / count:>8.3f} {cost:>10,.2f} '
+		      f'{cost / total:>6.1%} {above / total:>6.1%}')
+		above -= cost
+
+	ranked = sorted(by_session.values(), reverse=True)
+	decile = max(1, len(ranked) // 10)
+	print(f'\ntop {decile} sessions = ${sum(ranked[:decile]):,.2f} '
+	      f'({sum(ranked[:decile]) / total:.1%} of spend)')
+	print(f'context re-read across all turns: {reread / 1e6:,.1f}M tokens — every turn pays for the '
+	      f'whole thread,\nwhich is why a long session costs more than the same work split in two.')
+
+	mean, attr_share, multiplier = self_authored(rows)
+	print('\nwhat our own writing really costs — a written token is not paid once')
+	print('every turn re-reads the whole thread, so each token we write is billed again on')
+	print('every turn that follows it')
+	print(f'  how much of a turn we had written ourselves            {mean:5.1%}')
+	print(f'  share of the bill traceable to our own writing         {attr_share:5.1%}')
+	print(f'  what one written token really costs      {multiplier:9.1f}x list price')
+	print(f'  → output is {by_component["output"] / total:.0%} of the bill at list price, '
+	      f'{attr_share:.0%} once the re-reading is counted.')
+
+
+if __name__ == '__main__':
+	main()

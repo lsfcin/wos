@@ -1,0 +1,125 @@
+# Usage: Core/tools/paper/terms <paper-path> [--fix] [--strict] — scan .tex files for terminology inconsistencies defined in terms.yaml
+from __future__ import annotations
+import argparse, re, sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import tool_law  # noqa: E402
+from platform_law import rel as _rel  # noqa: E402
+
+try:
+    import yaml
+except ImportError:
+    print("⛔ PyYAML required: pip install pyyaml", file=sys.stderr)
+    sys.exit(1)
+
+TERMS_FILE = "terms.yaml"
+
+
+def load_terms(paper: Path) -> dict[str, list[str]]:
+    path = paper / TERMS_FILE
+    if not path.exists():
+        return {}
+    data = yaml.safe_load(path.read_text(encoding='utf-8'))
+    if not isinstance(data, dict):
+        return {}
+    return data.get("canonical", {}) or {}
+
+
+def tex_files(paper: Path) -> list[Path]:
+    return sorted(
+        f for f in paper.rglob("*.tex")
+        if "build/" not in f.as_posix() and not f.name.endswith(".texif")
+    )
+
+
+# LaTeX commands whose arguments should not be checked (identifiers, paths, bib keys, URLs)
+_SKIP_ARG_CMDS = re.compile(
+    r'\\(?:cite|bibitem|bibliography|bibliographystyle|ref|label|pageref|eqref|'
+    r'url|href|includegraphics|input|include|newcommand|renewcommand|def|'
+    r'keywords?|hypertarget|hyperlink)\s*(?:\[[^\]]*\])?\{[^}]*\}',
+    re.IGNORECASE,
+)
+
+
+def _clean(line: str) -> str:
+    """Strip LaTeX command arguments that should not be term-checked."""
+    return _SKIP_ARG_CMDS.sub('', line)
+
+
+def scan(paper: Path, terms: dict[str, list[str]], strict: bool) -> list[tuple[Path, int, str, str, str]]:
+    hits: list[tuple[Path, int, str, str, str]] = []
+    for tex in tex_files(paper):
+        lines = tex.read_text(errors="replace", encoding='utf-8').splitlines()
+        for lineno, line in enumerate(lines, 1):
+            stripped = line.lstrip()
+            if stripped.startswith("%"):
+                continue
+            searchable = _clean(line)
+            for canonical, variants in terms.items():
+                for variant in variants:
+                    flags = re.IGNORECASE if strict else 0
+                    if re.search(r'\b' + re.escape(variant) + r'\b', searchable, flags):
+                        hits.append((tex, lineno, variant, canonical, line.rstrip()))
+    return hits
+
+
+def main() -> int:
+    tool_law.require('latex')  # before argparse: off means off.
+    # One of four entrypoints this capability lives in; the registry names
+    # core/tools/paper/papers as primary. Guarding all four is what stops the
+    # ablation measuring a feature nobody removed whole (core/SPECS.md AD-14).
+    ap = argparse.ArgumentParser(description="Scan .tex files for terminology inconsistencies.")
+    ap.add_argument("paper", help="Path to paper root directory")
+    ap.add_argument("--icase", action="store_true", help="Case-insensitive matching (default is case-sensitive)")
+    ap.add_argument("--json", action="store_true", help="Output JSON for tool integration")
+    args = ap.parse_args()
+
+    paper = Path(args.paper).resolve()
+    if not paper.is_dir():
+        print(f"⛔ Not a directory: {paper}", file=sys.stderr)
+        return 1
+
+    terms_path = paper / TERMS_FILE
+    if not terms_path.exists():
+        if args.json:
+            import json
+            print(json.dumps({"error": f"No {TERMS_FILE} found at {paper}"}))
+        else:
+            print(f"⚠  No {TERMS_FILE} found at {paper}")
+            print(f"   Create one — see Academy/papers/CONTEXT.md for schema.")
+        return 0
+
+    terms = load_terms(paper)
+    if not terms:
+        print("No canonical terms defined.")
+        return 0
+
+    hits = scan(paper, terms, args.icase)
+
+    if args.json:
+        import json
+        print(json.dumps([
+            {"file": _rel(f, paper), "line": n, "found": v, "should_be": c}
+            for f, n, v, c, _ in hits
+        ], indent=2))
+        return 0
+
+    if not hits:
+        print(f"✓ No terminology inconsistencies found ({len(tex_files(paper))} files scanned).")
+        return 0
+
+    print(f"⚠  Terminology inconsistencies: {len(hits)} found\n")
+    current_file: Path | None = None
+    for f, n, variant, canonical, line in hits:
+        if f != current_file:
+            print(f"  {f.relative_to(paper)}")
+            current_file = f
+        print(f"    line {n:4d}: \"{variant}\" → should be \"{canonical}\"")
+        print(f"             {line[:100]}")
+    print()
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

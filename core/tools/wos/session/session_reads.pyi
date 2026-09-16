@@ -1,0 +1,9 @@
+from _typeshed import Incomplete
+from pathlib import Path
+
+PROJECT: Incomplete
+STUB_SUFFIXES: Incomplete
+
+def kind_of(path: str) -> str: ...
+def file_reads(project: str = ..., session: str = '') -> tuple: ...
+def weights(files: dict, population: int, root: Path) -> dict: ...

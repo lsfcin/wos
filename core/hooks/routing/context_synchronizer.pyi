@@ -1,0 +1,9 @@
+from pathlib import Path
+from workspace_scanner import has_code_content as has_code_content
+
+RS: str
+RE: str
+
+def replace_block(text: str, new_block: str) -> str: ...
+def sync_parts(target: Path) -> bool: ...
+def sync(target: Path): ...

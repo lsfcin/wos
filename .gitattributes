@@ -1,0 +1,31 @@
+# Line endings, declared once for every clone — because a machine setting is not a fact about this
+# workspace. Git for Windows ships `core.autocrlf=true` in its SYSTEM config, so a clone there
+# rewrites every script to CRLF and a shebang line becomes `#!/usr/bin/env bash\r` — which fails
+# with "bad interpreter", naming a file that reads as correct. This file overrides that, so the
+# answer travels with the repo instead of depending on who cloned it and where.
+#
+# THE SAME RULE ON EVERY SYSTEM: LF is not "the Linux ending" here, it is the workspace's ending.
+# No platform is the default and none is the exception.
+
+* text=auto eol=lf
+
+# Binaries: never touched, never diffed as text. Declared explicitly rather than left to detection,
+# because a misdetected .docx is corrupted silently and academy/ holds 89 of them.
+*.docx binary
+*.pdf  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pyc  binary
+*.tgz  binary
+*.gz   binary
+*.zip  binary
+
+# Unzipped OOXML payload: the members of a .docx, extracted. `*.docx binary` above covers the
+# archive and says nothing about its contents once they are on disk, so these fifteen were being
+# treated as text and carried CRLF into the index — the only tracked files in this repo that ever
+# did (b20260901). They are rewritten back into a .docx byte for byte, and core/hooks/vendored.txt
+# already declares them as not ours to author. Same rule, said to git.
+academy/administration/pda/template_extracted/** -text

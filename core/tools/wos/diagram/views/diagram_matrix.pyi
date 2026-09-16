@@ -1,0 +1,6 @@
+from _typeshed import Incomplete
+
+MARKS: Incomplete
+
+def render(rows: list, columns: list, cells: dict, trigger_of) -> str: ...
+def legend() -> str: ...

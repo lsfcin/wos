@@ -1,0 +1,79 @@
+# Usage: core/run tools/notify/telegram <text> [--loud] — tell Lucas, on the chat he already reads
+#
+# WHY THIS EXISTS: five times the agent needed something only Lucas can do — a consent screen, a
+# re-exported cookie, a decision it had parked on — and said so in writing only an agent reads, at a
+# moment only an agent is looking (/ROADMAP.md § Cost). The message was never missing. The channel was.
+#
+# WHY IT IS SILENT BY DEFAULT: the channel was picked to NOT pull attention (Lucas, 2026-09-15 —
+# phone addiction is a real cost to him, and a notification that interrupts him is a loss even when
+# its content is right). The message waits in a chat he opens on his own schedule; `--loud` exists so
+# the default is a choice rather than a limitation, and nothing in this workspace passes it today.
+#
+# WHY IT READS ANOTHER PROJECT'S CONFIG AND IMPORTS NOTHING FROM IT: code/aiwbot is a nested repo
+# with its own facade, and importing across that line would make a workspace tool fail whenever that
+# project is mid-refactor. The bot token and chat id are machine state, not its source — so this
+# reads the same file and speaks to the provider directly. The cost of the copy is one path, below;
+# the cost of the import would be a coupling.
+import argparse
+import json
+import pathlib
+import sys
+import urllib.parse
+import urllib.request
+
+_HERE = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE.parent))
+import tool_law  # noqa: E402
+
+tool_law.require('notify')
+
+CONFIG = pathlib.Path.home() / '.config' / 'aiwbot' / 'config.json'
+API = 'https://api.telegram.org/bot{token}/sendMessage'
+# A hook calls this while Lucas waits. A channel that hangs the session it was meant to rescue is
+# worse than one that stays quiet, so the wait is bounded and short.
+TIMEOUT = 5
+
+
+def credentials() -> tuple[str, int]:
+	"""Token and chat id, or an AUTH FAILURE naming its own fix (core/tools/SPECS.md § An auth failure)."""
+	try:
+		config = json.loads(CONFIG.read_text(encoding='utf-8'))
+	except OSError:
+		raise SystemExit(
+			f'AUTH FAILURE — no Telegram config at {CONFIG}\n'
+			f'  This borrows the aiwbot bot. Install it first: SETUP-accounts.md § Telegram bot.')
+	token, chat = config.get('bot_token'), config.get('allowed_chat_id')
+	if not token or chat is None:
+		missing = 'bot_token' if not token else 'allowed_chat_id'
+		raise SystemExit(
+			f'AUTH FAILURE — {CONFIG} carries no {missing}\n'
+			f'  Finish the aiwbot install: SETUP-accounts.md § Telegram bot.')
+	return token, int(chat)
+
+
+def notify(text: str, loud: bool = False) -> None:
+	token, chat = credentials()
+	body = urllib.parse.urlencode({
+		'chat_id': chat,
+		'text': text,
+		'disable_notification': 'false' if loud else 'true',
+	}).encode()
+	request = urllib.request.Request(API.format(token=token), data=body)
+	with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+		answer = json.loads(response.read())
+	if not answer.get('ok'):
+		raise SystemExit(f'Telegram refused it: {answer.get("description", answer)}')
+
+
+def main() -> None:
+	parser = argparse.ArgumentParser(description='tell Lucas, on the chat he already reads')
+	parser.add_argument('text', help='what he needs to know, in one line')
+	parser.add_argument('--loud', action='store_true',
+	                    help='let it buzz his phone; the default waits for him instead')
+	args = parser.parse_args()
+	notify(args.text, loud=args.loud)
+	print('sent' + (' (loud)' if args.loud else ' (silent)'))
+
+
+if __name__ == '__main__':
+	main()

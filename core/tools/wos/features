@@ -1,0 +1,160 @@
+# Usage: core/tools/wos/features [--group <g>] [--findings] [--on <name>] [--off <name>] [--check] [--scoreboard] — list every toggleable feature from core/features.txt with its answer in core/profile.txt; --findings counts what cannot be switched off; --check exits 1 on any registry/profile disagreement; --scoreboard reports what each feature actually did
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / 'core' / 'hooks'))
+
+import feature_law as law  # noqa: E402  — path is set above, which is the house pattern
+import scoreboard as board  # noqa: E402
+
+LOCAL = law.LOCAL_PROFILE_FILE
+MARK = {'on': 'on ', 'off': 'OFF'}
+LOCAL_HEAD = ('# What THIS machine answers differently. Gitignored: the versioned answers are\n'
+              '# core/profile.txt, and a row here overrides one of them for this clone only.\n'
+              '# Same three tab-separated columns. Written by core/tools/wos/features --on|--off.\n'
+              'kind\tkey\tvalue\n')
+
+
+def _write_toggle(name: str, value: str) -> int:
+    """Answer for THIS machine, never in the versioned base.
+
+    Two clones on two operating systems pull core/profile.txt, so a flip typed here used to land
+    over there — and the base stays versioned precisely so the general/Lucas-specific line is a
+    reviewable diff. A row is written even when it repeats the base: what this machine runs is
+    then stated where this machine is asked, rather than inherited and silently re-decided.
+    """
+    if name not in law.names():
+        print(f'no such feature: {name!r} — it is not declared in core/features.txt',
+              file=sys.stderr)
+        return 1
+    lines = LOCAL.read_text(encoding='utf-8').splitlines(keepends=True) if LOCAL.exists() \
+        else [LOCAL_HEAD]
+    row = f'toggle\t{name}\t{value}\n'
+    for i, line in enumerate(lines):
+        parts = line.rstrip('\n').split('\t')
+        if len(parts) == 3 and parts[0] == 'toggle' and parts[1] == name:
+            lines[i] = row
+            break
+    else:
+        lines.append(row)
+    LOCAL.write_text(''.join(lines), encoding='utf-8', newline='\n')
+    print(f'{name} -> {value}  (this machine only: {LOCAL.name})')
+    return 0
+
+
+def _listing(rows: list) -> int:
+    """Grouped, because the grouping is what makes a feature findable in a tree this size.
+
+    A feature spanning layers is listed under EACH of them. Findability is the whole point of the
+    column, and someone opening core/hooks/ looking for what guards a paper commit should find
+    `latex` there as surely as someone opening core/tools/.
+    """
+    toggles = law.load_profile()['toggle']
+    for group in sorted({g for r in rows for g in law.groups(r)}):
+        members = [r for r in rows if group in law.groups(r)]
+        print(f'\n{group}  ({len(members)})')
+        for r in members:
+            state = MARK.get(toggles.get(r['name'], 'on'), 'on ')
+            wired = '' if r['wired'] not in ('-', '') else '   [not switchable]'
+            print(f"  {state}  {r['name']:24s} {r['enforcement']:10s} {r['scope']:8s}{wired}")
+    return 0
+
+
+def _findings() -> int:
+    """A capability that cannot be switched off is entangled with the scaffold rather than sitting
+    on it, so it is invisible to an ablation. The count is the number that has to come down."""
+    rows = law.findings()
+    for r in rows:
+        print(f"  {r['name']:24s} {r['group']:14s} {r['enforcement']}")
+    total = len(law.load_registry())
+    print(f'\n{len(rows)} of {total} declared features cannot be switched off yet.')
+    print('Wiring one means calling feature_law.is_enabled() in the file that enforces it,')
+    print("then naming that file in the registry's `wired` column.")
+    return 0
+
+
+def _check() -> int:
+    """Every disagreement between the two files, in one pass. Exits 1 on any."""
+    registry, toggles = law.load_registry(), law.load_profile()['toggle']
+    declared = {r['name'] for r in registry}
+    problems = [f'declared but unanswered: {s}' for s in sorted(declared - set(toggles))]
+    problems += [f'answered but undeclared: {s}' for s in sorted(set(toggles) - declared)]
+    problems += [f"{r['name']}: bad value in a closed column"
+                 for r in registry
+                 if not set(law.groups(r)) <= law.GROUPS or not law.groups(r)
+                 or r['enforcement'] not in law.ENFORCEMENT
+                 or r['scope'] not in law.SCOPES]
+    problems += [f'{s}: answer is neither on nor off' for s, v in sorted(toggles.items())
+                 if v not in ('on', 'off')]
+    for p in problems:
+        print(f'  {p}', file=sys.stderr)
+    print(f'{len(problems)} disagreement(s) between core/features.txt and core/profile.txt.')
+    return 1 if problems else 0
+
+
+def _scoreboard() -> int:
+    """What each feature really did, against what it claims to be.
+
+    THE TWO COLUMNS ARE THE POINT, and a row where they disagree is the finding: a feature that
+    fired ten thousand times and blocked nothing is either enforcing something nobody violates or
+    enforcing nothing at all, and the registry cannot tell those apart. `-` under blocked means the
+    feature is not a blocking gate and was never expected to; `0` means it is one and never fired
+    in anger. Read them differently.
+    """
+    counts = board.tally()
+    if not counts:
+        print('nothing recorded yet. The clock starts at the first tool call after this feature')
+        print('was switched on: core/run tools/wos/features --on hook-scoreboard')
+        return 0
+    registry = {r['name']: r for r in law.load_registry()}
+    print(f'since {board.started()} · {len(counts)} feature(s) have fired\n')
+    print(f"  {'feature':<26} {'fired':>8} {'blocked':>8}  enforcement")
+    for name, seen in sorted(counts.items(), key=lambda kv: -kv[1]['fired']):
+        row = registry.get(name, {})
+        pushes = row.get('enforcement', '?') == 'blocks'
+        blocked = str(seen['blocked']) if pushes else '-'
+        print(f"  {name:<26} {seen['fired']:>8} {blocked:>8}  {row.get('enforcement', '?')}")
+    silent = sorted(set(registry) - set(counts))
+    if silent:
+        print(f'\n{len(silent)} declared feature(s) have never fired here:')
+        print('  ' + ', '.join(silent))
+    return 0
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(add_help=True)
+    ap.add_argument('--group', help='list one group only')
+    ap.add_argument('--findings', action='store_true', help='what cannot be switched off yet')
+    ap.add_argument('--on', metavar='NAME', help='switch on, in core/profile.local.txt')
+    ap.add_argument('--off', metavar='NAME', help='switch off, in core/profile.local.txt')
+    ap.add_argument('--check', action='store_true', help='exit 1 on any disagreement')
+    ap.add_argument('--scoreboard', action='store_true',
+                    help='what each feature really did: fired, and blocked')
+    args = ap.parse_args()
+
+    if args.on:
+        return _write_toggle(args.on, 'on')
+    if args.off:
+        return _write_toggle(args.off, 'off')
+    if args.check:
+        return _check()
+    if args.scoreboard:
+        return _scoreboard()
+    if args.findings:
+        return _findings()
+
+    rows = law.load_registry()
+    if args.group:
+        rows = [r for r in rows if args.group in law.groups(r)]
+        if not rows:
+            print(f'no such group: {args.group!r} — one of {sorted(law.GROUPS)}', file=sys.stderr)
+            return 1
+    return _listing(rows)
+
+
+if __name__ == '__main__':
+    sys.exit(main())

@@ -1,0 +1,121 @@
+# Which features are switched on by default, and the settings that are not switches.
+# The registry is core/features.txt; this file holds only the answers. Read by
+# core/hooks/feature_law.py.
+#
+# THE ANSWERS HERE ARE SHARED; THIS MACHINE'S ARE NOT (2026-09-04). Two clones on two operating
+# systems pull this file, so `features --on` used to land on the other one — and `latex`, the
+# apt-only deps and `telegram-capture` are genuinely different questions here and there. A
+# gitignored core/profile.local.txt overrides any row for one clone, and that is where
+# `core/tools/wos/features --on|--off <name>` writes. This file keeps the shared answer.
+#
+# WHY IT IS A SEPARATE FILE: the registry ships as scaffold — it is what makes a subset of this
+# workspace installable — while these answers are Lucas's. The public repo gets this one file
+# replaced by a placeholder at defaults, which is what makes the general/Lucas-specific line a
+# reviewable diff instead of a trusted script. That is also why the base stayed versioned when the
+# per-machine half moved out: a gitignored answers file has no diff to review.
+#
+# Every registry name carries an answer here on purpose, rather than only the departures: this is
+# the file you open to see what your machine actually runs, and a name added to the registry and
+# never answered is caught by test_features.py instead of defaulting quietly.
+#
+# For a single ablation run, edit neither file — `WOS_FEATURES_OFF=<name>` turns a feature off
+# for one command and leaves both answers alone.
+#
+# Tab-separated. Columns:
+#   kind   toggle | setting
+#   key    a registry name (toggle), or a setting name
+#   value  on | off (toggle), or the setting's value
+#
+kind	key	value
+setting	lang	en
+setting	permissions	open
+setting	links-base	https://lucassf.pages.dev
+toggle	context-chain	on
+toggle	interface-first-reads	on
+toggle	interface-stubs	on
+toggle	routing-tables	on
+toggle	agent-context-brief	on
+toggle	subtree-read-tracking	on
+toggle	line-limit	on
+toggle	crowding-limit	on
+toggle	context-head-budget	on
+toggle	first-line-comment	on
+toggle	duplication-gate	on
+toggle	facade-discipline	on
+toggle	type-gate	on
+toggle	retired-tokens	on
+toggle	citation-gate	on
+toggle	issues-gate	on
+toggle	memory-gate	on
+toggle	spec-read-gate	on
+toggle	heredoc-gate	on
+toggle	verify-suite	on
+toggle	verify-contract	on
+toggle	project-contract	on
+toggle	gitflow-gate	on
+toggle	gitlink-gate	on
+toggle	gitignore-self-heal	on
+toggle	auto-push	on
+toggle	lint-typescript	on
+toggle	declared-deps	on
+toggle	opencode-plugin	on
+toggle	antigravity-hooks	on
+toggle	brain-dashboard	on
+toggle	brain-attention	on
+toggle	inbox-nudge	on
+toggle	compass-nudge	on
+toggle	telegram-capture	on
+toggle	notify	off
+toggle	context-meter	on
+toggle	statusline	on
+toggle	precompact-wipe	on
+toggle	entropy-dashboard	on
+toggle	hook-scoreboard	on
+toggle	diagram	on
+toggle	size	on
+toggle	rtk-compaction	on
+toggle	web-search	on
+toggle	google-auth	on
+toggle	forms	on
+toggle	vpn-cin	on
+toggle	mail	on
+toggle	notes-notion	on
+toggle	link-shortener	on
+toggle	links	on
+toggle	video-text	on
+toggle	wazip	on
+toggle	asset-inspect	on
+toggle	latex	on
+toggle	caveman	on
+toggle	craft	on
+toggle	roundup	on
+toggle	handoff	on
+toggle	inbox	on
+toggle	compass	on
+toggle	research	on
+toggle	prepare	on
+toggle	dedup	on
+toggle	install	on
+toggle	permissions	on
+toggle	levels	on
+toggle	publish	on
+toggle	github-auth	on
+toggle	docs	on
+toggle	slides	on
+toggle	calendar	on
+toggle	drive	on
+toggle	foundry	on
+toggle	iso-visual	on
+toggle	filesystem	on
+toggle	storage	on
+toggle	secrets	on
+toggle	improve	on
+toggle	interview	on
+toggle	acronyms	on
+toggle	language	on
+toggle	edit	on
+toggle	cap	on
+toggle	symmetry	on
+toggle	deletion	on
+toggle	dogfood	on
+toggle	reduce	on

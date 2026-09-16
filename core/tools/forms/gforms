@@ -1,0 +1,131 @@
+# Usage: core/tools/forms/gforms <cmd> [args] — Google Forms CLI: auth, new, read, apply, responses
+import sys, json, pathlib, argparse
+
+_HERE = pathlib.Path(__file__).resolve().parent
+# Boundaries sit beside the CLI; gauth is its own family, shared by every provider tool.
+sys.path.insert(0, str(_HERE))
+sys.path.insert(0, str(_HERE.parent))
+sys.path.insert(0, str(_HERE.parent / 'auth'))
+import tool_law
+
+# Guarded before the Google imports: "forms is off" must refuse here, not fail deeper in.
+tool_law.require('forms')
+
+import forms_core, forms_spec, gauth, short_name as short_name_tool  # noqa: E402
+
+
+def cmd_auth(alias: str, write: bool, reauth: bool) -> None:
+    primary = gauth.resolve_alias(alias)
+    kind = "forms-write" if write else "forms"
+    token = gauth.config_dir(kind) / f"{primary}.token.json"
+    if reauth and token.exists():
+        # drop the stale token so a revoked/expired one can't dead-end on refresh
+        token.unlink()
+        print(f"Removed stale token: {token}")
+    print(f"Opening browser for OAuth — {kind} ({primary})...")
+    forms_core.get_service(primary, write=write)
+    print(f"Done. Token saved: {token}")
+
+
+def cmd_new(account: str, spec_path: str, folder: str, short_name: str) -> None:
+    """A form is created, filled and filed in one call: the whole spec or nothing."""
+    alias = gauth.resolve_alias(account)
+    spec = json.loads(pathlib.Path(spec_path).read_text(encoding='utf-8'))
+    form = forms_core.create(alias, spec["title"], spec.get("documentTitle", ""))
+    form_id = form["formId"]
+    reqs = forms_spec.requests(spec)
+    forms_core.apply(alias, form_id, reqs)
+    print(f"Created '{spec['title']}' ({alias}) with {len(reqs)} request(s)  id:{form_id}")
+    if folder:
+        forms_core.move(alias, form_id, folder)
+        print(f"  filed into folder {folder}")
+    print(f"  edit:    {forms_core.edit_url(form_id)}")
+    print(f"  respond: {form.get('responderUri', '')}")
+    if short_name:
+        # The responder link, never the edit one: the short name is what a room gets told.
+        print(short_name_tool.mint(short_name, form.get("responderUri", ""), home=spec_path))
+
+
+def cmd_read(account: str, form_id: str, as_json: bool) -> None:
+    alias = gauth.resolve_alias(account)
+    form = forms_core.get_form(alias, form_id)
+    if as_json:
+        print(json.dumps(form, ensure_ascii=False, indent=2))
+        return
+    info = form.get("info", {})
+    print(f"── {info.get('title', '')} ──")
+    if info.get("description"):
+        print(info["description"])
+    for i, item in enumerate(form.get("items", [])):
+        kind = next((k for k in item if k.endswith("Item")), "?")
+        req = item.get("questionItem", {}).get("question", {}).get("required")
+        print(f"  [{i}] {kind[:-4]:<13} {item.get('title', '')}{'  *' if req else ''}")
+    print(f"  edit:    {forms_core.edit_url(form_id)}")
+    print(f"  respond: {form.get('responderUri', '')}")
+
+
+def cmd_apply(account: str, form_id: str, path: str) -> None:
+    """The general boundary: a JSON array of Forms API requests, applied atomically."""
+    alias = gauth.resolve_alias(account)
+    reqs = json.loads(pathlib.Path(path).read_text(encoding='utf-8'))
+    forms_core.apply(alias, form_id, reqs)
+    print(f"Applied {len(reqs)} request(s) to {form_id}")
+    print(f"  {forms_core.edit_url(form_id)}")
+
+
+def cmd_responses(account: str, form_id: str, as_json: bool) -> None:
+    alias = gauth.resolve_alias(account)
+    responses = forms_core.list_responses(alias, form_id)
+    if as_json:
+        print(json.dumps(responses, ensure_ascii=False, indent=2))
+        return
+    titles = forms_core.question_titles(forms_core.get_form(alias, form_id))
+    print(f"── {len(responses)} resposta(s) ──")
+    for r in responses:
+        print(f"\n[{r.get('lastSubmittedTime', '')[:16]}]")
+        for qid, ans in r.get("answers", {}).items():
+            values = [a.get("value", "") for a in ans.get("textAnswers", {}).get("answers", [])]
+            print(f"  {titles.get(qid, qid)}: {'; '.join(values)}")
+
+
+def main():
+    p = argparse.ArgumentParser(prog="gforms")
+    sub = p.add_subparsers(dest="cmd")
+
+    pa = sub.add_parser("auth")
+    pa.add_argument("alias")
+    pa.add_argument("--write", action="store_true", help="request edit scope (forms-write token)")
+    pa.add_argument("--reauth", action="store_true", help="drop the existing token and re-consent (fixes revoked/expired)")
+
+    pn = sub.add_parser("new")
+    pn.add_argument("--account", required=True)
+    pn.add_argument("--folder", default="", help="Drive folder id to file the form into")
+    pn.add_argument("--short-name", default="", help="also mint a short link for the responder URL")
+    pn.add_argument("spec_json", help="file holding the form spec (see CONTEXT.md)")
+
+    pr = sub.add_parser("read")
+    pr.add_argument("--account", required=True)
+    pr.add_argument("--json", dest="as_json", action="store_true", help="raw API JSON instead of the outline")
+    pr.add_argument("form_id")
+
+    pap = sub.add_parser("apply")
+    pap.add_argument("--account", required=True)
+    pap.add_argument("form_id")
+    pap.add_argument("requests_json", help="file holding a JSON array of Forms API requests")
+
+    prs = sub.add_parser("responses")
+    prs.add_argument("--json", dest="as_json", action="store_true", help="raw API JSON")
+    prs.add_argument("--account", required=True)
+    prs.add_argument("form_id")
+
+    args = p.parse_args()
+    if   args.cmd == "auth":      cmd_auth(args.alias, args.write, args.reauth)
+    elif args.cmd == "new":       cmd_new(args.account, args.spec_json, args.folder, args.short_name)
+    elif args.cmd == "read":      cmd_read(args.account, args.form_id, args.as_json)
+    elif args.cmd == "apply":     cmd_apply(args.account, args.form_id, args.requests_json)
+    elif args.cmd == "responses": cmd_responses(args.account, args.form_id, args.as_json)
+    else:                         p.print_help()
+
+
+if __name__ == "__main__":
+    gauth.run(main)

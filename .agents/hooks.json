@@ -1,0 +1,39 @@
+{
+  "workspace-policy": {
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh core/run hooks/antigravity/antigravity_policy.py PreToolUse",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh core/run hooks/antigravity/antigravity_policy.py PostToolUse",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PreInvocation": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh core/run hooks/antigravity/antigravity_policy.py PreInvocation",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

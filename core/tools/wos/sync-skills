@@ -1,0 +1,92 @@
+# Usage: core/run tools/wos/sync-skills [--check] — regenerate skill mirrors from core/skills/*.md
+#
+# Source of truth:  core/skills/<name>.md   (mirror paths are declared in core/harnesses.txt)
+# Generated COPIES, git-ignored, regenerated on install / edit / create / commit / session start:
+#   <harness>/skills/<name>/SKILL.md   for every row in core/harnesses.txt
+#   .claude/commands/<name>.md         (slash commands, links rebased)
+#
+# Excluded from mirroring: _template.md, *.original.md, and any UPPERCASE.md (a TYPE, not a skill).
+#
+# PORTED FROM BASH 2026-09-01, with mirror.sh and validate.sh, and ISSUES.md is why: `--check` cost
+# 22 s on a Windows clone and a commit touching a skill ~30 s, because the tool spent ~300 forks at
+# ~48 ms each. It is one process now. The split is the one the bash already had (2026-07-31 at 341
+# lines) -- generating mirrors is a different job from validating frontmatter.
+import sys
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+WORKSPACE = SCRIPT_DIR.parents[2]
+sys.path.insert(0, str(SCRIPT_DIR / 'skills'))
+
+import mirror  # noqa: E402
+import validate  # noqa: E402
+
+SRC = WORKSPACE / 'core' / 'skills'
+
+
+def harnesses() -> tuple:
+    """(mirror dirs, commands dir) from core/harnesses.txt — the one declaration of the fleet.
+
+    B13: this list used to be a MIRRORS=(...) array in this file's own source, so adding a harness
+    meant editing it by hand, done twice in one week. One commands mirror today (the row that
+    declares a cdir); the column is the declaration, not the count.
+    """
+    mirrors, commands = [], []
+    for line in (WORKSPACE / 'core' / 'harnesses.txt').read_text(encoding='utf-8').splitlines():
+        if not line.strip() or line.lstrip().startswith('#'):
+            continue
+        row = line.split('\t')
+        mirrors.append(WORKSPACE / row[1])
+        if len(row) > 2 and row[2] not in ('', '-'):
+            commands.append(WORKSPACE / row[2])
+    return mirrors, commands[0]
+
+
+def check(mirrors: list, commands_dir: Path) -> int:
+    problems = (validate.validate_skills(SRC)
+                + validate.validate_flows(WORKSPACE)
+                + validate.validate_flow_loops(WORKSPACE)
+                + validate.validate_flow_dag(WORKSPACE)
+                + validate.validate_agents(WORKSPACE)
+                + mirror.orphans(False, mirrors, commands_dir, SRC))
+    names = mirror.list_skills(SRC)
+    for target in mirrors:
+        problems += mirror.check_mirror(target, SRC, names)
+    problems += mirror.check_commands(commands_dir, SRC, mirror.list_commands(SRC))
+    for line in problems:
+        print(line)
+    if not problems:
+        print('OK: all mirrors and command files in sync')
+    return 1 if problems else 0
+
+
+def sync(mirrors: list, commands_dir: Path) -> int:
+    invalid = validate.validate_skills(SRC)
+    if invalid:
+        for line in invalid:
+            print(line)
+        print('✗ fix the invalid skill files above before syncing.', file=sys.stderr)
+        return 1
+    for line in mirror.orphans(True, mirrors, commands_dir, SRC):
+        print(line)
+    names = mirror.list_skills(SRC)
+    for target in mirrors:
+        mirror.sync_mirror(target, SRC, names)
+    mirror.sync_commands(commands_dir, SRC, mirror.list_commands(SRC))
+    print(f'Synced {len(names)} skills to {len(mirrors)} mirrors + command files.')
+    return 0
+
+
+def main() -> int:
+    argument = sys.argv[1] if len(sys.argv) > 1 else 'sync'
+    mirrors, commands_dir = harnesses()
+    if argument == '--check':
+        return check(mirrors, commands_dir)
+    if argument in ('sync', ''):
+        return sync(mirrors, commands_dir)
+    print(f'Usage: {sys.argv[0]} [--check]', file=sys.stderr)
+    return 64
+
+
+if __name__ == '__main__':
+    sys.exit(main())

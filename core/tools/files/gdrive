@@ -1,0 +1,191 @@
+# gdrive — Google Drive read+write CLI for workspace OS — commands: auth, recent, list, search, download, mkdir, put, copy, perms, share, rm, sync
+import sys, pathlib, argparse
+
+_HERE = pathlib.Path(__file__).resolve().parent
+# Boundaries sit beside the CLI; gauth is its own family, shared by every provider tool.
+sys.path.insert(0, str(_HERE))
+sys.path.insert(0, str(_HERE.parent))
+sys.path.insert(0, str(_HERE.parent / 'auth'))
+sys.path.insert(0, str(_HERE.parents[1] / 'hooks'))
+import drive_core, drive_sync, gauth, short_name as short_name_tool
+from platform_law import WORKSPACE_ROOT
+
+DOWNLOAD_DIR = WORKSPACE_ROOT / "Downloads/workspace-drive"
+
+
+def _print_files(files: list, alias: str) -> None:
+    if not files:
+        print("  (nenhum arquivo)")
+        return
+    for f in files:
+        size = f.get("size", "")
+        size_str = f" [{int(size)//1024}KB]" if size else ""
+        mod = f.get("modifiedTime", "")[:10]
+        print(f"  [{alias}] {f['name']}{size_str}  ({mod})  id:{f['id']}")
+        if f.get("webViewLink"):
+            print(f"    {f['webViewLink']}")
+
+
+def cmd_auth(alias: str, write: bool, reauth: bool) -> None:
+    primary = gauth.resolve_alias(alias)
+    kind = "drive-write" if write else "drive"
+    token = gauth.config_dir(kind) / f"{primary}.token.json"
+    if reauth and token.exists():
+        token.unlink()
+        print(f"Removed stale token: {token}")
+    print(f"Opening browser for OAuth — {kind} ({primary})...")
+    drive_core.get_service(primary, write=write)
+    print(f"Done. Token saved: {token}")
+
+def cmd_recent(account: str, limit: int) -> None:
+    aliases = gauth.primary_aliases() if account == "all" else [gauth.resolve_alias(account)]
+    for alias in aliases:
+        print(f"\n── Recent files ({alias}) ──")
+        _print_files(drive_core.recent_files(alias, limit), alias)
+
+def cmd_list(account: str, folder_id: str) -> None:
+    aliases = gauth.primary_aliases() if account == "all" else [gauth.resolve_alias(account)]
+    for alias in aliases:
+        print(f"\n── {folder_id} ({alias}) ──")
+        _print_files(drive_core.list_files(alias, folder_id), alias)
+
+def cmd_search(account: str, query: str) -> None:
+    aliases = gauth.primary_aliases() if account == "all" else [gauth.resolve_alias(account)]
+    for alias in aliases:
+        print(f"\n── Search: '{query}' ({alias}) ──")
+        _print_files(drive_core.search_files(alias, query), alias)
+
+def cmd_download(account: str, file_id: str, export_as: str) -> None:
+    alias = gauth.resolve_alias(account)
+    print(f"Downloading {file_id} from {alias}...")
+    path = drive_core.download_file(alias, file_id, DOWNLOAD_DIR, export_as=export_as)
+    print(f"Saved: {path}")
+
+def cmd_mkdir(account: str, name: str, parent_id: str) -> None:
+    alias = gauth.resolve_alias(account)
+    svc = drive_core.get_service(alias, write=True)
+    fid = drive_core.find_or_create_folder(svc, name, parent_id)
+    print(f"Folder '{name}' ({alias})  id:{fid}")
+
+def cmd_put(account: str, path: str, parent_id: str, as_gdoc: bool, name: str) -> None:
+    alias = gauth.resolve_alias(account)
+    svc = drive_core.get_service(alias, write=True)
+    res = drive_core.upload_local(svc, path, parent_id, as_gdoc=as_gdoc, name=name)
+    kind = "Google Doc" if as_gdoc else "file"
+    print(f"Uploaded {kind} '{res['name']}' ({alias})  id:{res['id']}\n  {res.get('webViewLink', '')}")
+
+def cmd_copy(account: str, file_id: str, name: str, parent_id: str) -> None:
+    alias = gauth.resolve_alias(account)
+    svc = drive_core.get_service(alias, write=True)
+    res = drive_core.copy_file(svc, file_id, name, parent_id)
+    print(f"Copied to '{name}' ({alias})  id:{res['id']}\n  {res.get('webViewLink', '')}")
+
+def cmd_perms(account: str, file_id: str) -> None:
+    alias = gauth.resolve_alias(account)
+    for perm in drive_core.list_permissions(drive_core.get_service(alias), file_id):
+        who = perm.get("emailAddress") or perm.get("domain") or perm["type"]
+        print(f"  {perm['role']:<8} {who}")
+
+def cmd_share(account: str, file_id: str, email: str, role: str, short_name: str) -> None:
+    alias = gauth.resolve_alias(account)
+    svc = drive_core.get_service(alias, write=True)
+    kind = "anyone" if email == "anyone" else "user"
+    drive_core.grant_permission(svc, file_id, email, role=role, kind=kind)
+    print(f"Shared {file_id} with {email} as {role} ({alias})")
+    if short_name:
+        # Sharing is the moment a link becomes handable, so it is the moment worth naming.
+        link = svc.files().get(fileId=file_id, fields="webViewLink").execute()["webViewLink"]
+        print(short_name_tool.mint(short_name, link))
+
+def cmd_rm(account: str, file_ids: list) -> None:
+    alias = gauth.resolve_alias(account)
+    svc = drive_core.get_service(alias, write=True)
+    for file_id in file_ids:
+        res = drive_core.trash_file(svc, file_id)
+        print(f"Trashed '{res.get('name', file_id)}' ({alias})  id:{res['id']}")
+
+def cmd_sync(account: str, dir_path: str, force: bool) -> None:
+    target = pathlib.Path(dir_path) if dir_path else pathlib.Path.cwd()
+    res = drive_sync.sync_directory(target, account=account, force=force)
+    if "error" in res:
+        print(f"Sync error: {res['error']}")
+        sys.exit(1)
+    if res.get("skipped_debounce"):
+        print(f"Sync skipped (debounce active for folder {res['folder_id']}). Use --force to override.")
+        return
+    updated = res.get("updated", [])
+    print(f"Synced folder {res['folder_id']} ({res['account']}): {len(updated)} file(s) updated.")
+    for u in updated:
+        print(f"  - {u}")
+
+
+def main():
+    p = argparse.ArgumentParser(prog="gdrive")
+    sub = p.add_subparsers(dest="cmd")
+
+    pa = sub.add_parser("auth")
+    pa.add_argument("alias")
+    pa.add_argument("--write", action="store_true", help="request write scope (drive-write token)")
+    pa.add_argument("--reauth", action="store_true", help="drop the existing token and re-consent (fixes revoked/expired)")
+    pr = sub.add_parser("recent")
+    pr.add_argument("--account", default="all")
+    pr.add_argument("--limit", type=int, default=20)
+    pl = sub.add_parser("list")
+    pl.add_argument("--account", default="all")
+    pl.add_argument("--folder", default="root")
+    ps = sub.add_parser("search")
+    ps.add_argument("--account", default="all")
+    ps.add_argument("query")
+    pd = sub.add_parser("download")
+    pd.add_argument("--account", required=True)
+    pd.add_argument("--as", dest="export_as", default=None, help="export format override for Google-native files (e.g. docx)")
+    pd.add_argument("file_id")
+    pm = sub.add_parser("mkdir")
+    pm.add_argument("--account", required=True)
+    pm.add_argument("--parent", default="root")
+    pm.add_argument("name")
+    pp = sub.add_parser("put")
+    pp.add_argument("--account", required=True)
+    pp.add_argument("--parent", default="root")
+    pp.add_argument("--gdoc", action="store_true", help="convert to Google Doc on upload")
+    pp.add_argument("--name", default=None, help="override the uploaded file name")
+    pp.add_argument("path")
+    pc = sub.add_parser("copy")
+    pc.add_argument("--account", required=True)
+    pc.add_argument("--parent", default="root")
+    pc.add_argument("--name", required=True, help="name the copy carries")
+    pc.add_argument("file_id")
+    pe = sub.add_parser("perms")
+    pe.add_argument("--account", required=True)
+    pe.add_argument("file_id")
+    psh = sub.add_parser("share")
+    psh.add_argument("--account", required=True)
+    psh.add_argument("--role", default="writer", choices=["reader", "commenter", "writer"])
+    psh.add_argument("--short-name", default="", help="also mint a short link for the shared file")
+    psh.add_argument("file_id")
+    psh.add_argument("email")
+    prm = sub.add_parser("rm")
+    prm.add_argument("--account", required=True)
+    prm.add_argument("file_ids", nargs="+", help="moved to the bin, recoverable for 30 days")
+    psy = sub.add_parser("sync")
+    psy.add_argument("--account", default=None, help="override account alias (default: from drive_sync.json)")
+    psy.add_argument("--dir", dest="dir_path", default="", help="target directory holding drive_sync.json")
+    psy.add_argument("--force", action="store_true", help="ignore debounce TTL and force check/download")
+    args = p.parse_args()
+    if   args.cmd == "auth":     cmd_auth(args.alias, args.write, args.reauth)
+    elif args.cmd == "recent":   cmd_recent(args.account, args.limit)
+    elif args.cmd == "list":     cmd_list(args.account, args.folder)
+    elif args.cmd == "search":   cmd_search(args.account, args.query)
+    elif args.cmd == "download": cmd_download(args.account, args.file_id, args.export_as)
+    elif args.cmd == "mkdir":    cmd_mkdir(args.account, args.name, args.parent)
+    elif args.cmd == "put":      cmd_put(args.account, args.path, args.parent, args.gdoc, args.name)
+    elif args.cmd == "copy":     cmd_copy(args.account, args.file_id, args.name, args.parent)
+    elif args.cmd == "perms":    cmd_perms(args.account, args.file_id)
+    elif args.cmd == "share":    cmd_share(args.account, args.file_id, args.email, args.role, args.short_name)
+    elif args.cmd == "rm":       cmd_rm(args.account, args.file_ids)
+    elif args.cmd == "sync":     cmd_sync(args.account, args.dir_path, args.force)
+    else:                        p.print_help()
+
+
+if __name__ == "__main__":
+    gauth.run(main)

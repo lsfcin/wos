@@ -1,0 +1,3 @@
+# Workspace Instructions
+
+@AGENTS.md

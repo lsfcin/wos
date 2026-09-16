@@ -1,0 +1,113 @@
+# Usage: core/tools/wos/spec-contract-check <project-dir> [--edges <file>] — verify every spec-locked module has a complete SPEC.md contract (Inputs/Outputs/Invariants filled); optionally type-check declared edges. Exit 1 on any gap. See code/ROADMAP-spec-drive.md.
+import re
+import sys
+from pathlib import Path
+
+SPEC_LINE_RE = re.compile(r'^>\s*spec:\s*(\S.*?)\s*$', re.MULTILINE)
+# Edge line: A.out:Type -> B.in:Type  (declares a connection whose two endpoint types must match)
+EDGE_RE = re.compile(r'^(.+?):([^:]+?)\s*->\s*(.+?):([^:]+?)$')
+SKIP = {'.git', 'node_modules', 'dist', '.codegraph', '__pycache__', '.venv', '.craft'}
+REQUIRED = ('Inputs', 'Outputs', 'Invariants')
+
+
+def section_body(text: str, name: str):
+	"""Body under `## <name>` up to the next `## ` heading, or None if absent."""
+	lines = text.splitlines()
+	out: list[str] = []
+	capturing = False
+	result = None
+	for line in lines:
+		if line.strip().startswith('## '):
+			if capturing:
+				break
+			if line.strip()[3:].strip().lower() == name.lower():
+				capturing = True
+				result = ''
+			continue
+		if capturing:
+			out.append(line)
+	if result is None:
+		return None
+	return '\n'.join(out)
+
+
+def is_filled(body: str) -> bool:
+	no_comments = re.sub(r'<!--.*?-->', '', body, flags=re.S)
+	kept = []
+	for line in no_comments.splitlines():
+		stripped = line.strip()
+		if not stripped:
+			continue
+		if stripped.startswith('<') and stripped.endswith('>'):
+			continue
+		kept.append(stripped)
+	return len(kept) > 0
+
+
+def check_contracts(project: Path, problems: list[str]) -> int:
+	checked = 0
+	for ctx in sorted(project.rglob('CONTEXT.md')):
+		if SKIP.intersection(ctx.parts):
+			continue
+		match = SPEC_LINE_RE.search(ctx.read_text(errors='ignore', encoding='utf-8'))
+		if not match:
+			continue
+		value = match.group(1).strip()
+		if value.lower() == 'none':
+			continue
+		spec = ctx.parent / value
+		checked += 1
+		if not spec.is_file():
+			problems.append(f'{ctx.parent}: declares `> spec: {value}` but the SPEC file is missing')
+			continue
+		text = spec.read_text(errors='ignore', encoding='utf-8')
+		for section in REQUIRED:
+			body = section_body(text, section)
+			if body is None:
+				problems.append(f'{spec}: missing `## {section}` section')
+			elif not is_filled(body):
+				problems.append(f'{spec}: `## {section}` is empty/placeholder')
+	return checked
+
+
+def check_edges(edges_file: Path, problems: list[str]) -> int:
+	count = 0
+	for raw in edges_file.read_text(errors='ignore', encoding='utf-8').splitlines():
+		line = raw.strip()
+		if not line or line.startswith('#'):
+			continue
+		count += 1
+		edge = EDGE_RE.match(line)
+		if not edge:
+			problems.append(f'edge unparseable (want `A.out:Type -> B.in:Type`): {line}')
+			continue
+		a_ep, a_type, b_ep, b_type = (part.strip() for part in edge.groups())
+		if a_type != b_type:
+			problems.append(f'edge MISMATCH: {a_ep}:{a_type} -> {b_ep}:{b_type}')
+	return count
+
+
+def main() -> int:
+	args = sys.argv[1:]
+	edges_file = None
+	if '--edges' in args:
+		idx = args.index('--edges')
+		edges_file = Path(args[idx + 1])
+		del args[idx:idx + 2]
+	project = Path(args[0]).resolve() if args else Path.cwd()
+
+	problems: list[str] = []
+	checked = check_contracts(project, problems)
+	edges = check_edges(edges_file, problems) if edges_file else 0
+
+	if problems:
+		print('SPEC CONTRACT CHECK — FAIL')
+		for problem in problems:
+			print(f'  ✗ {problem}')
+		print(f'{checked} contract(s), {edges} edge(s) checked · {len(problems)} problem(s)')
+		return 1
+	print(f'SPEC CONTRACT CHECK — OK · {checked} contract(s) complete, {edges} edge(s) matched')
+	return 0
+
+
+sys.exit(main())

@@ -1,0 +1,147 @@
+# Usage: Core/tools/assets/inspect <file> [--desc "description text"] — generate or update .imgif/.csvif interface file
+from __future__ import annotations
+import argparse, csv, json, os, sys
+from pathlib import Path as _P
+
+sys.path.insert(0, str(_P(__file__).resolve().parents[1]))
+import tool_law  # noqa: E402
+from pathlib import Path
+
+IMG_EXTS = {'.png', '.jpg', '.jpeg', '.pdf', '.eps', '.svg', '.tiff', '.tif'}
+CSV_EXTS = {'.csv', '.tsv'}
+
+IMGIF_TEMPLATE = """\
+# {iface_name} — image interface (auto-generated header; description is human-set)
+file: {name}
+dimensions: {dims}
+mode: {mode}
+size_kb: {size_kb}
+description: {desc}
+used_in: []  # fill: [section/file.tex:line, ...]
+"""
+
+CSVIF_TEMPLATE = """\
+# {iface_name} — CSV interface (auto-generated)
+file: {name}
+shape: {rows} rows × {cols} cols
+columns:
+{col_lines}
+head:
+{head_lines}
+description: {desc}
+"""
+
+
+def size_kb(path: Path) -> int:
+    return path.stat().st_size // 1024
+
+
+def gen_imgif(path: Path, desc: str) -> str:
+    name = path.name
+    dims = "?"
+    mode = "?"
+    try:
+        from PIL import Image
+        with Image.open(path) as im:
+            dims = f"{im.width}×{im.height}"
+            mode = im.mode
+    except Exception:
+        pass
+    iface_name = iface_path(path).name
+    return IMGIF_TEMPLATE.format(
+        name=name, iface_name=iface_name, dims=dims, mode=mode,
+        size_kb=size_kb(path), desc=desc,
+    )
+
+
+def gen_csvif(path: Path, desc: str) -> str:
+    name = path.name
+    sep = '\t' if path.suffix == '.tsv' else ','
+    try:
+        with path.open(newline='', encoding='utf-8', errors='replace') as f:
+            reader = csv.DictReader(f, delimiter=sep)
+            rows = list(reader)
+        cols = list(rows[0].keys()) if rows else []
+        head = rows[:3] if rows else []
+        col_lines = "\n".join(f"  - {c}" for c in cols)
+        head_lines = "\n".join(
+            "  " + "  ".join(f"{k}: {r.get(k, '')}"[:20] for k in cols[:6])
+            for r in head
+        )
+        shape_rows = len(rows)
+    except Exception as e:
+        cols, col_lines, head_lines, shape_rows = [], "  (error reading file)", "", 0
+    iface_name = iface_path(path).name
+    return CSVIF_TEMPLATE.format(
+        name=name, iface_name=iface_name, rows=shape_rows, cols=len(cols),
+        col_lines=col_lines or "  (no columns detected)",
+        head_lines=head_lines or "  (empty)",
+        desc=desc,
+    )
+
+
+def iface_path(path: Path) -> Path:
+    ext = path.suffix.lower()
+    if ext in IMG_EXTS:
+        return path.with_suffix(path.suffix + 'if')
+    if ext in CSV_EXTS:
+        return path.with_suffix(path.suffix + 'if')
+    return path.with_suffix(path.suffix + 'if')
+
+
+def load_existing_desc(ipath: Path) -> str:
+    if not ipath.exists():
+        return "TODO — run: Core/tools/assets/inspect <file> --desc \"one-line description\""
+    for line in ipath.read_text(encoding='utf-8').splitlines():
+        if line.startswith("description:"):
+            return line.split(":", 1)[1].strip()
+    return "TODO — run: Core/tools/assets/inspect <file> --desc \"one-line description\""
+
+
+def main() -> int:
+    tool_law.require('asset-inspect')  # before argparse: off means off, including --help
+    ap = argparse.ArgumentParser(description="Generate .imgif/.csvif interface files for assets.")
+    ap.add_argument("file", help="Image or CSV file to inspect")
+    ap.add_argument("--desc", default="", help="One-line description of the file content")
+    ap.add_argument("--check", action="store_true", help="Exit 1 if interface is missing or description is TODO")
+    args = ap.parse_args()
+
+    path = Path(args.file).resolve()
+    if not path.exists():
+        print(f"⛔ File not found: {path}", file=sys.stderr)
+        return 1
+
+    ext = path.suffix.lower()
+    is_img = ext in IMG_EXTS
+    is_csv = ext in CSV_EXTS
+    if not is_img and not is_csv:
+        print(f"⛔ Unsupported type: {ext}  (supported: {sorted(IMG_EXTS | CSV_EXTS)})", file=sys.stderr)
+        return 1
+
+    ipath = iface_path(path)
+
+    if args.check:
+        if not ipath.exists():
+            print(f"⛔ INTERFACE MISSING: {ipath.name}  —  run Core/tools/assets/inspect {path.name}")
+            return 1
+        desc = load_existing_desc(ipath)
+        if desc.startswith("TODO"):
+            print(f"⚠  DESCRIPTION TODO: {ipath.name}  —  run Core/tools/assets/inspect {path.name} --desc \"...\"")
+            return 1
+        return 0
+
+    existing_desc = load_existing_desc(ipath)
+    desc = args.desc if args.desc else existing_desc
+
+    content = gen_imgif(path, desc) if is_img else gen_csvif(path, desc)
+    ipath.write_text(content, encoding='utf-8', newline='\n')
+
+    action = "Updated" if ipath.exists() else "Created"
+    print(f"✓ {action}: {ipath.name}")
+    if desc.startswith("TODO"):
+        print(f"  ⚠  Description is TODO — add it: Core/tools/assets/inspect {path.name} --desc \"...\"")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

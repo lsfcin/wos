@@ -1,0 +1,186 @@
+# Usage: core/tools/docs/gdocs <cmd> [args] — Google Docs CLI: auth, list, read, new, push, apply, text, replace, comments
+import sys, json, pathlib, argparse
+
+_HERE = pathlib.Path(__file__).resolve().parent
+# Boundaries sit beside the CLI; gauth and gcli are shared, one hop up.
+sys.path.insert(0, str(_HERE))
+sys.path.insert(0, str(_HERE.parent))
+sys.path.insert(0, str(_HERE.parent / 'auth'))
+import docs_core, docs_drive, docs_outline, gauth, gcli, short_name as short_name_tool
+
+
+def cmd_auth(alias: str, write: bool, reauth: bool) -> None:
+    kind = "docs-write" if write else "docs"
+    gcli.auth_command(kind, alias, lambda a: docs_core.get_service(a, write=write), reauth)
+
+
+def cmd_list(account: str, name: str) -> None:
+    for alias in gcli.aliases(account):
+        print(f"\n── Documents ({alias}) ──")
+        found = docs_drive.list_documents(alias, name)
+        if not found:
+            print("  (nenhum documento)")
+        for f in found:
+            print(f"  [{alias}] {f['name']}  ({f.get('modifiedTime', '')[:10]})  id:{f['id']}")
+
+
+def cmd_read(account: str, document_id: str, as_json: bool, as_outline: bool,
+             verbose: bool, out: str) -> None:
+    alias = gauth.resolve_alias(account)
+    if as_json or as_outline:
+        doc = docs_core.get_document(alias, document_id)
+        text = (json.dumps(doc, ensure_ascii=False, indent=2) if as_json
+                else docs_outline.outline(doc, verbose=verbose))
+    else:
+        text = docs_drive.export_md(alias, document_id)
+    if out:
+        pathlib.Path(out).write_text(text, encoding="utf-8", newline='\n')
+        print(f"Wrote {len(text)} chars to {out}")
+    else:
+        print(text)
+
+
+def cmd_new(account: str, title: str, from_md: str, folder: str, short_name: str) -> None:
+    alias = gauth.resolve_alias(account)
+    if from_md:
+        doc = docs_drive.create_from_md(alias, title, from_md, folder)
+        document_id = doc["id"]
+    else:
+        document_id = docs_core.create(alias, title)["documentId"]
+    print(f"Created '{title}' ({alias})  id:{document_id}")
+    print(f"  {docs_core.url(document_id)}")
+    if short_name:
+        print(short_name_tool.mint(short_name, docs_core.url(document_id), home=from_md))
+
+
+def cmd_push(account: str, document_id: str, md_path: str) -> None:
+    """Whole-body sync from a Markdown file. Replaces everything; keeps the id and URL."""
+    alias = gauth.resolve_alias(account)
+    docs_drive.push_md(alias, document_id, md_path)
+    print(f"Pushed {md_path} — the document body is now that file")
+    print(f"  {docs_core.url(document_id)}")
+
+
+def cmd_apply(account: str, document_id: str, path: str, force: bool) -> None:
+    """The general boundary: a JSON array of Docs API requests, applied atomically."""
+    alias = gauth.resolve_alias(account)
+    requests = json.loads(pathlib.Path(path).read_text(encoding='utf-8'))
+    revision = docs_core.get_document(alias, document_id).get("revisionId", "")
+    res = docs_core.apply(alias, document_id, requests, revision, force)
+    print(f"Applied {len(requests)} request(s); {len(res.get('replies', []))} replies")
+    print(f"  {docs_core.url(document_id)}")
+
+
+def cmd_text(account: str, document_id: str, index: int, text: str) -> None:
+    alias = gauth.resolve_alias(account)
+    revision = docs_core.get_document(alias, document_id).get("revisionId", "")
+    docs_core.apply(alias, document_id, docs_core.insert_text(index, text), revision)
+    print(f"Inserted {len(text)} chars at index {index}")
+    print(f"  {docs_core.url(document_id)}")
+
+
+def cmd_replace(account: str, document_id: str, old: str, new: str) -> None:
+    alias = gauth.resolve_alias(account)
+    res = docs_core.apply(alias, document_id, docs_core.replace_all_text(old, new))
+    changed = res["replies"][0]["replaceAllText"].get("occurrencesChanged", 0)
+    print(f"Replaced {changed} occurrence(s) of '{old}'")
+    print(f"  {docs_core.url(document_id)}")
+
+
+def cmd_comments(account: str, document_id: str, include_resolved: bool) -> None:
+    alias = gauth.resolve_alias(account)
+    found = docs_drive.comments(alias, document_id, include_resolved)
+    if not found:
+        print("  (nenhum comentário aberto)")
+    for c in found:
+        anchor = c.get("quotedFileContent", {}).get("value", "").strip()
+        mark = "resolved" if c.get("resolved") else "open"
+        print(f"\n── {c.get('author', {}).get('displayName', '?')}  "
+              f"({c.get('createdTime', '')[:10]}, {mark})  id:{c['id']}")
+        if anchor:
+            print(f"   on: “{anchor}”")
+        print(f"   {c.get('content', '').strip()}")
+        for reply in c.get("replies", []):
+            who = reply.get("author", {}).get("displayName", "?")
+            print(f"   ↳ {who}: {reply.get('content', '').strip()}")
+
+
+def _parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="gdocs")
+    sub = p.add_subparsers(dest="cmd")
+
+    pa = sub.add_parser("auth")
+    pa.add_argument("alias")
+    pa.add_argument("--write", action="store_true", help="request edit scope (docs-write token)")
+    pa.add_argument("--reauth", action="store_true", help="drop the existing token and re-consent")
+
+    pl = sub.add_parser("list")
+    pl.add_argument("--account", default="all")
+    pl.add_argument("--name", default="", help="filter by name substring")
+
+    pr = sub.add_parser("read")
+    pr.add_argument("--account", required=True)
+    pr.add_argument("--outline", dest="as_outline", action="store_true",
+                    help="body indices and structure instead of markdown — the edit handles")
+    pr.add_argument("--json", dest="as_json", action="store_true", help="raw API JSON")
+    pr.add_argument("--verbose", action="store_true", help="outline: include elements with no text")
+    pr.add_argument("--out", default="", help="write to this file instead of stdout")
+    pr.add_argument("document_id")
+
+    pn = sub.add_parser("new")
+    pn.add_argument("--account", required=True)
+    pn.add_argument("--from", dest="from_md", default="", help="markdown file to convert into the body")
+    pn.add_argument("--folder", default="", help="Drive folder id to create it in")
+    pn.add_argument("--short-name", default="", help="also mint a short link for the new document")
+    pn.add_argument("title")
+
+    pp = sub.add_parser("push")
+    pp.add_argument("--account", required=True)
+    pp.add_argument("document_id")
+    pp.add_argument("md_path", help="markdown file that REPLACES the whole body")
+
+    pap = sub.add_parser("apply")
+    pap.add_argument("--account", required=True)
+    pap.add_argument("--force", action="store_true",
+                     help="skip the index-order check (only if indices account for the shift)")
+    pap.add_argument("document_id")
+    pap.add_argument("requests_json", help="file holding a JSON array of Docs API requests")
+
+    pt = sub.add_parser("text")
+    pt.add_argument("--account", required=True)
+    pt.add_argument("--at", type=int, required=True, dest="index")
+    pt.add_argument("document_id")
+    pt.add_argument("text")
+
+    prp = sub.add_parser("replace")
+    prp.add_argument("--account", required=True)
+    prp.add_argument("document_id")
+    prp.add_argument("old")
+    prp.add_argument("new")
+
+    pc = sub.add_parser("comments")
+    pc.add_argument("--account", required=True)
+    pc.add_argument("--all", action="store_true", dest="include_resolved",
+                    help="include resolved threads")
+    pc.add_argument("document_id")
+    return p
+
+
+def main():
+    p = _parser()
+    args = p.parse_args()
+    if   args.cmd == "auth":     cmd_auth(args.alias, args.write, args.reauth)
+    elif args.cmd == "list":     cmd_list(args.account, args.name)
+    elif args.cmd == "read":     cmd_read(args.account, args.document_id, args.as_json,
+                                          args.as_outline, args.verbose, args.out)
+    elif args.cmd == "new":      cmd_new(args.account, args.title, args.from_md, args.folder, args.short_name)
+    elif args.cmd == "push":     cmd_push(args.account, args.document_id, args.md_path)
+    elif args.cmd == "apply":    cmd_apply(args.account, args.document_id, args.requests_json, args.force)
+    elif args.cmd == "text":     cmd_text(args.account, args.document_id, args.index, args.text)
+    elif args.cmd == "replace":  cmd_replace(args.account, args.document_id, args.old, args.new)
+    elif args.cmd == "comments": cmd_comments(args.account, args.document_id, args.include_resolved)
+    else:                        p.print_help()
+
+
+if __name__ == "__main__":
+    gcli.run(main, docs_core.IndexOrderError)

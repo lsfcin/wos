@@ -1,0 +1,58 @@
+# refs/research-summary.yaml
+# Research findings on prompt optimization and model selection.
+# Level-2 promoted ref; curated from initial exploration.
+
+papers:
+  - title: "RouteLLM: Learning Routes for LLM Routing"
+    url: https://arxiv.org/abs/2406.18665
+    year: 2025
+    venue: ICLR
+    summary: "Trains efficient router models on human preference data, reducing costs >2x without quality loss."
+    tags: [routing, cost-optimization, human-preference]
+
+  - title: "SELECT-THEN-ROUTE: Task-Agnostic LLM Routing"
+    url: https://aclanthology.org/2025.emnlp-industry.28/
+    year: 2025
+    venue: EMNLP Industry
+    summary: "Classifies tasks via lightweight taxonomy, then routes through confidence-escalating cascade."
+    tags: [routing, taxonomy, confidence]
+
+  - title: "TextGrad: Automatic Differentiation for Text"
+    url: https://arxiv.org/abs/2406.07496
+    year: 2024
+    summary: "Automatic differentiation via text; backpropagates natural-language feedback through LLM computation graphs."
+    tags: [prompt-optimization, backpropagation, text-differentiation]
+
+  - title: "OPRO: Large Language Models as Optimizers"
+    url: https://arxiv.org/abs/2309.03409
+    year: 2023
+    summary: "LLM proposes better prompts given prior candidates plus scores; 8-50% improvement over human prompts."
+    tags: [prompt-optimization, meta-optimization]
+
+  - title: "MPCO: Meta-Prompted Code Optimization"
+    url: https://arxiv.org/abs/2508.01443
+    year: 2025
+    summary: "Industrial metaprompting that generates task-specific prompts across diverse LLMs; 19% performance gain."
+    tags: [metaprompting, code-optimization, cross-model]
+
+open_source:
+  - name: LLMRouter
+    url: https://github.com/ulab-uiuc/LLMRouter
+    summary: "Open-source library with 16+ routing models."
+    tags: [routing, library]
+
+key_insights:
+  - "Prompts optimized for one LLM often fail with others (cross-model prompt engineering bottleneck)."
+  - "Lightweight classification + routing is feasible and cost-effective."
+  - "Industry shift from manual budget to adaptive + effort levels (low/medium/high/xhigh/max)."
+
+risks:
+  - name: "Prompt Drift"
+    description: "Optimizer gradually shifts prompt away from user's original intent across iterations."
+    mitigation: "Human-in-the-loop validation, A/B testing, constraint enforcement."
+  - name: "Cross-model incompatibility"
+    description: "Prompt optimized for Claude fails on GPT-4 and vice-versa."
+    mitigation: "Generate model-specific prompts, not universal ones."
+  - name: "Latency/Cost overhead"
+    description: "Adding an intermediate optimization step introduces extra LLM calls."
+    mitigation: "Use cheap models or heuristics for routing; only use strong models when necessary."

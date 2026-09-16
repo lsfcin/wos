@@ -1,0 +1,199 @@
+# Usage: core/tools/wos/levels [--set] [--check] — print the work→level map from core/levels.txt
+# with the level each agent definition declares; --set re-renders every harness's agent files from
+# those declarations; --check exits 1 when a rendered file no longer matches the declaration.
+#
+# The twin of core/tools/wos/permissions, and deliberately the same machine: one neutral policy in a
+# data file a reader can review, one adapter table per harness, and a --check that fails when the
+# rendered config drifts from the declaration instead of from whatever was last edited by hand.
+#
+# WHAT WAS REFUSED, and why this is not that: a default subagent model in one settings file (Lucas,
+# 2026-09-14 — "quero fazer isso decentemente, e não só pro claude code"). One file reaches one
+# harness and says nothing about WHICH work deserves which level, which is the half that survives a
+# harness change.
+from __future__ import annotations
+
+import argparse
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / 'core' / 'hooks'))
+sys.path.insert(0, str(ROOT / 'core' / 'tools'))
+import tool_law  # noqa: E402  — path is set above, which is the house pattern
+
+REGISTRY = ROOT / 'core' / 'levels.txt'
+SOURCE = ROOT / 'core' / 'agents'
+
+# The Claude Code adapter: one neutral level -> the alias that harness resolves. THIS TABLE IS THE
+# ONLY PLACE A VENDOR'S NAME APPEARS in the level machinery; core/levels.txt stays readable by
+# whoever has to choose. A second harness is a second table, never a second policy.
+#
+# ALIASES, NOT PINNED IDS, and that is the point: the harness resolves `haiku` to whatever its
+# current low-level build is, so this table does not go stale the week a model is retired — the
+# failure mode core/flows/craft/routing.md carries a **VOLATILE** banner about.
+CLAUDE = {'low': 'haiku', 'medium': 'sonnet', 'high': 'opus'}
+HARNESSES = {'claude': (CLAUDE, Path('.claude') / 'agents')}
+
+FIELD = re.compile(r'^(\w+):[ \t]*(.*)$')
+
+
+def declared() -> dict:
+	"""{work: {'level': ..., 'tell': ..., 'why': ...}} — the map, as written."""
+	out: dict = {}
+	for line in REGISTRY.read_text(encoding='utf-8').splitlines():
+		if not line.strip() or line.startswith('#'):
+			continue
+		parts = line.split('\t')
+		if len(parts) != 4 or parts[0] == 'work':
+			continue
+		out[parts[0]] = dict(zip(('level', 'tell', 'why'), parts[1:]))
+	return out
+
+
+def frontmatter(path: Path) -> dict:
+	"""The `key: value` block a definition opens with, or {} when it has none."""
+	text = path.read_text(encoding='utf-8', errors='replace')
+	if not text.startswith('---\n'):
+		return {}
+	block = text.split('\n---', 2)[0].splitlines()[1:]
+	return {m.group(1): m.group(2).strip() for line in block if (m := FIELD.match(line))}
+
+
+def agents() -> dict:
+	"""{name: (level, source path)} from core/agents/*.md — the provider-agnostic declarations.
+
+	`_template.md` is excluded: it is a template, and a level it carries is an example rather than
+	an answer about a worker anyone spawns.
+	"""
+	out = {}
+	for path in sorted(SOURCE.glob('*.md')):
+		if path.name.startswith('_') or path.name == 'CONTEXT.md':
+			continue
+		front = frontmatter(path)
+		if front.get('name') and front.get('level'):
+			out[front['name']] = (front['level'], path)
+	return out
+
+
+def _mirror(harness: str, name: str) -> Path:
+	return ROOT / HARNESSES[harness][1] / f'{name}.md'
+
+
+def render(source: Path, alias: str) -> str:
+	"""One harness's definition: the frontmatter it needs, and a pointer to the role itself.
+
+	A POINTER, NOT A COPY. Rendering each role whole duplicated 460 lines into `.claude/` — a second
+	definition of every worker, which is the drift this tool exists to prevent. The harness needs
+	three fields to list and route one; what the worker must KNOW is a file in the same repo, and
+	reading it is the first thing every agent here does anyway.
+	"""
+	front = frontmatter(source)
+	where = source.relative_to(ROOT).as_posix()
+	return (f'---\nname: {front["name"]}\ndescription: {front["description"]}\n'
+	        f'model: {alias}\n---\n\n'
+	        f'Your operating context is [`{where}`]({"../../" + where}) — read it in full before '
+	        f'anything else, then do the work it describes.\n\n'
+	        f'That file is the only definition of this role. This one is rendered from it by '
+	        f'`core/run tools/wos/levels --set`, carries no instruction of its own, and is not the '
+	        f'place to edit one.\n')
+
+
+def _shown(path: Path) -> str:
+	"""Relative to the repo inside it, whole outside. `relative_to` RAISES on a path outside ROOT,
+	so a tool printing only the short form crashes the moment it is pointed elsewhere."""
+	try:
+		return path.relative_to(ROOT).as_posix()
+	except ValueError:
+		return path.as_posix()
+
+
+def _write(path: Path, body: str) -> bool:
+	if path.is_file() and path.read_text(encoding='utf-8') == body:
+		return False
+	path.parent.mkdir(parents=True, exist_ok=True)
+	path.write_text(body, encoding='utf-8', newline='\n')
+	return True
+
+
+def _drift() -> list:
+	"""Every rendered definition whose level no longer matches what its source declares.
+
+	A rendered file with no source is NOT drift: `.claude/agents/` also holds the craft executors,
+	which the flow owns and this map does not. Saying so here is cheaper than a second registry
+	listing which agents are whose.
+	"""
+	found = []
+	live = {row['level'] for row in declared().values()}
+	for name, (level, source) in agents().items():
+		if level not in live:
+			found.append(f'core/agents/{name}.md declares level {level!r}, '
+			             f'which core/levels.txt does not define')
+			continue
+		for harness, (table, _dir) in HARNESSES.items():
+			path = _mirror(harness, name)
+			if not path.is_file() or path.read_text(encoding='utf-8') != render(source, table[level]):
+				found.append(f'{harness}: {name} does not match core/agents/{name}.md at level '
+				             f'{level}')
+	return found
+
+
+def _set() -> int:
+	live = {row['level'] for row in declared().values()}
+	written = 0
+	for name, (level, source) in agents().items():
+		if level not in live:
+			print(f'{name}: level {level!r} is not in core/levels.txt', file=sys.stderr)
+			return 1
+		for harness, (table, _dir) in HARNESSES.items():
+			path = _mirror(harness, name)
+			if _write(path, render(source, table[level])):
+				written += 1
+				print(f'{name} {level} -> {table[level]}  {_shown(path)}')
+	print(f'{written} definition(s) rendered' if written else 'nothing to re-render')
+	return 0
+
+
+def _check() -> int:
+	found = _drift()
+	if not found:
+		print(f'levels: {len(declared())} kinds of work, {len(agents())} agents — '
+		      f'every rendered definition matches its declaration')
+		return 0
+	print('\n'.join(found), file=sys.stderr)
+	print('Re-render with `core/run tools/wos/levels --set`', file=sys.stderr)
+	return 1
+
+
+def _listing() -> int:
+	"""What the map says, and what the declarations currently resolve to. The sentences are the
+	registry's, never this tool's — a second copy of an explanation is drift."""
+	for work, row in declared().items():
+		print(f'\n  {work:<8} {row["level"]}')
+		print(f'     {row["tell"]}')
+		print(f'     one level down: {row["why"]}')
+	print('\nagents, and what each renders to:')
+	for name, (level, _source) in agents().items():
+		rendered = ' · '.join(f'{harness}: {table.get(level, "?")}'
+		                      for harness, (table, _dir) in HARNESSES.items())
+		print(f'  {name:<12} {level:<7} {rendered}')
+	print('\nThe main thread is not here: its level is chosen when a session is launched, and no '
+	      'config file reaches it. core/levels.txt says why that is still 97.5% of the bill.')
+	return 0
+
+
+def main() -> int:
+	tool_law.require('levels')
+	ap = argparse.ArgumentParser(add_help=True)
+	ap.add_argument('--set', action='store_true')
+	ap.add_argument('--check', action='store_true')
+	args = ap.parse_args()
+	if args.set:
+		return _set()
+	if args.check:
+		return _check()
+	return _listing()
+
+
+if __name__ == '__main__':
+	sys.exit(main())

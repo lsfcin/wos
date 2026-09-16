@@ -1,0 +1,4 @@
+#!/bin/sh
+# Workspace post-commit hook — auto-push feature/*. Same handoff as pre-commit beside it.
+# Never blocks: git ignores a post-commit's exit status, and every failure here is a warning.
+exec sh "$(dirname "$0")/../run" hooks/commit/post_commit.py "$@"

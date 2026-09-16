@@ -1,0 +1,6 @@
+from _typeshed import Incomplete
+
+TARGET_KEYS: Incomplete
+
+def target_path(tool: str, tool_input: dict) -> str: ...
+def main() -> int: ...

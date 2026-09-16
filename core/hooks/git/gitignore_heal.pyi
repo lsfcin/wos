@@ -1,0 +1,6 @@
+from _typeshed import Incomplete
+
+DOMAIN: Incomplete
+
+def heal(commit, root=None) -> None: ...
+def main() -> int: ...

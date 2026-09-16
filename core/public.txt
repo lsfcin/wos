@@ -1,0 +1,66 @@
+# Which trees may cross into the public repo at all, and where it is checked out. Read by
+# core/tools/wos/publish/crossing.py; the per-feature half of the answer lives in core/features.txt.
+#
+# THIS FILE IS THE FLOOR, NOT THE ALLOWLIST. A path crossing clears three separate bars and this is
+# only the first: it must sit under a root here, it must be tracked by git, and some feature must
+# claim it. A root named here does not publish its contents — it makes them eligible.
+#
+# WHY A ROOT LIST AT ALL, when features already claim files: a claim is a pointer into a tree, and
+# a pointer that drifted one directory up would quietly make brain/ eligible. The floor is what
+# makes that a refusal instead of a leak, and it is short enough to read in one sitting, which is
+# the only property that matters in a file whose job is to be the last line of defence.
+#
+# Tab-separated. kind is one of:
+#   target   where the public repo is checked out. Spelled once, here, because the sync and the
+#            commit gate both need it and two spellings of a path is how they drift apart.
+#   root     a directory whose tracked contents are eligible to cross.
+#   file     one file at the repo root, eligible to cross.
+#   tree     a directory whose tracked contents CROSS, unclaimed. The directory form of `file`, and
+#            substrate for the same reason SETUP.md § substrate gives: it installs no feature, there
+#            is nothing in it to ablate, and asking a feature to claim it would invent an owner.
+#   absent   named REFUSALS, and they REFUSE: a path under one never crosses, whatever claims it.
+#            Most were already refused by not being under a root, and were written here so a reader
+#            asking "why is brain/ not in the public repo" finds the answer in the file that decided
+#            it rather than in a git log. Then `core/ROADMAP.md` arrived — inside an eligible root,
+#            reached by a claim, and wrong to publish for the same reason the root ROADMAP.md is:
+#            it is his plan, and the target writes its own. A refusal that only documents cannot say
+#            that, so this kind overrides the claim rather than restating the floor.
+kind	path	reason
+target	code/wos	the public checkout; a nested repo of its own, per PROJECTS.md
+root	core	the agent library, which is what a student is actually cloning
+root	.claude	harness registration; without it the hooks never fire on a clone
+root	.opencode	same, for opencode
+root	.zcode	same, for zcode
+root	.agents	same, for the Antigravity / Gemini shim
+root	.github	inert hook config until Copilot is installed, per SETUP.md
+file	core/hooks/session/mirror-heal.py	skill-mirror machinery: it publishes skills, it is not one. Fourteen `skills` rows share one wiring point and no row names the machine under it
+file	core/tools/wos/sync-global-skills	the same machinery, for the mirrors that live in $HOME
+file	core/hooks/pre-commit	the entrypoint git dictates the name of; every gate rides it and none can claim it
+file	core/hooks/post-commit	the same, after the commit
+tree	core/tools/test	the suite verify.py runs; SETUP.md's last step is the clone proving itself. Safe while no `lucas` feature has a test — one that did would fail on a clone that cannot install it
+file	AGENTS.md	the always-loaded rule block, generated from core/norms/
+file	CLAUDE.md	one line, pointing at AGENTS.md
+file	GEMINI.md	one line, pointing at AGENTS.md
+file	README.md	what the workspace is and what each feature buys
+file	SETUP.md	the install contract every student runs
+file	SETUP-clone.md	its first part, and nothing else runs until it is done
+file	SETUP-compaction.md	its part for the tool-output compactor
+file	SETUP-interfaces.md	its part for the interface-stub toolchain
+file	verify.py	the suite that contract's last step calls
+file	verify.pyi	its generated interface
+file	.gitattributes	line endings, which differ by machine and not by person
+file	.claudeignore	a context-cost filter, not a privacy boundary
+file	opencode.json	harness config
+file	.agentrc.json	harness config
+absent	brain	his personal operating system: goals, attention, inbox, drafts
+absent	branches	his life — health, finances, the house
+absent	academy	his teaching and his papers, including unpublished ones
+absent	models	weights, which no clone should carry and no git should hold
+absent	code	his software projects, each its own repo — including the one this file publishes
+absent	ROADMAP.md	his plan for his workspace; the public repo writes its own
+absent	core/ROADMAP.md	the same, for the agent library, and it links into brain/goals/
+absent	core/experiments	what HE measured about HIS workspace, and the WOS paper's data
+absent	ISSUES.md	per-repo by the 2026-09-04 ruling; the target writes its own
+absent	PROJECTS.md	names his private repos, and their remotes
+absent	ARCHITECTURE.html	draws his whole tree, private subtrees included
+absent	SETUP-accounts.md	every step in it is an account of his

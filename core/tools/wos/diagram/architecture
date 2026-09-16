@@ -1,0 +1,133 @@
+# Usage: core/tools/wos/diagram/architecture [--out <path>] [--check] — draw the workspace as it is (enforcement matrix, routing spine, folder mass) into one self-contained ARCHITECTURE.html; --check exits 1 when the committed file is stale
+#
+# Zero-token and deterministic: no model runs, and the output carries no timestamp and no commit
+# sha. That is what makes --check meaningful — the file changes when the WORKSPACE changed, and
+# never merely because it was regenerated.
+import sys
+from pathlib import Path
+
+# NAMED, NEVER INHERITED - the law is core/tools/test/workspace/test_encoding_ratchet.py. This tool
+# prints a status line carrying non-ascii, and a console codepage cannot encode it: the run dies
+# after drawing the whole page. core/run exports PYTHONIOENCODING for what it spawns, which is
+# /roundup and not the suite, so the tool says it itself rather than trusting who launched it.
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent / 'views'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+import diagram_data as data
+import diagram_fanin as fanin_form
+import diagram_health as health
+import diagram_lifecycle as lifecycle_form
+import diagram_matrix as matrix_form
+import diagram_overview as overview_form
+import diagram_page as page
+import diagram_spine as spine_form
+import diagram_treemap as mass_form
+import tool_law
+from diagram_data import WORKSPACE_ROOT
+
+OUTPUT = WORKSPACE_ROOT / 'ARCHITECTURE.html'
+SPINE_DEPTH = 3
+
+
+def build() -> tuple:
+    """(html, coverage, counts). Every source is read exactly once here, so a file that cannot be
+    read is reported once, loudly, instead of thinning the picture silently."""
+    rows, columns, cells = data.matrix(data.features())
+    nodes, edges, coverage = data.containment()
+    mass = data.mass()
+
+    panels = {
+        'matrix': (matrix_form.render(rows, columns, cells, data.trigger_of),
+                   matrix_form.legend()),
+        'spine': (spine_form.render(nodes, edges, SPINE_DEPTH), spine_form.legend(coverage)),
+        'mass': (mass_form.render(mass), mass_form.legend(mass)),
+    }
+    summary = overview_form.render(health.by_layer(rows, 'automatic'),
+                                   health.by_layer(rows, 'on-demand'),
+                                   health.findings(rows, coverage))
+    sequence = ('<section class="ov"><h2>when it fires</h2>'
+                '<p class="q">the session from first moment to last, with the features that run at '
+                'each one — read from the registrations, not from where a file sits</p>'
+                + lifecycle_form.render(*data.lifecycle(rows)) + lifecycle_form.legend()
+                + '</section>')
+    counts = {'features': len(rows), 'directories': len(nodes)}
+    return (page.render(panels, coverage, data.scope(), summary, sequence, fanin(rows)),
+            coverage, counts)
+
+
+def fanin(rows: list) -> str:
+    """The same relation in three encodings, awaiting Lucas's cut — see views/diagram_fanin.py.
+
+    Two grains and two encodings, so the choice is made against rendered output at real scale
+    rather than against a mockup. The bars renderer is called twice because the grain is data, not
+    a third drawing.
+    """
+    by_path, dangling = data.fan_in(rows)
+    by_area, _ = data.fan_in(rows, 'area')
+    return ('<section class="ov"><h2>where the switches concentrate</h2>'
+            '<p class="q">how many features one switch point carries — the relation the '
+            'enforcement grid spends most of its cells hiding. <b>Three shapes of one drawing, '
+            'until one is picked and the other two are deleted.</b></p>'
+            + fanin_form.render_graph(by_path, dangling)
+            + '<div class="shapes">'
+            f'<div><h3>by file · {len(by_path)} points</h3>'
+            + fanin_form.render_bars(by_path, dangling, 'file') + '</div>'
+            f'<div><h3>by directory · {len(by_area)} points</h3>'
+            + fanin_form.render_bars(by_area, dangling, 'directory') + '</div></div>'
+            + fanin_form.legend() + '</section>')
+
+
+def report(coverage: dict, counts: dict) -> None:
+    """The coverage line. Printed on every run, including the clean one: a generator that only
+    speaks up when something breaks teaches its reader to assume silence means complete."""
+    unparsed = coverage['unparsed']
+    print(f'  parsed {coverage["parsed"]} of {coverage["total"]} routing blocks '
+          f'· {counts["features"]} features · {counts["directories"]} directories')
+    if unparsed:
+        print(f'  {len(unparsed)} UNPARSED: ' + ', '.join(unparsed))
+        print('  those subtrees are missing from the spine — fix the routing block, then re-run.')
+
+
+FLAGS = ('--out', '--check')
+
+
+def main() -> int:
+    tool_law.require('diagram')  # before anything is read: off means no picture, not a stale one
+
+    args = sys.argv[1:]
+    # A flag this tool does not know is refused, never ignored. `--repos` was real until
+    # 2026-08-31, and silently falling through would have let a stale caller regenerate the root
+    # picture while believing it had written one per repo — the quiet-thinning failure the coverage
+    # line exists to prevent, one level up.
+    unknown = [a for i, a in enumerate(args)
+               if a.startswith('-') and a not in FLAGS
+               or not a.startswith('-') and (i == 0 or args[i - 1] != '--out')]
+    if unknown:
+        print(f'  unknown argument: {", ".join(unknown)}')
+        print(f'  this tool takes {" ".join(FLAGS)} — see core/tools/wos/diagram/CONTEXT.md')
+        return 2
+
+    out = Path(args[args.index('--out') + 1]) if '--out' in args else OUTPUT
+    html, coverage, counts = build()
+
+    if '--check' in args:
+        current = out.read_text(encoding='utf-8') if out.exists() else ''
+        if current == html:
+            report(coverage, counts)
+            print(f'  {out.name} is current')
+            return 0
+        print(f'  {out.name} is STALE — run core/tools/wos/diagram/architecture')
+        return 1
+
+    out.write_text(html, encoding='utf-8', newline='\n')
+    report(coverage, counts)
+    print(f'  wrote {out.relative_to(WORKSPACE_ROOT) if out.is_relative_to(WORKSPACE_ROOT) else out}'
+          f' ({len(html) // 1024} KB)')
+    return 1 if coverage['unparsed'] else 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

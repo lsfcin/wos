@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "sh core/run hooks/copilot/copilot-session-start.py",
+        "cwd": "."
+      }
+    ],
+    "PreToolUse": [
+      {
+        "type": "command",
+        "command": "sh core/run hooks/copilot/copilot-pre-tool.py",
+        "cwd": "."
+      }
+    ],
+    "PostToolUse": [
+      {
+        "type": "command",
+        "command": "sh core/run hooks/copilot/copilot-post-tool.py",
+        "cwd": "."
+      }
+    ]
+  }
+}

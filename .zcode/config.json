@@ -1,0 +1,103 @@
+{
+  "hooks": {
+    "enabled": true,
+    "events": {
+      "PreToolUse": [
+        {
+          "matcher": ".*",
+          "hooks": [
+            {
+              "type": "command",
+              "timeout": 60,
+              "command": "sh ${ZCODE_PROJECT_DIR}/core/run hooks/dispatch.py"
+            }
+          ]
+        },
+        {
+          "matcher": "Agent|Task",
+          "hooks": [
+            {
+              "type": "command",
+              "timeout": 30,
+              "command": "sh ${ZCODE_PROJECT_DIR}/core/run hooks/read/agent-context.py"
+            }
+          ]
+        }
+      ],
+      "PostToolUse": [
+        {
+          "matcher": ".*",
+          "hooks": [
+            {
+              "type": "command",
+              "timeout": 120,
+              "command": "bash ${ZCODE_PROJECT_DIR}/core/hooks/post-edit.sh"
+            }
+          ]
+        },
+        {
+          "matcher": ".*",
+          "hooks": [
+            {
+              "type": "command",
+              "timeout": 30,
+              "command": "sh ${ZCODE_PROJECT_DIR}/core/run hooks/dispatch.py"
+            }
+          ]
+        }
+      ],
+      "UserPromptSubmit": [
+        {
+          "hooks": [
+            {
+              "type": "command",
+              "timeout": 30,
+              "command": "sh ${ZCODE_PROJECT_DIR}/core/run hooks/session/context-meter.py"
+            }
+          ]
+        }
+      ],
+      "SessionStart": [
+        {
+          "matcher": "^compact$",
+          "hooks": [
+            {
+              "type": "command",
+              "timeout": 30,
+              "command": "sh ${ZCODE_PROJECT_DIR}/core/run hooks/session/precompact-wipe.py"
+            }
+          ]
+        },
+        {
+          "hooks": [
+            {
+              "type": "command",
+              "timeout": 30,
+              "command": "sh ${ZCODE_PROJECT_DIR}/core/run hooks/session/session-prune.py"
+            },
+            {
+              "type": "command",
+              "timeout": 30,
+              "command": "sh ${ZCODE_PROJECT_DIR}/core/run hooks/git/branch_marker.py record"
+            },
+            {
+              "type": "command",
+              "timeout": 30,
+              "command": "sh ${ZCODE_PROJECT_DIR}/core/run hooks/session/mirror-heal.py"
+            },
+            {
+              "type": "command",
+              "timeout": 30,
+              "command": "sh ${ZCODE_PROJECT_DIR}/core/run hooks/session/inbox-nudge.py"
+            },
+            {
+              "type": "command",
+              "timeout": 30,
+              "command": "sh ${ZCODE_PROJECT_DIR}/core/run hooks/session/compass-nudge.py"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

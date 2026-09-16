@@ -1,0 +1,72 @@
+# Every lifecycle gate, the moment and the capability that select it. Read by core/hooks/dispatch.py
+# (which runs them) and by core/hooks/trigger/trigger_law.py (which reports when they fire).
+#
+# WHY THIS FILE EXISTS. Each gate used to be its own `command` in each harness's config, so a
+# tool call spawned all nine and every one of them asked the same capability question over the
+# same stdin — 0.41 s of hook time on a Read that needs two of them (measured 2026-09-05,
+# b20260905). The nine registrations were also nine hand-written copies of THIS table, one per
+# harness, and three of them routed by TOOL NAME — the whitelist b20260901 retired when the
+# question moved to the payload. One table, read by one dispatcher, is both fixes.
+#
+# CAPABILITY, NEVER A TOOL NAME. The value comes from hook_input.capability(), which asks the
+# payload what the call DOES: a command line is 'shell', a path plus new content is 'write', a
+# path alone is 'read'. A call that is none of those is 'other' and selects nothing — that is
+# the whole saving on a Grep or a TodoWrite.
+#
+# ORDER IS LOAD-BEARING, ascending, and the chain stops at the first gate that blocks.
+# context-gate must clear before issues-gate, which reads the target file off disk.
+#
+# CLASS says what the gate may do, and the dispatcher holds it to that: `blocks` may exit 2
+# after writing its own reason to stderr; `informs` never exits 2 and speaks in
+# hookSpecificOutput.additionalContext, the only exit-0 channel that reaches the model
+# (core/hooks/SPECS.md § Agent lifecycle gates).
+#
+# read/agent-context.py is NOT here: it fires on Agent/SubagentStart, which is a moment rather
+# than a capability, and keeps its own registration.
+#
+# THE MOMENT IS A COLUMN, ADDED 2026-09-05 (b20260905). PostToolUse had never been collapsed: its
+# three hooks were each their own registration, so a Grep started three interpreters that parsed
+# the payload, asked capability() and returned 0 — 0.222 s of hook time on a call that needs none
+# of them, against 0.049 s once the two Python ones moved in here. The narrow fix — matching the
+# tool names each hook serves — was tried first and REFUSED by
+# test_b20260901_a_second_shell_tool_walks_past_every_read_gate: a tracker that misses a harness's
+# tool is worse than one that runs too often, because the gate it feeds keeps blocking a read that
+# already happened. The moment belongs in this table for the same reason the capability does.
+#
+# post-edit.sh is NOT here and cannot be: it is bash, and this table's rows are imported into the
+# dispatcher's own process. It keeps its `.*` registration and pays for its own early exit, which
+# is why that exit is now made in shell before any interpreter starts.
+#
+# FEATURE IS THE SIXTH COLUMN, ADDED 2026-09-14, and it is the only place a block can be attributed.
+# The dispatcher sees a gate's exit code and nothing else; core/hooks/scoreboard.py needs a feature
+# name to count against (/ROADMAP.md § Measurement). Deriving it by reading the gate's own
+# is_enabled() call was refused for the reason core/hooks/CONTEXT.md gives: a checker that restates
+# the law is the drift the checkers exist to catch. So it is declared here, once.
+#
+# A `-` IS A FINDING, not an exemption. Three rows carried one when the column landed, which is why
+# it earns its place: those gates consulted no switch at all, so an ablation turning their feature
+# off left them running. The two facade rows were wired to facade-discipline on 2026-09-14, joining
+# facade-gate.py — the tracker records exactly what the gate consults, and the scan advises about
+# exactly what the import check blocks, so one switch is the honest answer for all three.
+#
+# THE LAST ONE WAS CURED BY SPLITTING, NOT BY FILLING THE CELL (2026-09-14). checks/pre-edit.py
+# blocked for three reasons owned by two features, so naming either made the other's ablation row a
+# lie. It is now checks/first-line-gate.py and checks/size-gate.py, one feature each, sharing
+# checks/write_payload.py so neither re-derives the payload. No row carries a `-`.
+#
+# moment	capability	order	path	class	feature
+pre	shell	10	read/bash-context-gate.py	blocks	context-chain
+pre	shell	20	checks/heredoc-gate.py	informs	heredoc-gate
+pre	read	10	read/context-gate.py	blocks	context-chain
+pre	read	20	read/pre-read.py	blocks	interface-first-reads
+pre	write	10	read/context-gate.py	blocks	context-chain
+pre	write	20	checks/first-line-gate.py	blocks	first-line-comment
+pre	write	25	checks/size-gate.py	blocks	line-limit
+pre	write	30	facade/facade-scan.py	informs	facade-discipline
+pre	write	40	facade/facade-gate.py	blocks	facade-discipline
+pre	write	45	brain/memory-gate.py	blocks	memory-gate
+pre	write	50	checks/issues-gate.py	blocks	issues-gate
+pre	write	60	read/spec-read-gate.py	blocks	spec-read-gate
+post	write	10	checks/retired-gate.py	informs	retired-tokens
+post	read	10	facade/facade-tracker.py	informs	facade-discipline
+post	read	20	read/context-tracker.py	informs	subtree-read-tracking

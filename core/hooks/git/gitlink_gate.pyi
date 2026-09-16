@@ -1,0 +1,3 @@
+GITLINK_MODE: str
+
+def check(commit) -> None: ...

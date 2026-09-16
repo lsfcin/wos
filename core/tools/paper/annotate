@@ -1,0 +1,78 @@
+# Usage: Core/tools/paper/annotate set <id> <note> | get <id> | list | search <query> | delete <id> — persistent paper annotation store keyed by arXiv ID, DOI, or URL; returns JSON
+import sys, json, pathlib, argparse, datetime
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import tool_law  # noqa: E402
+
+_STORE = pathlib.Path.home() / '.research' / 'annotations.json'
+
+def _load():
+    return json.loads(_STORE.read_text(encoding='utf-8')) if _STORE.exists() else {}
+
+def _save(data):
+    _STORE.parent.mkdir(parents=True, exist_ok=True)
+    _STORE.write_text(json.dumps(data, indent=2), encoding='utf-8', newline='\n')
+
+def main():
+    tool_law.require('latex')  # before argparse: off means off.
+    # One of four entrypoints this capability lives in; the registry names
+    # core/tools/paper/papers as primary. Guarding all four is what stops the
+    # ablation measuring a feature nobody removed whole (core/SPECS.md AD-14).
+    p = argparse.ArgumentParser()
+    sub = p.add_subparsers(dest='cmd')
+
+    s = sub.add_parser('set')
+    s.add_argument('id')
+    s.add_argument('note')
+
+    g = sub.add_parser('get')
+    g.add_argument('id')
+
+    sub.add_parser('list')
+
+    sr = sub.add_parser('search')
+    sr.add_argument('query')
+
+    d = sub.add_parser('delete')
+    d.add_argument('id')
+
+    args = p.parse_args()
+
+    if args.cmd == 'set':
+        data = _load()
+        data[args.id] = {'note': args.note, 'updated': datetime.datetime.now().isoformat()[:19]}
+        _save(data)
+        print(json.dumps({'id': args.id, 'status': 'saved'}))
+
+    elif args.cmd == 'get':
+        data = _load()
+        entry = data.get(args.id)
+        print(json.dumps({'id': args.id, **(entry or {'note': None})}))
+
+    elif args.cmd == 'list':
+        data = _load()
+        out = [{'id': k, **v} for k, v in data.items()]
+        print(json.dumps({'count': len(out), 'annotations': out}, indent=2))
+
+    elif args.cmd == 'search':
+        data = _load()
+        q = args.query.lower()
+        matches = [{'id': k, **v} for k, v in data.items()
+                   if q in k.lower() or q in v.get('note', '').lower()]
+        print(json.dumps({'query': args.query, 'matches': matches}, indent=2))
+
+    elif args.cmd == 'delete':
+        data = _load()
+        if args.id in data:
+            del data[args.id]
+            _save(data)
+            print(json.dumps({'id': args.id, 'status': 'deleted'}))
+        else:
+            print(json.dumps({'id': args.id, 'status': 'not_found'}))
+
+    else:
+        p.print_help()
+        sys.exit(1)
+
+if __name__ == '__main__':
+    main()

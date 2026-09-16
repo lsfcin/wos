@@ -1,0 +1,39 @@
+# Binary and generated — never useful context for Claude
+
+# Model weights
+Models/diffusion/
+Models/llm/
+Downloads/
+**/*.ckpt
+**/*.safetensors
+**/*.bin
+**/*.pt
+**/*.pth
+
+# JS/TS build artifacts
+**/node_modules/
+**/dist/
+**/.next/
+**/.nuxt/
+
+# Python artifacts
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.venv/
+**/venv/
+**/.mypy_cache/
+
+# Build outputs
+**/build/
+**/out/
+
+# Large data files (datasets tracked only by CONTEXT.md, not content)
+Datasets/relativistic_raytracer/unity/
+Datasets/relativistic_raytracer/vulkan/
+Datasets/relativistic_raytracer/Benchmark.csv
+
+# OS / editor noise
+**/.DS_Store
+**/*.swp
+**/*.swo

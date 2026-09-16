@@ -1,0 +1,139 @@
+# Usage: core/tools/web/search <query> [--n N] [--type neural|keyword] [--since YYYY-MM-DD] [--domains d1,d2] [--content] [--backend auto|exa|ddgr] [--region REG] — unified web search; Exa (keyed) by default, ddgr (no-key) fallback; returns normalized JSON array [{title, url, abstract, score?}]
+#
+# Backend resolution (--backend auto, the default):
+#   1. Exa   — used when ~/.feynman/web-search.json contains an exaApiKey
+#   2. ddgr  — zero-key fallback; also used when Exa errors out (bad key, quota, network)
+# Exa-only flags (--type, --since, --domains, --content) are silently ignored when the
+# ddgr backend is in use. Set --backend exa|ddgr to force one (errors propagate instead
+# of falling back). See SETUP-accounts.md § Web search.
+import argparse, json, os, shutil, subprocess, sys, urllib.request, urllib.error, pathlib
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import tool_law  # noqa: E402
+
+EXA_CFG = pathlib.Path.home() / '.feynman' / 'web-search.json'
+
+
+def _exa_key():
+    if not EXA_CFG.exists():
+        return None
+    try:
+        return json.loads(EXA_CFG.read_text(encoding='utf-8')).get('exaApiKey')
+    except Exception:
+        return None
+
+
+def _exa(query, n, stype, since, domains, content):
+    key = _exa_key()
+    if not key:
+        raise RuntimeError(f'no exaApiKey in {EXA_CFG}')
+    payload = {'query': query, 'numResults': n, 'type': stype}
+    if content:
+        payload['contents'] = {'text': True}
+    if domains:
+        payload['includeDomains'] = domains.split(',')
+    if since:
+        payload['startPublishedDate'] = since + 'T00:00:00Z'
+    req = urllib.request.Request(
+        'https://api.exa.ai/search',
+        data=json.dumps(payload).encode(),
+        headers={'Content-Type': 'application/json', 'x-api-key': key},
+        method='POST',
+    )
+    with urllib.request.urlopen(req, timeout=30) as r:
+        raw = r.read().decode()
+    data = json.loads(raw)
+    norm = []
+    for it in data.get('results', []):
+        ent = {'title': it.get('title', ''), 'url': it.get('url', ''), 'abstract': it.get('text', '') or ''}
+        if 'score' in it:
+            ent['score'] = it['score']
+        norm.append(ent)
+    return norm, raw
+
+
+def _ddgr(query, n, region):
+    if not shutil.which('ddgr'):
+        raise RuntimeError('ddgr not installed (apt install ddgr — see SETUP-accounts.md § Web search)')
+    max_retries = int(os.environ.get('WEB_RETRIES', '5'))
+    last_err = None
+    out = ''
+    for attempt in range(1, max_retries + 1):
+        try:
+            res = subprocess.run(
+                ['ddgr', '--np', '--json', '-n', str(n), '-r', region, query],
+                capture_output=True, text=True, timeout=60, encoding='utf-8'
+            )
+            out = res.stdout
+            err = res.stderr
+            if '[ERROR] HTTP Error 202' in err or '[ERROR] HTTP Error 202' in out or not out.strip():
+                last_err = err.strip() or 'HTTP 202 throttle'
+                if attempt < max_retries:
+                    import time
+                    time.sleep(attempt * 3)
+                    continue
+            else:
+                try:
+                    return json.loads(out), None
+                except json.JSONDecodeError as e:
+                    last_err = f'ddgr returned non-JSON: {e}'
+        except subprocess.TimeoutExpired:
+            last_err = 'ddgr timeout'
+        if attempt < max_retries:
+            import time
+            time.sleep(attempt * 3)
+    raise RuntimeError(f'ddgr failed after {max_retries} attempts: {last_err}')
+
+
+def main():
+    tool_law.require('web-search')  # before argparse: off means off, including --help
+    p = argparse.ArgumentParser()
+    p.add_argument('query')
+    p.add_argument('--n', type=int, default=10)
+    p.add_argument('--type', choices=['neural', 'keyword'], default='neural', dest='stype')
+    p.add_argument('--since', metavar='YYYY-MM-DD')
+    p.add_argument('--domains', metavar='d1,d2')
+    p.add_argument('--content', action='store_true', help='Exa only: include full page text in abstract')
+    p.add_argument('--backend', choices=['auto', 'exa', 'ddgr'], default='auto')
+    p.add_argument('--region', default=os.environ.get('WEB_REGION', 'us-en'), help='ddgr region (default us-en)')
+    args = p.parse_args()
+
+    raw_exa = None
+    err_exa = None
+    err_ddgr = None
+
+    if args.backend in ('auto', 'exa'):
+        try:
+            results, _ = _exa(args.query, args.n, args.stype, args.since, args.domains, args.content)
+            print(json.dumps(results, indent=2))
+            return
+        except Exception as e:
+            err_exa = str(e)
+            if args.backend == 'exa':
+                print(json.dumps({'error': err_exa, 'backend': 'exa'}), file=sys.stderr)
+                sys.exit(1)
+            # auto: fall through to ddgr
+
+    if args.backend in ('auto', 'ddgr'):
+        try:
+            results, _ = _ddgr(args.query, args.n, args.region)
+            print(json.dumps(results, indent=2))
+            return
+        except Exception as e:
+            err_ddgr = str(e)
+            if args.backend == 'ddgr':
+                print(json.dumps({'error': err_ddgr, 'backend': 'ddgr'}), file=sys.stderr)
+                sys.exit(1)
+
+    # auto path: both failed
+    print(json.dumps({
+        'error': 'all backends failed',
+        'exa_error': err_exa,
+        'ddgr_error': err_ddgr,
+        'backend': 'auto',
+    }), file=sys.stderr)
+    sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

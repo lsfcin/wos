@@ -1,0 +1,7 @@
+# Hook files ~/.claude/settings.json names, one per line. Everything else in this
+# directory is a helper module reached by relative require and must NOT be linked
+# into ~/.claude/hooks — see core/tools/sync-global-skills.
+activate.js
+mode-tracker.js
+stats.js
+statusline.sh

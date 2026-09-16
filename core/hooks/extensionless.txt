@@ -1,0 +1,38 @@
+# Files allowed to have no extension because something OUTSIDE this workspace dictates the
+# name — enforced by test_every_extensionless_tracked_file_is_explained.
+#
+# Two other categories are answered in code rather than listed here: a vendored file
+# (vendored.txt) and a core/tools CLI entrypoint (file_law.py is_tool_entrypoint, where the
+# bare word is our own naming convention). A leftover fourth arm still accepts any
+# file carrying a shebang, and it is the weakest of the four: until 2026-08-29 it was what
+# "explained" all 33 tools, whose shebang named one machine's venv and made every one of them
+# unrunnable elsewhere. A check satisfied by the defect it should have caught.
+#
+# This list is the answer to "can we just require extensions everywhere?": no, not fully.
+# Git names its own hooks, make names its own file, and vendored suites bring their own
+# conventions. Making the exemption a NAMED list is what keeps it from being a blind spot —
+# extensionless files were invisible to the line-count gate for months (core/hooks/pre-commit
+# reached 385 lines unblocked) precisely because nobody had written down which ones existed.
+#
+# Basenames, one per line.
+
+# git dictates these exactly — a hook named pre-commit.sh is never run.
+pre-commit
+post-commit
+post-merge
+post-checkout
+pre-push
+pre-rebase
+commit-msg
+prepare-commit-msg
+
+# other external tools
+Makefile
+.gitignore
+.gitattributes
+.claudeignore
+.latexmkrc
+.hidden
+
+# upstream caveman suite convention (vendored — see core/skills/caveman/CONTEXT.md § Attribution)
+ENTRYPOINTS

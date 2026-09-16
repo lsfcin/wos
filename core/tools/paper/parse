@@ -1,0 +1,91 @@
+# Usage: core/tools/paper/parse <file> [--pages N-M] [--ocr] [--layout] [--md] — extract readable text or markdown from PDF, DOCX, PPTX, HTML, or plain text files
+import sys, json, pathlib, subprocess, argparse, tempfile
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import tool_law  # noqa: E402
+
+def _run(cmd):
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
+    return r.stdout if r.returncode == 0 else (None, r.stderr)
+
+def _pdf_ocr(path, pages):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cmd = ['pdftoppm', '-png', '-r', '150']
+        if pages:
+            start, end = pages.split('-')
+            cmd += ['-f', start, '-l', end]
+        cmd += [str(path), f"{tmpdir}/page"]
+        r = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
+        if r.returncode != 0:
+            return None, r.stderr
+        img_pages = sorted(pathlib.Path(tmpdir).glob("page-*.png"))
+        if not img_pages:
+            return "", None
+        text_parts = []
+        for img in img_pages:
+            ocr_res = subprocess.run(['tesseract', str(img), 'stdout', '-l', 'por+eng', '--oem', '1'],
+                                     capture_output=True, text=True, encoding='utf-8')
+            if ocr_res.returncode == 0:
+                text_parts.append(ocr_res.stdout.strip())
+        return "\n\n--- PAGE ---\n\n".join(text_parts), None
+
+def _pdf(path, pages, force_ocr=False, layout=False):
+    if force_ocr:
+        return _pdf_ocr(path, pages)
+    cmd = ['pdftotext']
+    if layout:
+        cmd += ['-layout']
+    if pages:
+        start, end = pages.split('-')
+        cmd += ['-f', start, '-l', end]
+    cmd += [str(path), '-']
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
+    if r.returncode != 0:
+        return None, r.stderr
+    text = r.stdout
+    if len(text.strip()) < 20:
+        ocr_text, ocr_err = _pdf_ocr(path, pages)
+        if ocr_text and len(ocr_text.strip()) >= 20:
+            return ocr_text, None
+    return text, None
+
+def _pandoc(path, fmt='plain'):
+    r = subprocess.run(['pandoc', '-t', fmt, str(path)], capture_output=True, text=True, encoding='utf-8')
+    if r.returncode != 0:
+        return None, r.stderr
+    return r.stdout, None
+
+def main():
+    tool_law.require('latex')  # before argparse: off means off.
+    p = argparse.ArgumentParser()
+    p.add_argument('file')
+    p.add_argument('--pages', metavar='N-M', help='page range for PDF (e.g. 1-5)')
+    p.add_argument('--ocr', action='store_true', help='force OCR extraction via tesseract')
+    p.add_argument('--layout', action='store_true', help='preserve visual column layout')
+    p.add_argument('--md', action='store_true', help='output as markdown where supported')
+    args = p.parse_args()
+
+    path = pathlib.Path(args.file)
+    if not path.exists():
+        print(json.dumps({'error': f'file not found: {args.file}'}), file=sys.stderr)
+        sys.exit(1)
+
+    ext = path.suffix.lower()
+    fmt = 'gfm' if args.md else 'plain'
+    if ext == '.pdf':
+        text, err = _pdf(path, args.pages, force_ocr=args.ocr, layout=args.layout)
+    elif ext in ('.docx', '.doc', '.pptx', '.ppt', '.odt', '.rtf', '.html', '.htm'):
+        text, err = _pandoc(path, fmt=fmt)
+    elif ext in ('.txt', '.md', '.tex', '.csv', '.json', '.yaml', '.yml'):
+        text, err = path.read_text(errors='replace', encoding='utf-8'), None
+    else:
+        print(json.dumps({'error': f'unsupported format: {ext}'}), file=sys.stderr)
+        sys.exit(1)
+
+    if err:
+        print(json.dumps({'error': err}), file=sys.stderr)
+        sys.exit(1)
+    print(text)
+
+if __name__ == '__main__':
+    main()

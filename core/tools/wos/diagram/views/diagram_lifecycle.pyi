@@ -1,0 +1,6 @@
+BAR: int
+LABEL: int
+GAP: int
+
+def render(bands: list, on_demand: list, unplaced: list) -> str: ...
+def legend() -> str: ...

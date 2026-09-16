@@ -1,0 +1,6 @@
+# Supported agent harnesses and their relative skill mirror locations
+# name	skills_dir	commands_dir
+opencode	.opencode/skills	-
+claude	.claude/skills	.claude/commands
+zcode	.zcode/skills	-
+agents	.agents/skills	-

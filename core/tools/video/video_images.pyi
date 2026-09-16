@@ -1,0 +1,9 @@
+from _typeshed import Incomplete
+
+GALLERYDL: Incomplete
+IMG_EXTS: Incomplete
+MAX_IMAGES: int
+
+def metadata(url, runner=None): ...
+def download_images(url, runner=None, workdir=None): ...
+def gather(url, level: str = 'auto', _metadata=None, _media=None, _paths=None): ...
