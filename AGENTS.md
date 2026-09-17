@@ -41,5 +41,6 @@ open issues, the entropy findings, the last verification result: [`ISSUES.md`](I
 
 | Subdirectory | Description |
 |--------------|-------------|
+| [`code/`](code/CONTEXT.md) | Software projects developed under this workspace |
 | [`core/`](core/CONTEXT.md) | Agent library: skills, agents, prompts, flows, tools. Provider-agnostic. |
 <!-- routing:end -->

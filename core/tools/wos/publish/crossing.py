@@ -52,15 +52,15 @@ def tracked() -> list[str]:
 
 def eligible(f: Floor) -> set[str]:
     """Tracked, under the floor, and not named absent. Still not crossing — nothing crosses until a
-    feature claims it. Absent is checked HERE, before any claim, so a refusal a reader can see in
-    the floor cannot be undone by a pointer somewhere in the registry.
+    feature claims it. ROOT, FILE AND TREE ALL GRANT IT. Absent is checked HERE, before any claim,
+    so a refusal a reader can see in the floor cannot be undone by a pointer in the registry.
 
     THE LONGEST PREFIX WINS, which is what lets the floor say `absent code` and still let one
     project out of it. A flat "absent beats everything" could only be written as a refusal per
     sibling, and a list of everything NOT excepted rots the day a sibling is added."""
     def depth(rules):
         return lambda p: max((len(r) for r in rules if p == r or p.startswith(r + '/')), default=0)
-    allow, deny = depth(f.roots + f.files), depth(tuple(f.absent))
+    allow, deny = depth(f.roots + f.files + f.trees), depth(tuple(f.absent))
     return {p for p in tracked() if p and allow(p) > deny(p)}
 
 

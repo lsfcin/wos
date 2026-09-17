@@ -11,15 +11,10 @@
 # `core/experiments/` out of the public repo while all of `core/` is a root.
 import sys
 
-from conftest import WORKSPACE_ROOT
+from conftest import WORKSPACE_ROOT, floor_of
 
 sys.path.insert(0, str(WORKSPACE_ROOT / 'core/tools/wos/publish'))
 import crossing  # noqa: E402
-
-
-def _floor(**kw):
-    base = dict(target=WORKSPACE_ROOT, roots=(), files=(), trees=(), absent={})
-    return crossing.Floor(**{**base, **kw})
 
 
 def _eligible(tracked, floor, monkeypatch):
@@ -28,15 +23,15 @@ def _eligible(tracked, floor, monkeypatch):
 
 
 def test_a_deeper_root_wins_over_a_shallower_absent(monkeypatch):
-    floor = _floor(roots=('code/aiwbot',), absent={'code': 'his projects'})
+    floor = floor_of(roots=('code/aiwbot',), absent={'code': 'his projects'})
     live = _eligible(['code/aiwbot/frontend/bot.py', 'code/dobra/run.py'], floor, monkeypatch)
     assert live == {'code/aiwbot/frontend/bot.py'}, (
         'the named project crosses and its siblings stay refused')
 
 
 def test_a_deeper_absent_still_wins_over_a_shallower_root(monkeypatch):
-    floor = _floor(roots=('core',), absent={'core/ROADMAP.md': 'his plan',
-                                            'core/experiments': 'his measurements'})
+    floor = floor_of(roots=('core',), absent={'core/ROADMAP.md': 'his plan',
+                                              'core/experiments': 'his measurements'})
     live = _eligible(['core/SCHEMA.md', 'core/ROADMAP.md', 'core/experiments/hook-latency.md'],
                      floor, monkeypatch)
     assert live == {'core/SCHEMA.md'}, 'a refusal inside a root is still a refusal'

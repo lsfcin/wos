@@ -7,10 +7,6 @@ and what is still unverified while the workspace is untrusted — is [`SPECS.md`
 <!-- routing:start -->
 ## Routing
 
-| Subdirectory | Description |
-|--------------|-------------|
-| [`skills/`](skills/CONTEXT.md) | ZCode's discovery point for the skill library: generated copies of core/skills, not tracked. |
-
 | File | Description |
 |------|-------------|
 | [`SPECS.md`](SPECS.md) | What ZCode must spawn, how its events map onto the canonical ones, and what is still unverified. |

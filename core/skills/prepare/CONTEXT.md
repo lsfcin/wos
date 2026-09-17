@@ -6,5 +6,5 @@
 
 | File | Description |
 |------|-------------|
-| [`refs/research-summary.yaml`](refs/research-summary.yaml) | refs/research-summary.yaml Research findings on prompt optimization and model selection. Tier-2 promoted ref; curated from initial exploration. |
+| [`refs/research-summary.yaml`](refs/research-summary.yaml) | refs/research-summary.yaml Research findings on prompt optimization and model selection. Level-2 promoted ref; curated from initial exploration. |
 <!-- routing:end -->

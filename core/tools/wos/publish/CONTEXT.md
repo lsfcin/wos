@@ -20,5 +20,6 @@ credential check refuses rather than redacts: the head of [`repo`](repo), and
 | File | Interface | API | Description |
 |------|-----------|-----|-------------|
 | [`crossing.py`](crossing.py) | [`crossing.pyi`](crossing.pyi) | `Floor`, `floor`, `tracked`, `eligible`, `Claim` | crossing.py — what crosses into the public repo and what does not: the floor, the claims, and the import closure that turns a claim on one file into the files it cannot run without. |
+| [`rebuild.py`](rebuild.py) | [`rebuild.pyi`](rebuild.pyi) | `leaves`, `generators` | rebuild.py — what the DESTINATION runs after the copy, so what it generates describes ITS tree. |
 | [`repo`](repo) | — | — | what crosses into the public repo, what no feature claims, and whether anything crossing carries a credential |
 <!-- routing:end -->

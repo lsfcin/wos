@@ -14,7 +14,8 @@
 #   target   where the public repo is checked out. Spelled once, here, because the sync and the
 #            commit gate both need it and two spellings of a path is how they drift apart.
 #   root     a directory whose tracked contents are eligible to cross.
-#   file     one file at the repo root, eligible to cross.
+#   file     one named file, eligible to cross. Mostly at the repo root; a path deeper in is how
+#            a single file is let out of an `absent` tree, by the longest-prefix rule below.
 #   tree     a directory whose tracked contents CROSS, unclaimed. The directory form of `file`, and
 #            substrate for the same reason SETUP.md § substrate gives: it installs no feature, there
 #            is nothing in it to ablate, and asking a feature to claim it would invent an owner.
@@ -58,6 +59,16 @@ file	.gitattributes	line endings, which differ by machine and not by person
 file	.claudeignore	a context-cost filter, not a privacy boundary
 file	opencode.json	harness config
 file	.agentrc.json	harness config
+file	.zcode/SPECS.md	the registration contract for the third harness shim, the same class as opencode.json and .agentrc.json below. NOT a feature row: core/experiments/zcode-hook-protocol.md has not yet verified that ZCode executes the registration at all, and a feature declared before its own verification claims a switch over something nobody has seen fire
+absent	.zcode/skills	the index of a generated, gitignored mirror directory: worthless in a clone that regenerates it, and its routing block NAMES every skill including the private ones, so it publishes the list even while the files stay refused. It crossed for one run on 2026-09-17 and the target's own project-contract gate refused the commit, because every CONTEXT.md under code/ must declare a `> spec:` there
+file	code/CONTEXT.md	the head of the tree the crossing project lives in. Nothing in the clone routed to code/aiwbot until this crossed, because the routing generator needs a CONTEXT.md to make a row — and the 16 private projects it lists are inside the generated block, which the TARGET rewrites from its own tree (core/tools/wos/publish/rebuild.py). Its head names no project
+file	code/SPECS-git.md	the law gitflow-gate enforces, and AGENTS.md sends every session to read it. The gate crosses; a refusal whose rule the clone cannot open is the false green these checks exist to end
+file	code/SPECS.md	engineering conventions for a project under code/, cited by the head above
+file	code/SPECS-structure.md	how a project is laid out — its files, module specs and facade. Cited by the head above, and what facade-discipline blocks against
+file	code/SPECS-style.md	how a file is written and how big it may get. Cited by the head above, and the R1-R6 table lint-typescript renders
+file	code/SETUP.md	per-language setup and scaffolding, which the root SETUP.md hands the reader off to
+file	code/eslint.shared.js	the R1-R6 rules lint-typescript actually applies, and what code/SPECS-style.md declares as its `enforced-by`. A LINE HERE AND A `ships` ENTRY BOTH, because they answer different questions — eligibility is the floor's, and `absent` is checked before any claim, so the registry alone could never let it out; ownership is the registry's. The target's own suite is what found this, refusing a field that names our code and reaches nothing
+tree	code/_templates	the project skeletons the craft flow tells an agent to copy (core/flows/craft/architect.md); a flow that crossed pointing at a template that did not is that flow half-shipped
 absent	brain	his personal operating system: goals, attention, inbox, drafts
 absent	branches	his life — health, finances, the house
 absent	academy	his teaching and his papers, including unpublished ones
@@ -65,7 +76,13 @@ absent	models	weights, which no clone should carry and no git should hold
 absent	code	his software projects, each its own repo — including the one this file publishes
 absent	ROADMAP.md	his plan for his workspace; the public repo writes its own
 absent	core/ROADMAP.md	the same, for the agent library, and it links into brain/goals/
+absent	core/skills/prof.md	HIS SKILLS ARE PRIVATE AND THE FLOOR IS THE ONLY THING THAT SAYS SO (Lucas, 2026-09-17). core/skills/ is eligible whole, and the registry's `scope: lucas` never refused anything — it only hid a file from the orphan list — so `foundry` and `iso-visual` sat in the public repo for weeks while being marked private. Every private skill needs a line here, and the pair below is the shape: a refusal matches a path or a path plus `/`, so the `.md` and the directory beside it are two prefixes and neither covers the other
+absent	core/skills/prof	the ten pedagogy subskills. Each cites academy/teaching/prof/dossie-evidencias.md, which `absent academy` refuses, so a clone would get the shell without the evidence it argues from
+absent	core/skills/foundry.md	the Foundry VTT reference, bound to his isoroll module
+absent	core/skills/foundry	its subskills
+absent	core/skills/iso-visual.md	the isoroll visual-semantics reference, bound to the same project
 absent	core/experiments	what HE measured about HIS workspace, and the WOS paper's data
+absent	core/prompts	a prepared session of his, deleted once its deliverable lands — the same fact about CONTENT as the line above, and its twin: the two that sat here pointed into core/experiments/ and into his course material. A refusal is a PREFIX, so the directory's own CONTEXT.md goes with it and the clone simply has no core/prompts/ — better than an empty directory explaining a pattern with no instance in it
 absent	ISSUES.md	per-repo by the 2026-09-04 ruling; the target writes its own
 absent	PROJECTS.md	names his private repos, and their remotes
 absent	ARCHITECTURE.html	draws his whole tree, private subtrees included

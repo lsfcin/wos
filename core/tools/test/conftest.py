@@ -51,6 +51,21 @@ for _dir in [*_tree(HOOKS), *_tree(TOOLS)]:
     sys.path.insert(0, str(_dir))
 
 
+def floor_of(**kw):
+    """A `crossing.Floor` with every kind empty but the ones a case names.
+
+    Two b20260917 regressions build one, and the duplication gate is right that the shape belongs in
+    one place: a Floor gained `trees` after the first was written, and a second hand-built base dict
+    is how one of them would have kept testing the four-field shape forever. Imported inside the
+    function on purpose — `crossing` reads the floor and the registry off disk at import, and every
+    test in the suite would pay for that to serve the two that ask.
+    """
+    sys.path.insert(0, str(TOOLS / 'wos/publish'))
+    import crossing  # noqa: PLC0415
+    return crossing.Floor(**{**dict(target=WORKSPACE_ROOT, roots=(), files=(), trees=(),
+                                    absent={}), **kw})
+
+
 def git_lines(*args) -> list:
     """Lines of a git query against the workspace, minus the ratchet files themselves.
 
