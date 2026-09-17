@@ -118,6 +118,49 @@
   keeps scrapers from being blocked, the fixes inside the browser and one line to change. Test it against the failure
   that found it: 8 INBOX links died on Instagram login-gating, 2026-09-14 (task in
   `brain/goals/workspace-os.md` [extracao-bloqueada]; — via aiwbot).
+- [Claude unified / Cowork in chat](https://www.instagram.com/p/DdYzficDH9z/) — [src: web:instagram.com] reports
+  Anthropic folding Cowork into the main Claude, with documents and presentations created, edited, presented and
+  exported inside the conversation (task in `brain/goals/teaching-materials.md` [claude-slides-nativo]; — via aiwbot).
+- [task→model router](https://www.instagram.com/reel/DdWLJa2tjq6/) — [src: web:instagram.com] a router that sends each
+  task to the model that fits; the artifact itself sits behind a broadcast channel (task in
+  `brain/goals/craft-flows.md` [router-tarefa-modelo]; — via aiwbot).
+- [layer-by-layer 70B runner](https://www.instagram.com/reel/DdXZkT3ulY6/) — [src: web:instagram.com] open-source
+  Python lib claimed to run 70B models off disk one layer at a time, memory nearly flat (task in
+  `brain/goals/local-ai.md` [layerwise-70b]; — via aiwbot).
+- [OpenWorker, Andrew Ng](https://www.instagram.com/reel/DdSoy2Wu8F_/) — [src: web:instagram.com] local AI co-worker
+  that completes tasks, 40+ app connectors, any model (task in `brain/goals/local-ai.md` [openworker]; — via aiwbot).
+- [VoiceStudio](https://www.instagram.com/reel/DdCOtl_kQsQ/) — [src: web:instagram.com] open-source local alternative
+  to ElevenLabs — voice cloning, dubbing, audiobooks; sibling of the [tts-local] question (curation task in
+  `brain/goals/teaching-materials.md` [curadoria-techs-git]; — via aiwbot).
+- [agent vision toolkit](https://www.instagram.com/reel/Dc13ZNUFMHz/) — [src: web:instagram.com] gives text-only agents
+  images and screenshots (task in `brain/goals/workspace-os.md` [agente-ve-imagem]; — via aiwbot).
+- [Markdown basic syntax](https://www.markdownguide.org/basic-syntax/) · [Azure DevOps wiki
+  markdown](https://learn.microsoft.com/en-us/azure/devops/project/wiki/markdown-guidance) — how much markdown actually
+  supports; the ground under dropping Notion and the spreadsheets (task in
+  `brain/goals/teaching-materials.md` [markdown-so-disciplinas]).
+- [HydraFusion, GitHub](https://www.instagram.com/p/Dc54js5CEsw/) — [src: web:instagram.com] coding-agent orchestration
+  in three workflows — SINGLE, CASCADE (cheap model first, stronger one takes over), CRITIQUE (one writes, another
+  reviews, the first revises); reported 67% lower cost at higher verified quality on one benchmark and slightly lower
+  on two others (task in `brain/goals/craft-flows.md` [router-tarefa-modelo]; — via aiwbot).
+- [Spec gaming while writing specs](https://www.instagram.com/p/DcyBvhTiaSC/) — [src: web:instagram.com] a suite
+  reported green because a flaky test had been turned into a skip; five practices offered against it, including a
+  reviewing subagent that never saw the plan written and pre-commit as the only reliable drift fix (task in
+  `brain/goals/spec-driven-development.md` [spec-gaming]; — via aiwbot).
+- [Four caches in LLM serving](https://www.instagram.com/p/DdGDp-MlKkE/) — [src: web:instagram.com] KV, prefix, the
+  provider's prompt cache, and a semantic cache that skips the call when a new question means an answered one (feeds
+  `brain/goals/teaching-materials.md` [memoria-e-contexto]; — via aiwbot).
+- [GitHub trending, August 2026](https://www.instagram.com/p/Dc_MICrCYSh/) — [src: web:instagram.com] the month's top
+  ten, all one layer above the model: `tt-ali/archify` + `cathrynlavery/diagram-design` (English → html/svg
+  architecture diagrams), `DietrichGebert/ponytail` (stops the agent over-engineering, 54% less code),
+  `deepseek-ai/deepseek-harness`, `mattpocock/skills`, `firecrawl/anydoc`, `diegosouzapw/OmniRoute` (352 providers),
+  `TencentCloud/TencentDB-Agent-Memory`, `earendil-works/pi`, `PrimeIntellect-ai/prime-agent`. **The names are only on
+  the slides, not in the caption** (tasks in `brain/goals/workspace-os.md` [archify-diagramas] and
+  [github-trending-agosto]; — via aiwbot).
+- [Omarchy](https://www.instagram.com/p/Dcygo4skfjX/) — [src: web:instagram.com] an OS claimed to pass Windows and Mac
+  in 18 months because AI lets anyone customize their computer; the reel itself asks whether the hype holds (task in
+  `brain/goals/workspace-os.md` [omarchy-vs-ubuntu]; — via aiwbot).
+- [Nvidia PAIR](https://www.instagram.com/p/Dc37X91M4QQ/) — [src: web:instagram.com] open tool pooling idle compute
+  across machines in one home for local AI (task in `brain/goals/local-ai.md` [nvidia-pair]; — via aiwbot).
 - [mattpocock/skills](https://github.com/mattpocock/skills) — small, composable, model-agnostic agent skills, shipped
   both as a Claude Code plugin and as editable copies. Lucas: *"talvez seja útil pra gente, avaliar"* — weigh against
   the ruling that rejected `obra/Superpowers` for carrying no per-task level routing (task in

@@ -120,8 +120,16 @@ def sync(rep: core.Report, floor: core.Floor, act: bool) -> int:
         # target, which writes its own. Listing them here ignored the target's copies, and a repo
         # whose ISSUES.md git does not carry cannot run the gate that watches writes to it.
         absent = sorted((set(floor.absent) | rep.orphans) - set(SELF))
+        # A refusal holding a root is written as its CONTENTS plus the exception, because git will
+        # not re-include a file whose parent directory is excluded: `/code` would have made every
+        # aiwbot file the sync just wrote invisible to the target's own git.
+        lines = []
+        for path in absent:
+            inner = sorted(r for r in floor.roots if r.startswith(path + '/'))
+            lines.append(f'/{path}/*\n' if inner else f'/{path}\n')
+            lines += [f'!/{r}/\n' for r in inner]
         (floor.target / '.gitignore').write_text(
-            IGNORE_HEAD + ''.join(f'/{p}\n' for p in absent), encoding='utf-8', newline='\n')
+            IGNORE_HEAD + ''.join(lines), encoding='utf-8', newline='\n')
     present, verdicts = _present(floor.target), []
     for name in sorted(rep.crossing):
         source, destination = core.ROOT / name, floor.target / name

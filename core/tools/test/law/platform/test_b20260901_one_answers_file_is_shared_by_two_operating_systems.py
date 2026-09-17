@@ -2,7 +2,7 @@
 #
 # core/profile.txt is versioned and its head claimed to hold the answers "for THIS machine". Two
 # clones pull it, on two operating systems with genuinely different feature sets — `latex`,
-# `telegram-capture` and the apt-only deps are not the same question here as there — so
+# `bot` and the apt-only deps are not the same question here as there — so
 # `features --on/--off` on one landed on the other, and the permission level is one line in the
 # same file. Every other per-machine artifact here is generated and gitignored.
 #

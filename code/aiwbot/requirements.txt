@@ -1,0 +1,28 @@
+# requirements.txt — aiwbot's extra runtime deps, installed into the shared workspace venv.
+#
+# Install from this directory, asking the launcher for the interpreter rather than naming it:
+#   "$(../../core/run --python)" -m pip install -r requirements.txt
+#   "$(../../core/run --python)" -m pip install "numpy==2.4.5" --no-deps   # see NOTE below
+#
+# ffmpeg (OGG/Opus) is a system binary already at /usr/bin/ffmpeg — not pip-managed, no line here.
+
+faster-whisper       # STT (C1): large-v3-turbo transcription
+soundfile            # TTS encode (C5/C6): local OGG/Opus container write, needs libsndfile>=1.0.29
+kokoro               # TTS (C5): Kokoro-82M pf_dora voice
+
+# kokoro -> misaki[en] -> spacy -> thinc -> blis is pulled in UNCONDITIONALLY (kokoro/pipeline.py
+# does `from misaki import en, espeak` at module top, even though this feature only speaks pt-br
+# through misaki's espeak path). Left unpinned, pip's resolver backtracks into a broken spacy
+# 4.0.0-dev prerelease whose blis<0.8 has no Python-3.14 wheel (source build fails: Cython/GIL
+# compile errors). Pinning this mutually-compatible trio keeps the resolution on prebuilt wheels:
+spacy==3.8.13
+thinc==8.3.13
+blis==1.3.3
+
+# NOTE — numpy: kokoro's metadata hard-pins numpy==1.26.4. This venv is shared with
+# pandas/opencv/tifffile/rembg, which need numpy>=2; kokoro's own code runs fine against numpy
+# 2.4.5 (verified by import). A plain `pip install -r requirements.txt` WILL downgrade numpy to
+# 1.26.4 and break those other projects — always follow it with
+# `pip install "numpy==2.4.5" --no-deps` (or the venv's current numpy version) to restore it.
+# `pip check` will keep flagging kokoro's numpy==1.26.4 claim as unmet; that mismatch is expected
+# and harmless (metadata pin, not an actual runtime incompatibility).

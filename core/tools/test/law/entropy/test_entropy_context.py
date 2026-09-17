@@ -89,6 +89,20 @@ def test_a_missing_declaration_is_flagged(tmp_path):
     assert failure is not None and 'line 3 must declare' in failure
 
 
+def test_a_goal_in_a_tree_this_checkout_lacks_is_not_a_dead_link(tmp_path):
+    """b20260917 — code/aiwbot crosses into the public repo, brain/ is refused there.
+
+    The pair with the case below is the whole rule: no goals/ directory means the tree stayed
+    behind and there is nothing to answer; a goals/ directory with the file gone is a real
+    finding, and silencing that one would hide the only case this check exists for."""
+    project = tmp_path / 'code' / 'thing'
+    project.mkdir(parents=True)
+    target = project / 'CONTEXT.md'
+    target.write_text('# thing\n> what it is\n> goal: [x](../../brain/goals/x.md)\n',
+                      encoding='utf-8', newline='\n')
+    assert entropy_context.check_goal_link(target) is None
+
+
 def test_a_dead_goal_link_is_flagged(tmp_path):
     """Worse than `none`, because it reads as an answer."""
     target = _project(tmp_path, '> goal: [gone](../../brain/goals/gone.md)')

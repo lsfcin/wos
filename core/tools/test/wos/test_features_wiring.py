@@ -6,17 +6,34 @@
 # that runs" — a question about behaviour, and the one that costs the first ablation run its whole
 # signal when it goes unasked. A row claiming to be wired while nothing reads the switch would make
 # the ablation report "no effect" for a feature that was never disabled.
+import functools
 import json
 import os
 import subprocess
 import sys
 
 import feature_law as law
-from conftest import WORKSPACE_ROOT, carries
+from conftest import WORKSPACE_ROOT
 from platform_law import interpreter
 
 sys.path.insert(0, str(WORKSPACE_ROOT / 'core/tools/wos/skills'))
 import mirror  # noqa: E402
+
+@functools.cache
+def _eligible() -> set:
+    """What the floor lets cross, asked of the floor itself rather than restated here.
+
+    REPLACED A SKIP on 2026-09-17. The guard used to be `if not carries(target): continue` — a
+    switch in a tree this checkout lacks was called unanswerable, and the one row it covered was
+    the Telegram bot, wired into code/aiwbot while `core/public.txt` refused all of code/. That
+    made the strongest check in the registry silent for the row that needed it most: a switch the
+    public clone cannot reach is a switch the ablation cannot throw, which is the failure
+    core/SPECS.md § AD-14 exists to prevent. So it REFUSES now, and no row is exempt by geography.
+    """
+    sys.path.insert(0, str(WORKSPACE_ROOT / 'core/tools/wos/publish'))
+    import crossing
+    return crossing.eligible(crossing.floor())
+
 
 SKILL_MIRROR = 'core/tools/wos/skills/mirror.py'
 NORMS_GENERATOR = 'core/hooks/routing/norms.py'
@@ -67,11 +84,9 @@ def test_a_row_claiming_to_be_wired_really_is():
     for row in law.load_registry():
         for target in law.wired_paths(row):
             path = WORKSPACE_ROOT / target
-            # A switch inside a tree this checkout does not carry is unanswerable here, not broken:
-            # `telegram-capture` is wired into code/aiwbot, its own repo, and the public clone has
-            # no code/ at all. Judged by the TREE and not the file, so a row whose switch was
-            # deleted from a tree that IS here still reports.
-            if not carries(target):
+            if target not in _eligible():
+                broken.append(f'{row["name"]}: {target} is outside core/public.txt, so the switch '
+                              f'cannot be thrown where the ablation runs')
                 continue
             if not path.exists():
                 broken.append(f"{row['name']}: {target} does not exist")
@@ -163,8 +178,8 @@ def test_the_wired_gates_actually_consult_the_law(tmp_path):
     silent, ran = [], 0
     for row in law.load_registry():
         for target in law.wired_paths(row):
-            if not carries(target):
-                continue   # same tree rule as the case above
+            if target not in _eligible():
+                continue   # refused by the floor, and named as such by the case above
             body = (WORKSPACE_ROOT / target).read_text(encoding='utf-8')
             # A standalone hook ends by running main() on stdin; those we can observe.
             if target.endswith('.py') and 'sys.exit(main())' in body:

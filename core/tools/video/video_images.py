@@ -76,7 +76,11 @@ def gather(url, level="auto", _metadata=None, _media=None, _paths=None):
     if meta.get("description"):
         parts.append(meta["description"])
         methods.append("metadata")
-    if level == "metadata" or (level == "auto" and parts):
+    # A caption never stops the OCR on an image post: the slides ARE the content, and a caption
+    # saying "swipe through to decode" reads as text found and hid ten slides of it for three
+    # triages (2026-09-17). OCR is tesseract, local: ~0.6 s per image, zero tokens, so `auto`
+    # always pays it. Only the VLM caption below still waits for OCR to come back empty.
+    if level == "metadata":
         return meta, parts, methods
 
     paths = _paths if _paths is not None else download_images(url)

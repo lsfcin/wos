@@ -28,7 +28,8 @@ core/profile.local.txt
 /academy
 /brain
 /branches
-/code
+/code/*
+!/code/aiwbot/
 /core/ROADMAP.md
 /core/experiments
 /core/flows/.craft-skills/python-pipeline.md
@@ -37,6 +38,7 @@ core/profile.local.txt
 /core/prompts/effort-zcode.md
 /core/prompts/metodologia-aulas-opus.md
 /core/refs/SPECS.md
+/core/skills/accessible-deck.md
 /core/tools/verify/SPECS.md
 /core/tools/wos/spec-scan
 /models

@@ -1,0 +1,6 @@
+from . import choices as choices, labels as labels, panelmenu as panelmenu
+from .. import config as config
+from ..session import msgmap as msgmap, registry as registry
+
+def apply(scope: str, dim: str, value: str) -> str: ...
+async def handle_callback(update, context) -> None: ...

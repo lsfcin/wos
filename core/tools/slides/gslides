@@ -1,4 +1,4 @@
-# Usage: core/tools/slides/gslides <cmd> [args] — Google Slides CLI: auth, list, read, new, add, text, apply
+# Usage: core/tools/slides/gslides <cmd> [args] — Google Slides CLI: auth, list, read, new, add, text, apply, preview, export, sample
 import sys, json, pathlib, argparse
 
 _HERE = pathlib.Path(__file__).resolve().parent
@@ -6,7 +6,7 @@ _HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
 sys.path.insert(0, str(_HERE.parent))
 sys.path.insert(0, str(_HERE.parent / 'auth'))
-import slides_core, slides_outline, gauth, gcli, short_name as short_name_tool
+import slides_core, slides_outline, deck_sample, gauth, gcli, short_name as short_name_tool
 
 
 def cmd_auth(alias: str, write: bool, reauth: bool) -> None:
@@ -88,6 +88,23 @@ def cmd_preview(account: str, presentation_id: str, out_dir: str) -> None:
     print(f"Done. Saved to: {target}")
 
 
+def cmd_export(target: str, fmt: str, out_path: str) -> None:
+    """Download Google Slides deck via public export endpoint (fallback without OAuth)."""
+    parsed = deck_sample.parse_slide_target(target)
+    if parsed["kind"] != "google_slides":
+        print(f"Error: target '{target}' is not a Google Slides ID or URL.", file=sys.stderr)
+        sys.exit(1)
+    dest = pathlib.Path(out_path) if out_path else pathlib.Path.cwd() / f"{parsed['id']}.{fmt}"
+    print(f"Exporting presentation {parsed['id']} as {fmt.upper()} to {dest}...")
+    deck_sample.download_public_export(parsed["id"], dest, format=fmt)
+    print(f"Done. Saved to: {dest}")
+
+
+def cmd_sample(target: str, out_dir: str, dpi: int, max_samples: int) -> None:
+    """Ingest deck, cluster animation sequences and render keyframe thumbnails."""
+    dest = pathlib.Path(out_dir) if out_dir else None
+    deck_sample.sample_deck(target, out_dir=dest, dpi=dpi, max_samples=max_samples)
+
 
 def main():
     p = argparse.ArgumentParser(prog="gslides")
@@ -138,6 +155,17 @@ def main():
     ppr.add_argument("--out", dest="out_dir", default="", help="destination directory for PNGs")
     ppr.add_argument("presentation_id")
 
+    pex = sub.add_parser("export", help="download presentation as PDF or PPTX without requiring OAuth")
+    pex.add_argument("target", help="Google Slides URL or presentation ID")
+    pex.add_argument("--format", default="pdf", choices=["pdf", "pptx"], help="export format (default: pdf)")
+    pex.add_argument("--out", dest="out_path", default="", help="output destination file path")
+
+    psm = sub.add_parser("sample", help="sample key slides, cluster animations and generate visual thumbnails")
+    psm.add_argument("target", help="Google Slides URL/ID or local PDF file")
+    psm.add_argument("--out", dest="out_dir", default="", help="output directory for manifest and thumbnails")
+    psm.add_argument("--dpi", type=int, default=150, help="rendering DPI for thumbnails (default: 150)")
+    psm.add_argument("--max-samples", type=int, default=25, help="maximum number of key slides to sample (default: 25)")
+
     args = p.parse_args()
     if   args.cmd == "auth":    cmd_auth(args.alias, args.write, args.reauth)
     elif args.cmd == "list":    cmd_list(args.account, args.name)
@@ -148,6 +176,8 @@ def main():
                                          args.text, args.x, args.y, args.w, args.h)
     elif args.cmd == "apply":   cmd_apply(args.account, args.presentation_id, args.requests_json)
     elif args.cmd == "preview": cmd_preview(args.account, args.presentation_id, args.out_dir)
+    elif args.cmd == "export":  cmd_export(args.target, args.format, args.out_path)
+    elif args.cmd == "sample":  cmd_sample(args.target, args.out_dir, args.dpi, args.max_samples)
     else:                       p.print_help()
 
 

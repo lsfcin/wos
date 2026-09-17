@@ -4,7 +4,7 @@
 #
 # THE ANSWERS HERE ARE SHARED; THIS MACHINE'S ARE NOT (2026-09-04). Two clones on two operating
 # systems pull this file, so `features --on` used to land on the other one — and `latex`, the
-# apt-only deps and `telegram-capture` are genuinely different questions here and there. A
+# apt-only deps and `bot` are genuinely different questions here and there. A
 # gitignored core/profile.local.txt overrides any row for one clone, and that is where
 # `core/tools/wos/features --on|--off <name>` writes. This file keeps the shared answer.
 #
@@ -64,7 +64,7 @@ toggle	brain-dashboard	on
 toggle	brain-attention	on
 toggle	inbox-nudge	on
 toggle	compass-nudge	on
-toggle	telegram-capture	on
+toggle	bot	on
 toggle	notify	off
 toggle	context-meter	on
 toggle	statusline	on

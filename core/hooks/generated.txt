@@ -49,3 +49,9 @@ outputs/*
 # a screen, it is cut like any other type and the parts are ordinary capped files.
 ISSUES.md
 */ISSUES.md
+
+# Teaching course panels rendered for rich viewing (Cloudflare Pages)
+academy/teaching/*/painel.html
+
+# Accessible study guides and scripts generated from slides (accessible-deck skill)
+academy/teaching/*/*-guia-acessivel-slides.md

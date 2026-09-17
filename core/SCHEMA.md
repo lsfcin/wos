@@ -195,7 +195,6 @@ the moment a rename lands, and delete the prose that would otherwise explain it.
 | `loop-engineering` | `craft` | 2026-07-23 |
 | `loop-router` | `route` | 2026-07-23 |
 | `loop-architecture` | `architect` | 2026-07-23 |
-| `LOOP-TREE` | `tree.md` | 2026-07-23 |
 | `KNOWN-BUGS` | `ISSUES.md` | 2026-07-30 |
 | `/loops` | `/craft` | 2026-08-17 |
 | `BUGS.md` | `ISSUES.md` | 2026-08-19 |
@@ -212,10 +211,19 @@ the moment a rename lands, and delete the prose that would otherwise explain it.
 | `probe` | `metadata` | 2026-09-14 |
 | `column cap` | `document cap` | 2026-09-14 |
 | `mail-triage` | `mail` | 2026-09-16 |
+| `hatchet` | `cut` | 2026-09-17 |
+| `telegram-capture` | `bot` | 2026-09-17 |
 
 **One retired token can owe four replacements, and the cell holds only the commonest.** `slug` names
 four ideas, and they do not flatten into one: a link's `short name`, a feature's or file's `name`, a
 bracketed `item id`, and a bug's `id`.
+
+**A row can also aim at what the AGENT SAYS, not at what the tree holds.** `hatchet` was in no
+tracked file when it was retired (2026-09-17) — Lucas was hearing it in replies. It survives in
+English only inside idiom (*take a hatchet to*, *hatchet job*), which is the class of word that
+reads as nothing to someone who does not speak English, and the workspace already had the plain
+verb for it: a file over the cap is **cut**. The row cannot reach a spoken reply, but it stops the
+word from ever entering the tree, which is the half a check can hold.
 
 **A rename whose old spelling is also a real word needs a shape, not a token** — a row that fails on
 correct prose trains people to ignore the check, so `/loops` and `.loop` are rows while `Frente`→

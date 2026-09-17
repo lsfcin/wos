@@ -70,10 +70,22 @@ def test_download_images_filters_and_caps(tmp_path):
     assert all(p.suffix == ".jpg" for p in paths)
 
 
-def test_gather_stops_at_description_on_auto():
+def test_gather_ocrs_the_slides_even_when_a_caption_exists(tmp_path):
+    """A caption is not the content of an image post — the slides are. This test used to assert
+    the opposite (an `auto` run stopped at the caption), which is how a GitHub carousel reached
+    three triages with its ten repo names unread: the caption said 'swipe through to decode'."""
+    metadata = lambda u: {"url": u, "ok": True, "description": "swipe through", "uploader": "x"}
+    meta, parts, methods = vi.gather(
+        "u", _metadata=metadata, _media=FakeMedia(screen="the name only the slide carries"),
+        _paths=[tmp_path / "a.jpg"])
+    assert methods == ["metadata", "ocr"]
+    assert "the name only the slide carries" in parts[1]
+
+
+def test_gather_stops_at_metadata_when_asked():
     meta, parts, methods = vi.gather(
         "u", _metadata=lambda u: dict(vi.metadata("u", runner=lambda a: FakeProc(stdout=DUMP))),
-        _media=FakeMedia(screen="SHOULD NOT RUN"), _paths=[])
+        _media=FakeMedia(screen="SHOULD NOT RUN"), _paths=[], level="metadata")
     assert methods == ["metadata"]
     assert parts == ["a caption about normal maps"]
 

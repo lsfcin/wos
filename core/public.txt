@@ -19,6 +19,10 @@
 #            substrate for the same reason SETUP.md § substrate gives: it installs no feature, there
 #            is nothing in it to ablate, and asking a feature to claim it would invent an owner.
 #   absent   named REFUSALS, and they REFUSE: a path under one never crosses, whatever claims it.
+#            THE LONGEST PREFIX WINS between the kinds above, so `root code/aiwbot` lets one project
+#            out of `absent code` while `absent core/ROADMAP.md` still beats `root core`. Written in
+#            2026-09-17, when the first project crossed: the alternative was a refusal per sibling,
+#            which is a list of everything NOT excepted, and it rots the day a sibling is added.
 #            Most were already refused by not being under a root, and were written here so a reader
 #            asking "why is brain/ not in the public repo" finds the answer in the file that decided
 #            it rather than in a git log. Then `core/ROADMAP.md` arrived — inside an eligible root,
@@ -33,6 +37,7 @@ root	.opencode	same, for opencode
 root	.zcode	same, for zcode
 root	.agents	same, for the Antigravity / Gemini shim
 root	.github	inert hook config until Copilot is installed, per SETUP.md
+root	code/aiwbot	the `bot` feature's whole tree, the one project that is WOS rather than built with it — its switch has to be throwable where the ablation runs
 file	core/hooks/session/mirror-heal.py	skill-mirror machinery: it publishes skills, it is not one. Fourteen `skills` rows share one wiring point and no row names the machine under it
 file	core/tools/wos/sync-global-skills	the same machinery, for the mirrors that live in $HOME
 file	core/hooks/pre-commit	the entrypoint git dictates the name of; every gate rides it and none can claim it
@@ -46,6 +51,7 @@ file	SETUP.md	the install contract every student runs
 file	SETUP-clone.md	its first part, and nothing else runs until it is done
 file	SETUP-compaction.md	its part for the tool-output compactor
 file	SETUP-interfaces.md	its part for the interface-stub toolchain
+file	SETUP-telegram.md	its part for the chat bot's service; the token and the pairing stay in SETUP-accounts.md
 file	verify.py	the suite that contract's last step calls
 file	verify.pyi	its generated interface
 file	.gitattributes	line endings, which differ by machine and not by person

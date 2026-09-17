@@ -192,6 +192,14 @@ def check_goal_link(path: Path) -> str | None:
         return None
     target = (path.parent / match.group(3)).resolve()
     if not target.exists():
+        # A GOAL IN A TREE THIS CHECKOUT DOES NOT CARRY is a question with no subject, not a dead
+        # link (2026-09-17). `code/aiwbot` crosses into the public repo, and brain/ is refused
+        # there by core/public.txt, so the honest goal it declares here would read as drift over
+        # there. Same ruling as conftest.needs() and the pointer check. THE DIRECTORY is what says
+        # which case this is: goals/ missing means the whole tree stayed behind, goals/ present
+        # with the file gone means someone deleted a goal a project still claims — a real finding.
+        if not target.parent.is_dir():
+            return None
         return (f'{path}: line 3 points at a goal file that does not exist.\n'
                 f'   {match.group(3)} — a dead goal link is worse than `none`, because it\n'
                 f'   reads as an answer.')

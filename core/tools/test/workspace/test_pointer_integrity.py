@@ -10,7 +10,7 @@ import re
 import subprocess
 from pathlib import Path, PurePosixPath
 
-from conftest import WORKSPACE_ROOT  # the depth lives in one file, not nine
+from conftest import WORKSPACE_ROOT, carries  # the depth lives in one file, not nine
 from entropy_corpus import LINK_RE  # one definition of what a link is, not two
 from platform_law import rel
 
@@ -74,15 +74,23 @@ def _deliberately_absent(root: Path, targets: list) -> set:
     by editing anything, and it made the check pass only for its author. Three links — into
     `academy/lab/`, `branches/casinhas/` and a gitignored `ROADMAP.md` — were red on this clone for
     exactly that reason. `git check-ignore` is the one authority on what the repo declines to carry.
+
+    THE SECOND SOURCE IS THE TREE ITSELF (2026-09-17). This suite runs in two repos, and the public
+    one is refused brain/, academy/, branches/ by `core/public.txt` — so `code/aiwbot`, which does
+    cross, arrives there carrying four links into trees that were deliberately left behind. Same
+    ruling as `conftest.needs()` (Lucas, 2026-09-16): a pointer into a tree this checkout does not
+    carry is a question with no subject, not a broken pointer. Judged at the TOP SEGMENT and only
+    for a target that names a directory, so a dead `SOMETHING.md` at the root still reports.
     """
     if not targets:
         return set()
+    unbuilt = {t for t in targets if '/' in t and not carries(t)}
     # NUL-separated both ways. A newline-separated pipe is rewritten to CRLF by the text layer on
     # some systems, so git received the carriage return as part of each filename, matched nothing,
     # and quoted the odd name back — the answer looked like "none of these are ignored".
     done = subprocess.run(['git', '-C', str(root), 'check-ignore', '-z', '--stdin'],
                           input='\0'.join(targets), capture_output=True, text=True, encoding='utf-8')
-    return {name for name in done.stdout.split('\0') if name}
+    return unbuilt | {name for name in done.stdout.split('\0') if name}
 
 
 def check_separators(root: Path, memory_dir: Path) -> list:
@@ -149,6 +157,19 @@ def test_dangling_relative_link_is_detected(tmp_path):
     failures = check_pointers(tmp_path, tmp_path / "no-memory-here")
     assert len(failures) == 1
     assert "../.vendor" in failures[0]
+
+
+def test_a_pointer_into_a_tree_this_checkout_lacks_is_not_broken(tmp_path):
+    """b20260917 — the public clone carries code/aiwbot and not brain/, and the links between them.
+
+    The second half is the point: an unbuilt TREE is silenced, a dead file at the root is not, or
+    the gate would go quiet on exactly the typo it exists to catch."""
+    (tmp_path / "CONTEXT.md").write_text(
+        "goal [x](naoexiste-em-lugar-nenhum/goals/x.md) and [y](NAOEXISTE.md)\n",
+        encoding="utf-8", newline='\n')
+    failures = check_pointers(tmp_path, tmp_path / "no-memory-here")
+    assert len(failures) == 1, failures
+    assert "NAOEXISTE.md" in failures[0]
 
 
 def test_clean_fixture_has_no_failures(tmp_path):
