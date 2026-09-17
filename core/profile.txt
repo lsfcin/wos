@@ -9,10 +9,15 @@
 # `core/tools/wos/features --on|--off <name>` writes. This file keeps the shared answer.
 #
 # WHY IT IS A SEPARATE FILE: the registry ships as scaffold — it is what makes a subset of this
-# workspace installable — while these answers are Lucas's. The public repo gets this one file
-# replaced by a placeholder at defaults, which is what makes the general/Lucas-specific line a
-# reviewable diff instead of a trusted script. That is also why the base stayed versioned when the
-# per-machine half moved out: a gitignored answers file has no diff to review.
+# workspace installable — while these answers are Lucas's. That is also why the base stayed
+# versioned when the per-machine half moved out: a gitignored answers file has no diff to review.
+#
+# THIS FILE CROSSES VERBATIM. It claimed until 2026-09-17 to reach the public repo "replaced by a
+# placeholder at defaults"; the two copies were byte-identical and no code anywhere transformed it.
+# A false claim in a file about privacy is worse than no claim, and it read as the reason the
+# general/Lucas-specific line was safe — which is the same missing mechanism that let two skills
+# marked `lucas` sit in the public repo. Nothing is filtered as it crosses today; core/public.txt
+# refuses whole paths, and that is the only privacy boundary this workspace actually has.
 #
 # Every registry name carries an answer here on purpose, rather than only the departures: this is
 # the file you open to see what your machine actually runs, and a name added to the registry and
@@ -64,6 +69,7 @@ toggle	brain-dashboard	on
 toggle	brain-attention	on
 toggle	inbox-nudge	on
 toggle	compass-nudge	on
+toggle	publish-nudge	on
 toggle	bot	on
 toggle	notify	off
 toggle	context-meter	on
@@ -95,6 +101,7 @@ toggle	compass	on
 toggle	research	on
 toggle	prepare	on
 toggle	dedup	on
+toggle	accessible-deck	on
 toggle	install	on
 toggle	permissions	on
 toggle	levels	on
@@ -104,8 +111,6 @@ toggle	docs	on
 toggle	slides	on
 toggle	calendar	on
 toggle	drive	on
-toggle	foundry	on
-toggle	iso-visual	on
 toggle	filesystem	on
 toggle	storage	on
 toggle	secrets	on

@@ -46,8 +46,8 @@ WORKSPACE = SCRIPT_DIR.parents[2]
 # `trace` sits with them from 2026-09-15, ruled by Lucas: the close prints every spawn, the clock
 # split and the loudest tools, always. It is bare for the same reason the other two are — it writes
 # its own labelled lines, and a label around a labelled block would read twice.
-STATE = ('cost', 'size', 'trace', 'verify', 'sync', 'projects', 'map', 'entropy', 'diagram',
-         'compaction', 'permissions')
+STATE = ('cost', 'size', 'trace', 'verify', 'sync', 'public', 'projects', 'map', 'entropy',
+         'diagram', 'compaction', 'permissions')
 BARE = ('cost', 'size', 'trace')
 
 
@@ -65,6 +65,31 @@ def verify(root: Path) -> tuple:
     # the list on 2026-09-02: a measured number, in the file whose own head forbids a copied count.
     counts = [line.strip() for line in log.splitlines() if ' passed' in line]
     return (f'green ({" · ".join(counts)})' if counts else 'green'), declared[0], log
+
+
+def public(root: Path) -> str:
+    """How far behind the public repo is, in files. Reports, never syncs and never pushes.
+
+    Beside `sync` on purpose: that line says whether THIS repo's work reached its remote, and this
+    one says whether it reached the repo his students clone — the same question about the other
+    direction, and the one nothing was asking. A `--check` is read-only and costs no network.
+
+    THE EXPENSIVE HALF OF A PAIR, and deliberately so. This walks 1150 files and costs 3.1 s, which
+    a close can afford once and a SessionStart cannot: core/hooks/session/publish-nudge.py asks the
+    cheap question (16 ms of git log) at every start and this one asks the exact one at every end.
+    Same split the INBOX already has — the nudge counts, the ritual acts.
+    """
+    if root != WORKSPACE:
+        return ''
+    done = spawn(root, interpreter(), str(SCRIPT_DIR / 'publish/repo'), '--check')
+    tail = [ln for ln in done.stdout.splitlines() if ln.startswith('check:')]
+    if not tail:
+        return ''
+    behind = tail[0].split()[1]
+    if behind == '0':
+        return 'in sync'
+    return (f'{behind} file(s) the public repo does not have yet. The work is written; it has not '
+            'reached the clone — /publish, when it suits')
 
 
 def permissions(root: Path) -> str:
@@ -193,7 +218,7 @@ def main(argv: list) -> int:
     sid = session_id(root)
     cost, size, trace = report(root, sid)
     said = {'cost': cost, 'size': size, 'trace': trace,
-            'verify': verdict, 'sync': sync, 'entropy': entropy,
+            'verify': verdict, 'sync': sync, 'public': public(root), 'entropy': entropy,
             'projects': sweep(root) if root == WORKSPACE else '', 'map': drawn,
             'diagram': diagram, 'compaction': compaction(sid) if sid else '',
             'permissions': perms}

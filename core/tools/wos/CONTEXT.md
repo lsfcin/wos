@@ -8,6 +8,7 @@
 |--------------|-------------|
 | [`close/`](close/CONTEXT.md) | What a session close writes, and what it does with each artifact afterwards. |
 | [`diagram/`](diagram/CONTEXT.md) | The workspace drawn from its own declarations: one generated HTML picture, zero tokens, no model. |
+| [`publish/`](publish/CONTEXT.md) | What crosses into the public repo his students clone, what no feature claims, and the refusal that runs before the first byte is copied. |
 | [`session/`](session/CONTEXT.md) | What a session costs and what fills it, read from the local transcripts. No network, no model. |
 
 | File | Interface | API | Description |

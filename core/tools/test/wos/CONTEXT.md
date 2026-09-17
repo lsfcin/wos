@@ -32,6 +32,8 @@ boundary declares `serial` and gets a pass of its own; three do.
 
 | File | Interface | Description |
 |------|-----------|-------------|
+| [`test_b20260917_a_refused_tree_cannot_let_one_project_out.py`](test_b20260917_a_refused_tree_cannot_let_one_project_out.py) | [`test_b20260917_a_refused_tree_cannot_let_one_project_out.pyi`](test_b20260917_a_refused_tree_cannot_let_one_project_out.pyi) | b20260917 regression — the floor's precedence: the longest prefix wins, both ways. |
+| [`test_b20260917_the_sync_never_finished_at_the_destination.py`](test_b20260917_the_sync_never_finished_at_the_destination.py) | [`test_b20260917_the_sync_never_finished_at_the_destination.pyi`](test_b20260917_the_sync_never_finished_at_the_destination.pyi) | b20260917 regression — the sync copied bytes and stopped: three ways the DESTINATION was left unfinished, each of which reported clean. |
 | [`test_b6_google_skills.py`](test_b6_google_skills.py) | [`test_b6_google_skills.pyi`](test_b6_google_skills.pyi) | B6 regression — every Google-backed tool family has a skill wrapper. |
 | [`test_deps.py`](test_deps.py) | [`test_deps.pyi`](test_deps.pyi) | T0 declared dependencies (core/tools/SPECS.md § Declared dependencies): a third-party import the tool surface uses must be declared, and every tool must run under the workspace venv. |
 | [`test_features.py`](test_features.py) | [`test_features.pyi`](test_features.pyi) | T0 the feature registry's declaration half (core/SPECS.md § AD-14): every feature is declared, answered, and inside the closed sets its columns may draw from. |

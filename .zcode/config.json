@@ -88,12 +88,7 @@
             {
               "type": "command",
               "timeout": 30,
-              "command": "sh ${ZCODE_PROJECT_DIR}/core/run hooks/session/inbox-nudge.py"
-            },
-            {
-              "type": "command",
-              "timeout": 30,
-              "command": "sh ${ZCODE_PROJECT_DIR}/core/run hooks/session/compass-nudge.py"
+              "command": "sh ${ZCODE_PROJECT_DIR}/core/run hooks/session/nudges.py"
             }
           ]
         }

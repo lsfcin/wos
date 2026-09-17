@@ -18,5 +18,4 @@ duplication gate refused the second inline copy, which is why the harness exists
 | [`test_b7_durable_bug_ids.py`](test_b7_durable_bug_ids.py) | [`test_b7_durable_bug_ids.pyi`](test_b7_durable_bug_ids.pyi) | — | B7 regression — a bug id is a durable id, and never borrowed. |
 | [`test_heredoc_gate.py`](test_heredoc_gate.py) | [`test_heredoc_gate.pyi`](test_heredoc_gate.pyi) | `run` | T0 the heredoc gate: a shell write to a workspace file must not walk past the file gates. |
 | [`test_issues_gate_removal.py`](test_issues_gate_removal.py) | [`test_issues_gate_removal.pyi`](test_issues_gate_removal.pyi) | — | Regression — the issues gate reads removals, not only FIXED flips. |
-| [`test_memory_gate.py`](test_memory_gate.py) | [`test_memory_gate.pyi`](test_memory_gate.pyi) | `run` | T0 the memory gate: a memory is written when Lucas asks for one, and the switch is what says so. |
 <!-- routing:end -->

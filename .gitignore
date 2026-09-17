@@ -14,14 +14,14 @@ core/profile.local.txt
 .claude/commands/*.md
 .opencode/skills/*/
 .zcode/skills/*/
+.zcode/skills/CONTEXT.md
 .zcode/plans/
 .agents/skills/*/
 
 # Below: prose in a file that crossed, pointing at a file that did not. Naming them as deliberately
 # absent keeps the pointer check green here without rewriting a line of the text upstream —
 # test_pointer_integrity asks `git check-ignore` in the repo being checked.
-/.zcode/SPECS.md
-/.zcode/skills/CONTEXT.md
+/.zcode/skills
 /ARCHITECTURE.html
 /PROJECTS.md
 /SETUP-accounts.md
@@ -29,16 +29,21 @@ core/profile.local.txt
 /brain
 /branches
 /code/*
+!/code/_templates/
 !/code/aiwbot/
+!/code/CONTEXT.md
+!/code/SETUP.md
+!/code/SPECS-git.md
+!/code/SPECS-structure.md
+!/code/SPECS-style.md
+!/code/SPECS.md
+!/code/eslint.shared.js
 /core/ROADMAP.md
 /core/experiments
-/core/flows/.craft-skills/python-pipeline.md
-/core/hooks/trigger/hooktime.py
-/core/hooks/trigger/hooktime.pyi
-/core/prompts/effort-zcode.md
-/core/prompts/metodologia-aulas-opus.md
-/core/refs/SPECS.md
-/core/skills/accessible-deck.md
-/core/tools/verify/SPECS.md
-/core/tools/wos/spec-scan
+/core/prompts
+/core/skills/foundry
+/core/skills/foundry.md
+/core/skills/iso-visual.md
+/core/skills/prof
+/core/skills/prof.md
 /models

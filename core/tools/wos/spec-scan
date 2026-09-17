@@ -1,0 +1,65 @@
+# Usage: core/tools/wos/spec-scan [code-dir] — list of module SPEC.md status (locked|draft|optout|none)
+# Spec-driven-development coverage ratchet. A module = a dir with a CONTEXT.md under code/.
+# See code/ROADMAP-spec-drive.md.
+import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'hooks'))
+from platform_law import WORKSPACE_ROOT as WORKSPACE  # noqa: E402
+
+SPEC_LINE_RE = re.compile(r'^>\s*spec:\s*(\S.*?)\s*$', re.MULTILINE)
+STATUS_RE = re.compile(r'^status:\s*(\w+)', re.MULTILINE)
+SKIP = {'.git', 'node_modules', 'dist', '.codegraph', '__pycache__', '.venv', '.craft'}
+
+
+def classify(ctx: Path) -> tuple[str, str]:
+	"""Return (status, detail) for a module's CONTEXT.md."""
+	text = ctx.read_text(errors='ignore', encoding='utf-8')
+	match = SPEC_LINE_RE.search(text)
+	if not match:
+		return ('none', '')
+	value = match.group(1).strip()
+	if value.lower() == 'none':
+		return ('optout', 'none')
+	spec_path = ctx.parent / value
+	if not spec_path.is_file():
+		return ('MISSING', value)
+	status_match = STATUS_RE.search(spec_path.read_text(errors='ignore', encoding='utf-8'))
+	status = status_match.group(1).lower() if status_match else 'draft'
+	return (status, value)
+
+
+def main() -> int:
+	root = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else (WORKSPACE / 'code')
+	rows: list[tuple[str, str, str]] = []
+	for ctx in sorted(root.rglob('CONTEXT.md')):
+		if SKIP.intersection(ctx.parts):
+			continue
+		status, detail = classify(ctx)
+		rel = ctx.parent.relative_to(WORKSPACE)
+		rows.append((status, str(rel), detail))
+
+	counts: dict[str, int] = {}
+	for status, _, _ in rows:
+		counts[status] = counts.get(status, 0) + 1
+
+	width = max((len(r[1]) for r in rows), default=10)
+	print(f'{"STATUS":<8} {"MODULE":<{width}} SPEC')
+	order = {'locked': 0, 'draft': 1, 'MISSING': 2, 'optout': 3, 'none': 4}
+	for status, module, detail in sorted(rows, key=lambda r: (order.get(r[0], 9), r[1])):
+		print(f'{status:<8} {module:<{width}} {detail}')
+
+	total = len(rows)
+	locked = counts.get('locked', 0)
+	drafts = counts.get('draft', 0)
+	covered = locked + drafts
+	print()
+	summary = ', '.join(f'{k}={v}' for k, v in sorted(counts.items()))
+	print(f'{total} modules · {summary}')
+	pct = (100 * covered / total) if total else 0
+	print(f'coverage (locked+draft): {covered}/{total} ({pct:.0f}%) · ratchet — grows on contact')
+	return 0
+
+
+sys.exit(main())

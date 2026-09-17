@@ -108,8 +108,7 @@ def pre_invocation(data: dict[str, Any]) -> dict[str, Any]:
     if inv_num == 1:
         run_gate("session/session-prune.py", {}, "SessionStart")
         run_gate("git/branch_marker.py", {}, "SessionStart", extra_args=["record"])
-        for script in ("session/mirror-heal.py", "session/inbox-nudge.py",
-                       "session/compass-nudge.py"):
+        for script in ("session/mirror-heal.py", "session/nudges.py"):
             _, msg = run_gate(script, {}, "SessionStart")
             if msg:
                 msgs.append(msg)
