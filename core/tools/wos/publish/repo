@@ -34,7 +34,7 @@ def _lines(paths) -> int:
 
 
 def show(rep: core.Report, floor: core.Floor) -> None:
-    print(f'target  {floor.target.relative_to(core.ROOT)}'
+    print(f'target  {str(floor.target).removeprefix(f"{core.ROOT}/")}'
           f'{"" if floor.target.exists() else "   (not checked out)"}')
     print(f'crossing  {len(rep.crossing)} files · {_lines(rep.crossing):,} lines'
           f'  ·  claimed by {len(rep.by_feature)} features')

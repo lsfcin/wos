@@ -8,6 +8,7 @@
 # target's own pipeline — generators, gates and its suite — never fired.
 #
 # The three are separable and each is checked on its own below.
+import os
 import subprocess
 import sys
 
@@ -101,18 +102,27 @@ def test_the_target_commits_under_the_branch_gate_like_every_other_repo():
     assert 'feature/sync-' in code, 'it has to branch, which is what makes the gate passable'
 
 
-def test_a_rebuilt_target_settles_in_one_pass():
+def test_a_rebuilt_target_settles_in_one_pass(tmp_path):
     """Idempotence is the property the oscillation broke, and the cheapest one to state.
 
-    Two syncs in a row: the second must find nothing. Runs the real tool against the real target
-    because the bug was in the interaction between the copy, the generators and the target's git —
-    three things no fixture reproduces. Skipped when the target is not checked out.
+    Two syncs in a row: the second must find nothing. Runs the real tool against a CLONE of the
+    real target because the bug was in the interaction between the copy, the generators and the
+    target's git — three things no fixture reproduces. Skipped when the target is not checked out.
+
+    Never the target itself (b20260923): a sync there left files no session held, and the next
+    agent's sync was refused by the lock. The clone borrows the target's venv, which git does not
+    carry, and its origin is a local path, so the lock does not govern it.
     """
     floor = crossing.floor()
     if not floor.target.is_dir():
         return
+    clone = tmp_path / 'wos'
+    subprocess.run(['git', 'clone', '-q', '--shared', str(floor.target), str(clone)], check=True)
+    (clone / '.venv').symlink_to(floor.target / '.venv')
     tool = ['sh', str(WORKSPACE_ROOT / 'core/run'), 'tools/wos/publish/repo', '--sync']
-    run = dict(cwd=WORKSPACE_ROOT, capture_output=True, text=True, encoding='utf-8', check=True)
+    env = {**os.environ, 'PUBLISH_TARGET': str(clone)}
+    run = dict(cwd=WORKSPACE_ROOT, env=env, capture_output=True, text=True, encoding='utf-8',
+               check=True)
     subprocess.run(tool, **run)
     second = subprocess.run(tool, **run)
     assert 'synced: 0 difference(s)' in second.stdout, (

@@ -6,7 +6,7 @@
 # which is the cutting campaign's input (ROADMAP.md § Portability). So nothing crosses by default
 # and "unowned" is reported rather than waved through (Lucas, 2026-09-15).
 from __future__ import annotations
-import ast, fnmatch, pathlib, re, subprocess
+import ast, fnmatch, os, pathlib, re, subprocess
 from typing import NamedTuple
 
 ROOT = pathlib.Path(__file__).resolve().parents[4]
@@ -29,7 +29,7 @@ def floor() -> Floor:
             continue
         kind, path, reason = line.split('\t', 2)
         if kind == 'target':
-            target = ROOT / path
+            target = pathlib.Path(os.environ.get('PUBLISH_TARGET') or ROOT / path)  # b20260923
         elif kind == 'root':
             roots.append(path)
         elif kind == 'file':

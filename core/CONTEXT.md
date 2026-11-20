@@ -14,7 +14,6 @@
 | [`norms/`](norms/CONTEXT.md) | Rules obeyed rather than enforced. One file each; `AGENTS.md`'s rule block is generated from them. |
 | [`refs/`](refs/CONTEXT.md) | Captured references for the agent library — level-1 links in [REFS.md](refs/REFS.md). |
 | [`skills/`](skills/CONTEXT.md) | Agent skills — provider-agnostic workflows invoked as slash commands or by instruction. |
-| [`state/`](state/CONTEXT.md) | — |
 | [`tools/`](tools/CONTEXT.md) | CLI tools callable via bash, one directory per family; routing block auto-synced on save. |
 
 | File | Description |
