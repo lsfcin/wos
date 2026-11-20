@@ -1,0 +1,8 @@
+# Reference for jev-ultrafast
+key: jev-ultrafast
+title: "Jev Ultrafast"
+url: "https://www.instagram.com/reel/DdgnSJECUE3/"
+level: C
+section: "Tooling, visualization & evaluation"
+contributions:
+  - "· [pruning a second brain with it](https://www.instagram.com/reel/DdjOqRYNZZi/) — [src: web:instagram.com] text in, a decision out rather than text, reportedly far cheaper per token. Lucas: let it choose what to expand and what to contract. Idea in `code/dobra/IDEAS.md`; functional tests in `ROADMAP.md` § Measurement. Practitioner posts, unchecked."

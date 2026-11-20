@@ -105,7 +105,13 @@ def test_frontmatter_still_outranks_the_blurb(tmp_path) -> None:
     assert 'the blurb' not in table
 
 
-def test_an_unanswered_scaffold_blurb_is_not_hoisted(tmp_path) -> None:
+def test_an_md_line_one_comment_describes_it(tmp_path) -> None:
+    """A published page opens with its banner, so the one place left to describe it is a comment."""
+    table = _table(tmp_path, **{'page.md': '<!-- the page -->\n![b](x)\n\n# t\n> prof\n'})
+    assert 'the page' in table
+
+
+def test_an_unanswered_placeholder_blurb_is_not_hoisted(tmp_path) -> None:
     """A generated marker is a question, not a description — hoisting one would answer it
     with itself, and the placeholder check would stop seeing it."""
     table = _table(tmp_path, **{'x.md': '# x\n> ← add description\n'})
@@ -184,7 +190,7 @@ def test_a_short_first_line_comment_is_untouched(tmp_path) -> None:
 
 def test_no_row_is_written_for_a_path_this_repo_is_told_to_ignore() -> None:
     """The table is generated from disk but SHIPS in git, so an ignored path is a row naming
-    what the reader does not have. Ten had accumulated by 2026-09-01, one of them a scaffold
+    what the reader does not have. Ten had accumulated by 2026-09-01, one of them a placeholder
     the generator wrote itself inside an ignored directory — it made both the row and its file."""
     kept = WORKSPACE_ROOT / 'core/CONTEXT.md'
     assert carried([WORKSPACE_ROOT / 'outputs/report.md']) == []
@@ -199,6 +205,16 @@ def test_a_nested_repo_and_a_generated_mirror_keep_their_rows(tmp_path: Path) ->
     mirror = WORKSPACE_ROOT / '.claude/skills/inbox/SKILL.md'
     assert carried([tmp_path]) == [tmp_path]
     assert carried([mirror]) == [mirror]
+
+
+def test_a_root_inside_a_mirror_directory_is_not_itself_a_mirror(tmp_path, monkeypatch) -> None:
+    """A git worktree lives under .claude/worktrees/, and the mirror test matched the absolute path,
+    so every file in one was a 'mirror': entropy went blind there and ignored rows survived."""
+    import entropy_corpus
+    root = tmp_path / '.claude/worktrees/w'
+    monkeypatch.setattr(entropy_corpus, '_ROOT', root)
+    assert not entropy_corpus.is_generated_mirror(root / 'outputs/report.md')
+    assert entropy_corpus.is_generated_mirror(root / '.claude/skills/inbox/SKILL.md')
 
 
 def test_preserved_descriptions_survive_a_narrower_table() -> None:

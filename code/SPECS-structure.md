@@ -1,7 +1,7 @@
 # Project structure
 > How a project is laid out: its files, its module specs, and its facade.
 > governs: code/<project>/
-> enforced-by: core/hooks/facade/, core/tools/wos/spec-scan
+> enforced-by: core/hooks/facade/, core/tools/wos/spec/scan
 
 ## Project File Structure
 
@@ -19,12 +19,10 @@ Skeletons for all files: [`_templates/`](_templates/)
 
 ## Module Spec Contract (Spec-Driven Development)
 
-Rollout tracked in [`ROADMAP-spec-drive.md`](ROADMAP-spec-drive.md). Goal: the spec is the contract — a module's
-verifiable inputs/outputs/invariants precede and govern its code.
+Rollout tracked in [`ROADMAP-spec-drive.md`](ROADMAP-spec-drive.md). Goal: the spec is the contract — a module's verifiable inputs/outputs/invariants precede and govern its code.
 
 A **module** = a directory under `code/<project>/` that has a `CONTEXT.md`. A module is **spec-locked**
-when its `CONTEXT.md` carries a `> spec: <path>` line (mirroring the `> goal:` line convention) and the
-referenced `SPEC.md` has header `status: locked`. Skeleton: [`_templates/module.SPEC.md`](_templates/module.SPEC.md).
+when its `CONTEXT.md` carries a `> spec: <path>` line (mirroring the `> goal:` line convention) and the referenced `SPEC.md` has header `status: locked`. Skeleton: [`_templates/module.SPEC.md`](_templates/module.SPEC.md).
 
 | SPEC.md header | Meaning |
 |----------------|---------|
@@ -33,19 +31,17 @@ referenced `SPEC.md` has header `status: locked`. Skeleton: [`_templates/module.
 | `verify: none` | `## Examples` checked by eye only |
 | `verify: make verify-fast` / `npm run verify:fast` | `## Examples` run inside the project's existing verify:fast — a broken example blocks the commit |
 
-**Enforcement (ratchet / boy-scout, not big-bang):**
+**Enforcement (gradual / boy-scout, not big-bang):**
 - New module dir (new `CONTEXT.md` under `code/`) → must ship a `SPEC.md` or an explicit `> spec:
   none` opt-out (`pre-commit` block).
-- Editing a spec-locked module's files without reading its SPEC.md this session → hard-blocked
-  (`spec-read-gate`, clone of `context-gate`).
-- Editing a legacy module with no spec → non-blocking nudge only. Coverage grows as modules are touched.
+- Editing a spec-locked module's files without reading its SPEC.md this session → hard-blocked (`spec-read-gate`, clone of `context-gate`).
+- Editing a legacy module with no spec → non-blocking reminder only. Coverage grows as modules are touched.
 
 Pilot: [`spacemantics/dsl/SPEC.md`](spacemantics/dsl/SPEC.md) (`status: locked`, `verify: make verify-fast`).
 
 ## Facade Pattern
 
-Every folder with source files exposes a **facade** — the single entry point through which all
-external consumers import. Nothing imports internal files from another module directly.
+Every folder with source files exposes a **facade** — the single entry point through which all external consumers import. Nothing imports internal files from another module directly.
 
 **Per-language convention:**
 
@@ -65,8 +61,6 @@ external consumers import. Nothing imports internal files from another module di
 
 **Exempt from enforcement:** test files, the facade file itself, `generated/` and `vendor/` dirs.
 
-**Reading facades:** `index.ts` / `__init__.py` / `index.dart` are read directly — `pre-read.py`
-does not block them. They are already minimal interfaces. Implementation files are redirected to
-their `.d.ts` / `.pyi` / `.dart.api` interface instead.
+**Reading facades:** `index.ts` / `__init__.py` / `index.dart` are read directly — `pre-read.py` does not block them. They are already minimal interfaces. Implementation files are redirected to their `.d.ts` / `.pyi` / `.dart.api` interface instead.
 
 See [SETUP.md](SETUP.md) for facade templates per language.

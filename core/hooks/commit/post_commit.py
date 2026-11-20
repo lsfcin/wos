@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-# Auto-push feature/* after a commit, so work survives a dead session and reaches the other machine.
+# Auto-push after a commit, so work survives a dead session and reaches the other machine.
 #
-# main/develop are never auto-pushed: promoting them is a conscious gitflow merge, done in /roundup
-# after the verification gate. Never blocks -- git ignores a post-commit's exit status, and every
-# failure here is a warning.
+# Every branch of a repo whose origin is ours, except develop/main where a develop exists: the
+# close pushes develop after the fast suite, and main moves only by a release
+# (core/hooks/git/SPECS.md). A trunk repo (brain/) is pushed on every commit. Never blocks -- git ignores a post-commit's
+# exit status, and every failure here is a warning.
 import subprocess
 import sys
 from pathlib import Path
@@ -11,6 +12,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import feature_law  # noqa: E402
 from pre_commit import git  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'git'))
+import lock  # noqa: E402
 
 for _stream in (sys.stdout, sys.stderr):
     _stream.reconfigure(encoding='utf-8', errors='replace')
@@ -37,7 +40,7 @@ def main() -> int:
         return 0
 
     # The switch, read through feature_law rather than a second reading of the registry -- same
-    # law, one parser, same boundary as git/gitflow_gate.py. Off means the commit stays local.
+    # law, one parser, same boundary as git/lock.py. Off means the commit stays local.
     if not feature_law.is_enabled('auto-push'):
         return 0
 
@@ -46,7 +49,8 @@ def main() -> int:
         return 0
 
     branch = git('rev-parse', '--abbrev-ref', 'HEAD')
-    if not branch.startswith('feature/'):
+    repo = Path(git('rev-parse', '--show-toplevel') or '.')
+    if not lock.owned(repo) or (branch in lock.SHARED and lock.governed(repo)) or branch == 'HEAD':
         return 0
     if not git('remote', 'get-url', 'origin'):
         return 0

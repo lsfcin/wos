@@ -9,7 +9,7 @@
 # which is how a fifth nearly got written without anyone noticing the other four. The set is not
 # stable by luck either: `index.dart` was added once, and nothing would have carried it to a copy.
 #
-# A CEILING OF ONE WITH A NAMED HOLDER, the shape test_port_ratchet.py uses. If this has to rise, the
+# A CEILING OF ONE WITH A NAMED HOLDER, the shape test_port_ceiling.py uses. If this has to rise, the
 # thing to write down is why that file cannot ask file_law, not a bigger number.
 import sys
 

@@ -16,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from entropy_corpus import LINK_RE, is_generated_mirror, owning_repo, tracked_paths  # noqa: E402
 from entropy_context import ROUTING_END, ROUTING_START  # noqa: E402
-from platform_law import posix, rel  # noqa: E402
+from platform_law import is_repo, posix, rel  # noqa: E402
 
 # A finding is TEXT: it lands in ISSUES.md and is matched against baselines spelled with `/`.
 # Spelled by the boundary so the same file produces the same finding on every machine — a `\` here
@@ -28,13 +28,13 @@ def _head(path) -> str:
 AUTHORED = {'.md', '.py', '.ts', '.tsx', '.js', '.jsx', '.sh', '.dart',
             '.yaml', '.yml', '.json', '.css', '.scss', '.tex'}
 
-# A leading underscore marks scaffolding (_template.md, _material/), a leading dot marks
+# A leading underscore marks a template (_template.md, _material/), a leading dot marks
 # a config file (.agentrc.json); dots and underscores are allowed inside a stem because
 # Python modules are snake_case by their own law, and `__init__` is mandated by it.
 STEM_OK = re.compile(r'^[_.]?[a-z0-9]+([-_.][a-z0-9]+)*$|^__[a-z0-9]+__$')
-# Scaffolding directories hold shapes, not instances: a template README.md is a template,
+# Template directories hold shapes, not instances: a template README.md is a template,
 # not a claim that the directory is a repo.
-SCAFFOLD_DIR = re.compile(r'^_')
+TEMPLATE_DIR = re.compile(r'^_')
 UPPERCASE_MD = re.compile(r'^[A-Z][A-Z0-9_.-]*\.md$')
 # The sanctioned second shape: ROADMAP-<name>.md (AGENTS.md — a plan may live in a
 # ROADMAP-<name>.md referenced from the ROADMAP).
@@ -152,14 +152,14 @@ def check_dirs(path: Path, root: Path) -> str | None:
 def check_placement(path: Path, scopes: dict, root: Path) -> str | None:
     """A type that declares a scope in core/SCHEMA.md must live inside it."""
     scope = scopes.get(path.name)
-    if scope is None or any(SCAFFOLD_DIR.match(p) for p in path.parts):
+    if scope is None or any(TEMPLATE_DIR.match(p) for p in path.parts):
         return None
     parent = path.resolve().parent
     if scope == 'root':
         if parent != root.resolve():
             return (f'{_head(path)}: {path.name} is declared root-only in core/SCHEMA.md.\n'
                     f'   A second one competes with the first for the same authority.')
-    elif scope == 'repo-root' and not (parent / '.git').exists():
+    elif scope == 'repo-root' and not is_repo(parent):
         return (f'{_head(path)}: {path.name} is declared repo-root-only in core/SCHEMA.md.\n'
                 f'   It answers "I just cloned this" — a directory nobody clones does\n'
                 f'   not get one; describe it in CONTEXT.md instead.')

@@ -1,0 +1,8 @@
+# Reference for kilo-code
+key: kilo-code
+title: "Kilo Code"
+url: "https://kilo.ai/"
+level: C
+section: "Model level, cost & execution interface"
+contributions:
+  - "agente de codificação open-source multi-modelo com modos especializados (Architect/Debug/Code) e suporte a MCP."

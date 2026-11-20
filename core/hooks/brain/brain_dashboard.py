@@ -4,7 +4,7 @@
 import re
 from datetime import datetime
 
-from brain_common import AREAS, GOALS_FILE, replace_block
+from brain_common import GOALS_FILE, areas, replace_block
 
 
 def bar(count, max_val, width=10):
@@ -141,20 +141,21 @@ def update_goals_md(goal_files, attention):
     # Areas union their goals' commit sets instead of summing their counts: one commit can
     # advance two goals (workspace-os owns core/, craft-flows owns core/flows/craft/), and
     # summing would count it twice for the area while both goal bars rightly show it.
-    by_area = {a: [] for a in AREAS}
+    declared = areas()
+    by_area = {a: [] for a in declared}
     for name, path in goal_files.items():
         area = area_from_file(path)
         if area in by_area:
             by_area[area].append(name)
     area_touches = {a: attention.area_count(names, 14) for a, names in by_area.items()}
 
-    area_max = max(area_touches.values()) or 1
+    area_max = max(area_touches.values(), default=0) or 1
     goal_max = max(goal_touches.values()) or 1
     now      = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     area_lines = "".join(
         f"{a:<12} {bar(area_touches[a], area_max)}   {area_touches[a]} touches\n"
-        for a in AREAS
+        for a in declared
     )
     goal_lines = "".join(
         f"{name:<24} {bar(goal_touches[name], goal_max)}   {goal_touches[name]} touches\n"

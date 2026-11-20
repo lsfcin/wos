@@ -1,7 +1,7 @@
 # B9 regression — a verification run is not a write.
 #
 # test_features_wiring checks every registered hook, and one of them is the entropy dashboard,
-# which rewrote ISSUES.md (and every nested repo's local list) on each check — measured 2026-08-30
+# which rewrote its report on each check — measured 2026-08-30
 # blocking two merges in one session, because git refuses to start one over a dirty tracked file.
 # The dashboard now reports without writing when it sees --dry-run, WOS_DRY_RUN, or the LAW_CHECK
 # environment the wiring check already exports. This spec holds that boundary: a check-shaped run must
@@ -13,9 +13,8 @@ import sys
 from conftest import WORKSPACE_ROOT
 
 DASHBOARD = WORKSPACE_ROOT / 'core/hooks/entropy/dashboard/entropy-dashboard.py'
-WATCHED = [WORKSPACE_ROOT / 'ISSUES.md',
-           WORKSPACE_ROOT / 'code/voti/ISSUES.md',
-           WORKSPACE_ROOT / 'code/gira/ISSUES.md']
+WATCHED = [WORKSPACE_ROOT / 'outputs/state/entropy-workspace.md',
+           WORKSPACE_ROOT / 'outputs/state/entropy-workspace.tsv']
 
 
 def _snapshot():

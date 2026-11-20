@@ -80,6 +80,8 @@ def report(paths, root=None, staged=False) -> tuple:
         text = _content(path, root, staged)
         if text is None:
             continue
+        # A generator's block is out of both counts: nobody may cut inside one (file_law.authored_text).
+        text = file_law.authored_text(text)
         count = len(text.splitlines())
         if count >= block:
             lines.append(f'🚨 BLOCK: {path} ({count} lines)')

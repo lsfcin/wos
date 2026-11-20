@@ -1,0 +1,193 @@
+# Usage: core/run tools/phone/adb shoot|prefs|sheet <args> — drive an Android phone over adb for design rounds: scroll-capture a screen, set an app's prefs and screenshot it, tile shots into one sheet
+#
+# WHY THIS EXISTS: every apptime design round rebuilt the same three shell loops in a session
+# scratchpad — scroll until the screen stops changing, sed the app's SharedPreferences through
+# run-as and relaunch, and paste shots into one image so a model reads six screens in one look.
+# They died with each scratchpad. One tool keeps them.
+#
+# WHY PREFS ARE EDITED AFTER force-stop: an app writes its SharedPreferences file from memory when
+# it changes a value, so an edit made while it runs is overwritten by the next write. Stopped
+# first, the file on disk is the only copy, and the relaunch reads it.
+#
+# WHY `run-as`: only a DEBUG build lets the shell into the app's private files. A release build
+# answers "package not debuggable", and that message is relayed as is.
+#
+# WHY SCROLLING TOLERATES SMALL CHANGES: the clock, an overlay's number and an animated glyph change
+# on every capture, so an exact comparison never repeats and the loop runs to MAX_SHOTS (seen
+# 2026-11-04: twelve shots of a page that stopped at the fourth).
+import argparse
+import os
+import pathlib
+import shutil
+import subprocess
+import sys
+import time
+import xml.etree.ElementTree as ET
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import tool_law  # noqa: E402
+
+tool_law.require('phone')
+
+STATUS_BAR_PX = 150
+MAX_SHOTS = 12
+MOVED_SHARE = 0.02
+RAW_HEADER = 16
+
+
+def adb_path() -> str:
+    """$ADB, then adb on PATH, then the SDK's default platform-tools folder."""
+    return os.environ.get('ADB') or shutil.which('adb') or str(pathlib.Path.home() / 'Android/platform-tools/adb')
+
+
+def adb(*args: str, data: bytes | None = None) -> bytes:
+    done = subprocess.run([adb_path(), *args], input=data, capture_output=True)
+    if done.returncode != 0:
+        raise SystemExit(f"adb {' '.join(args)}: {(done.stderr or done.stdout).decode(errors='replace').strip()}")
+    return done.stdout
+
+
+def set_prefs(xml_text: str, pairs: dict[str, str]) -> str:
+    """Return the SharedPreferences file with each named value replaced; a name not there is an error.
+
+    A string keeps its value as element text; long, int, float and boolean keep it in `value`.
+    Unknown names are refused rather than added, because a typo would otherwise be a new key the
+    app never reads and the shot would show the old setting with no sign of why."""
+    root = ET.fromstring(xml_text)
+    by_name = {el.get('name'): el for el in root}
+    missing = [k for k in pairs if k not in by_name]
+    if missing:
+        raise SystemExit(f"not in this prefs file: {', '.join(missing)}")
+    for key, value in pairs.items():
+        el = by_name[key]
+        if el.tag == 'string':
+            el.text = value
+        else:
+            el.set('value', value)
+    return "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n" + ET.tostring(root, encoding='unicode')
+
+
+def moved(before: bytes, after: bytes) -> bool:
+    """Did the content under the status bar change by more than an overlay can?
+
+    A hash cannot answer this: the overlay's own number and glyph sit below the bar too (Bloco,
+    Aba) and tick between captures, so no two frames ever hash equal. An overlay covers under 1%
+    of the screen; a swipe repaints most of it. Every 16th pixel is sampled."""
+    width = int.from_bytes(before[0:4], 'little')
+    start = RAW_HEADER + STATUS_BAR_PX * width * 4
+    a, b = memoryview(before)[start:], memoryview(after)[start:]
+    step = 16 * 4
+    samples = range(0, min(len(a), len(b)) - 3, step)
+    changed = sum(a[i:i + 4] != b[i:i + 4] for i in samples)
+    return changed > MOVED_SHARE * len(samples)
+
+
+def screen_size(raw: bytes) -> tuple[int, int]:
+    return int.from_bytes(raw[0:4], 'little'), int.from_bytes(raw[4:8], 'little')
+
+
+def shoot(out: pathlib.Path, name: str, tap: list[int] | None) -> list[pathlib.Path]:
+    """Capture the screen, swipe up, repeat until the content stops moving; return the PNGs kept."""
+    out.mkdir(parents=True, exist_ok=True)
+    if tap:
+        adb('shell', 'input', 'tap', str(tap[0]), str(tap[1]))
+        time.sleep(2)
+    kept, previous = [], None
+    for i in range(1, MAX_SHOTS + 1):
+        raw = adb('exec-out', 'screencap')
+        if previous is not None and not moved(previous, raw):
+            break
+        previous = raw
+        path = out / f"{name}-{i:02d}.png"
+        path.write_bytes(adb('exec-out', 'screencap', '-p'))
+        kept.append(path)
+        w, h = screen_size(raw)
+        adb('shell', 'input', 'swipe', str(w // 2), str(h * 7 // 10), str(w // 2), str(h * 3 // 10), '600')
+        time.sleep(1.5)
+    return kept
+
+
+def sheet(shots: list[pathlib.Path], out: pathlib.Path, columns: int = 3) -> pathlib.Path:
+    """Tile shots at a third of their size, left to right, so one image carries a whole screen."""
+    from PIL import Image
+    images = [Image.open(p) for p in shots]
+    w, h = images[0].width // 3, images[0].height // 3
+    rows = -(-len(images) // columns)
+    board = Image.new('RGB', (w * min(columns, len(images)), h * rows), 'white')
+    for i, im in enumerate(images):
+        board.paste(im.resize((w, h)), ((i % columns) * w, (i // columns) * h))
+    board.save(out)
+    return out
+
+
+def is_action(target: str) -> bool:
+    """`android.settings.SETTINGS` is an intent action (upper-case last part); `com.android.chrome` is an app."""
+    return target.rsplit('.', 1)[-1].isupper()
+
+
+def open_target(target: str) -> None:
+    if is_action(target):
+        adb('shell', 'am', 'start', '-a', target)
+    else:
+        adb('shell', 'monkey', '-p', target, '-c', 'android.intent.category.LAUNCHER', '1')
+
+
+def prefs(package: str, pairs: dict[str, str], file: str, night: str | None,
+          target: str | None, wait: float, shot: pathlib.Path | None) -> None:
+    path = f"shared_prefs/{file}"
+    adb('shell', 'am', 'force-stop', package)
+    current = adb('exec-out', 'run-as', package, 'cat', path).decode()
+    adb('exec-in', 'run-as', package, 'sh', '-c', f"cat > {path}", data=set_prefs(current, pairs).encode())
+    if night:
+        adb('shell', 'cmd', 'uimode', 'night', night)
+    open_target(package)
+    time.sleep(4)
+    if target:
+        open_target(target)
+    if shot:
+        time.sleep(wait)
+        shot.parent.mkdir(parents=True, exist_ok=True)
+        shot.write_bytes(adb('exec-out', 'screencap', '-p'))
+        print(shot)
+
+
+def pair(text: str) -> tuple[str, str]:
+    key, sep, value = text.partition('=')
+    if not sep:
+        raise argparse.ArgumentTypeError(f"expected key=value, got {text!r}")
+    return key, value
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(prog='core/run tools/phone/adb')
+    sub = parser.add_subparsers(dest='command', required=True)
+    s = sub.add_parser('shoot', help='scroll-capture the screen in front until it stops moving')
+    s.add_argument('out', type=pathlib.Path)
+    s.add_argument('name')
+    s.add_argument('--tap', type=int, nargs=2, metavar=('X', 'Y'), help='tap here first')
+    s.add_argument('--sheet', action='store_true', help='also tile the shots into <name>-sheet.png')
+    p = sub.add_parser('prefs', help="set an app's SharedPreferences, relaunch it, optionally open a screen and screenshot")
+    p.add_argument('package')
+    p.add_argument('pairs', type=pair, nargs='+', metavar='key=value', help='full key, e.g. flutter.overlay_style=block')
+    p.add_argument('--file', default='FlutterSharedPreferences.xml')
+    p.add_argument('--night', choices=['yes', 'no'])
+    p.add_argument('--open', dest='target', help='a package or an intent action, e.g. android.settings.SETTINGS')
+    p.add_argument('--wait', type=float, default=9.0, help='seconds before the shot (default 9: the overlay needs a monitor tick)')
+    p.add_argument('--shot', type=pathlib.Path)
+    t = sub.add_parser('sheet', help='tile PNGs into one image')
+    t.add_argument('out', type=pathlib.Path)
+    t.add_argument('shots', type=pathlib.Path, nargs='+')
+    args = parser.parse_args()
+    if args.command == 'shoot':
+        kept = shoot(args.out, args.name, args.tap)
+        print(f"{len(kept)} shots in {args.out}")
+        if args.sheet and kept:
+            print(sheet(kept, args.out / f"{args.name}-sheet.png"))
+    elif args.command == 'prefs':
+        prefs(args.package, dict(args.pairs), args.file, args.night, args.target, args.wait, args.shot)
+    else:
+        print(sheet(args.shots, args.out))
+
+
+if __name__ == '__main__':
+    main()

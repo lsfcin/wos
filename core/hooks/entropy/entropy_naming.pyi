@@ -3,7 +3,7 @@ from pathlib import Path
 
 AUTHORED: Incomplete
 STEM_OK: Incomplete
-SCAFFOLD_DIR: Incomplete
+TEMPLATE_DIR: Incomplete
 UPPERCASE_MD: Incomplete
 TYPE_NAME: Incomplete
 DIR_OK: Incomplete

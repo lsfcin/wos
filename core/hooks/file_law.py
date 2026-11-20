@@ -107,8 +107,24 @@ def is_vendored(path: Path, root: Path) -> bool:
 
 def is_generated_artifact(path: Path, root: Path) -> bool:
     """A file one of OUR tools writes — core/hooks/generated.txt. Separate from is_vendored: that
-    list is provenance we do not own, this one is provenance we do."""
-    return _listed(path, root, GENERATED_FILE)
+    list is provenance we do not own, this one is provenance we do. A PDF twin is the one generated
+    file the list cannot name — `<stem>/<stem>.md` is a shape fnmatch cannot say — so it is known by
+    the stamp its tool writes into it."""
+    return _listed(path, root, GENERATED_FILE) or _is_pdf_twin(path if path.is_absolute() else root / path)
+
+
+def _is_pdf_twin(path: Path) -> bool:
+    if path.suffix != '.md':
+        return False
+    import sys
+    tools_pdf = str(Path(__file__).resolve().parents[1] / 'tools/pdf')
+    if tools_pdf not in sys.path:
+        sys.path.append(tools_pdf)
+    try:
+        import pdf_meta   # lazy: it pulls yaml, and most files asked about here are not markdown
+    except ImportError:   # a tree carrying file_law without the pdf tool holds no twins
+        return False
+    return pdf_meta.is_twin(path)
 
 
 def described() -> dict:
@@ -150,6 +166,39 @@ def generated_spans(text: str) -> list:
 def is_generated_line(text: str, number: int) -> bool:
     """Whether one 1-indexed line of an authored file sits inside a generated block."""
     return any(start <= number <= end for start, end in generated_spans(text))
+
+
+def authored_text(text: str) -> str:
+    """A document with the blocks a generator owns removed — what the SIZE CAP weighs (2026-09-23).
+
+    The cap's own remedy is "cut the file", and inside a generated block there is nothing a person
+    may cut. The case that forced it: a course page's progress panel, one box per verification item
+    per student, drawn from a data block by academy/teaching/structure/painel.py. Two panels weigh
+    ~2,000 characters each, and the second one would have pushed a public, deliberately single-file
+    page (16,493 characters with one) over the block.
+    Lines and characters both read this, so the two halves of the size law stay one measure.
+    """
+    spans = generated_spans(text)
+    return '\n'.join(line for number, line in enumerate(text.splitlines(), 1)
+                     if not any(start <= number <= end for start, end in spans))
+
+
+def authored_line_count(text: str) -> int:
+    """How many of a document's lines a person wrote — the blocks a generator owns, removed.
+
+    THE MEASUREMENT HALF OF is_generated_artifact, and the reason it is a second question
+    (2026-09-21). That predicate answers whether the AUTHORING RULES apply, and `generated.txt`
+    rightly declares every ISSUES.md generated: the blocks inside really are a tool's. But
+    `core/tools/wos/size` read the same list to decide what to MEASURE, so the most-read list in
+    the workspace weighed nothing at all — 52.8 lines served per session, missing from its own
+    ranking. A file can be exempt from a rule without being exempt from a number.
+
+    A wholly generated document has no line outside a block and counts zero, so nothing that was
+    already invisible becomes visible; only the half-authored files gain their authored half.
+    """
+    spans = generated_spans(text)
+    return sum(1 for number, _ in enumerate(text.splitlines(), 1)
+               if not any(start <= number <= end for start, end in spans))
 
 
 def is_authored_prose(path: Path, root: Path) -> bool:

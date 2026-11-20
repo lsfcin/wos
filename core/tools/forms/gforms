@@ -98,24 +98,24 @@ def main():
     pa.add_argument("--reauth", action="store_true", help="drop the existing token and re-consent (fixes revoked/expired)")
 
     pn = sub.add_parser("new")
-    pn.add_argument("--account", required=True)
+    pn.add_argument("--account", default=None, help="default: the home account (personal)")
     pn.add_argument("--folder", default="", help="Drive folder id to file the form into")
     pn.add_argument("--short-name", default="", help="also mint a short link for the responder URL")
     pn.add_argument("spec_json", help="file holding the form spec (see CONTEXT.md)")
 
     pr = sub.add_parser("read")
-    pr.add_argument("--account", required=True)
+    pr.add_argument("--account", default=None, help="default: the home account (personal)")
     pr.add_argument("--json", dest="as_json", action="store_true", help="raw API JSON instead of the outline")
     pr.add_argument("form_id")
 
     pap = sub.add_parser("apply")
-    pap.add_argument("--account", required=True)
+    pap.add_argument("--account", default=None, help="default: the home account (personal)")
     pap.add_argument("form_id")
     pap.add_argument("requests_json", help="file holding a JSON array of Forms API requests")
 
     prs = sub.add_parser("responses")
     prs.add_argument("--json", dest="as_json", action="store_true", help="raw API JSON")
-    prs.add_argument("--account", required=True)
+    prs.add_argument("--account", default=None, help="default: the home account (personal)")
     prs.add_argument("form_id")
 
     args = p.parse_args()

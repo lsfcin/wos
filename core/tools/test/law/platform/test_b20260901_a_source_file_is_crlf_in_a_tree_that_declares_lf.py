@@ -1,7 +1,7 @@
 # b20260901 regression — a file the tree declares LF is LF, in the index AND on this disk.
 #
 # `.gitattributes` says `* text=auto eol=lf`, and its own head says LF is not "the Linux ending"
-# here but the workspace's. Nothing checked it. test_encoding_ratchet.py comes closest and reads
+# here but the workspace's. Nothing checked it. test_encoding_ceiling.py comes closest and reads
 # CALL SITES via AST — every open() naming `newline=` — which cannot see a file that is already
 # wrong, so the rule had a policy, a rationale, and no instrument.
 #
@@ -27,7 +27,7 @@ import subprocess
 import pytest
 from conftest import WORKSPACE_ROOT, needs
 
-RESPONSES = WORKSPACE_ROOT / 'academy/teaching/tecnologias-na-educacao/respostas'
+RESPONSES = WORKSPACE_ROOT / 'academy/teaching/classes/techedu/respostas'
 # What each export held before the renormalisation, counted with the csv module. A pass that
 # rewrote a quoted field's newline would change these, and nothing else in the suite would notice.
 EXPORTS = {'avaliacao-do-pitch.csv': (5, 58),
@@ -37,6 +37,14 @@ EXPORTS = {'avaliacao-do-pitch.csv': (5, 58),
 # `i/none` is a file with no line ending at all; `i/-text` is content git reads as binary. Neither
 # is a CRLF file, and neither is something an authoring rule about line endings has an opinion on.
 FINE = ('lf', 'none', '-text')
+
+# The worktree arm has a fourth answer the index arm does not: `w/` comes back EMPTY when there is
+# no file on this disk at all — a staged delete, or a sparse checkout. Reading blank as "not LF"
+# made this check name three DELETED files as CRLF on 2026-09-20, and the failure text then told an
+# operator to renormalise paths that were not there. A check that reports a cause the tree cannot
+# hold is worse than one that stays silent. Absence belongs to the index arm, which sees it as a
+# deletion; this arm only ever asks what the bytes on disk end with.
+ON_DISK = FINE + ('',)
 
 
 def eol_rows() -> list:
@@ -59,14 +67,26 @@ def declared_lf() -> list:
     return [row for row in eol_rows() if 'eol=lf' in row[2] and '-text' not in row[2]]
 
 
+def wrong_endings(rows: list, arm: int, fine: tuple) -> list:
+    """Paths whose ending in `arm` (0 the index, 1 this disk) is neither LF nor an exemption."""
+    return sorted(row[3] for row in rows if row[arm] not in fine)
+
+
 def test_the_tree_declares_lf_for_something() -> None:
     """The guard's floor. A parser that read no attributes would pass every file in the repo."""
     assert len(declared_lf()) > 100, 'read no eol=lf declarations — the parser, not the tree'
 
 
+def test_a_path_with_no_file_on_this_disk_is_not_reported_as_crlf() -> None:
+    """b20260920 regression — a staged delete leaves `w/` empty, and blank is not a line ending."""
+    rows = [('lf', '', 'text=auto eol=lf', 'deleted.md'),
+            ('lf', 'crlf', 'text=auto eol=lf', 'really-crlf.md')]
+    assert wrong_endings(rows, 1, ON_DISK) == ['really-crlf.md']
+
+
 def test_no_declared_text_file_is_crlf_in_the_index() -> None:
     """The half git will tell you about, once something asks."""
-    wrong = sorted(path for index, _work, _attr, path in declared_lf() if index not in FINE)
+    wrong = wrong_endings(declared_lf(), 0, FINE)
     assert not wrong, (
         f'{len(wrong)} tracked blob(s) are not LF: {wrong[:10]}. `.gitattributes` declares '
         '`* text=auto eol=lf`. Fix with `git add --renormalize <path>`, or declare the path '
@@ -76,7 +96,7 @@ def test_no_declared_text_file_is_crlf_in_the_index() -> None:
 def test_no_declared_text_file_is_crlf_in_this_working_tree() -> None:
     """The half nothing reports. Normalisation on read keeps `git status` clean over exactly this,
     which is why install.md sat CRLF on one clone for days with every check green."""
-    wrong = sorted(path for _index, work, _attr, path in declared_lf() if work not in FINE)
+    wrong = wrong_endings(declared_lf(), 1, ON_DISK)
     assert not wrong, (
         f'{len(wrong)} file(s) are not LF on this disk though their blob is: {wrong[:10]}. '
         '`git status` cannot see this. Fix with `git add --renormalize .`, then delete and '

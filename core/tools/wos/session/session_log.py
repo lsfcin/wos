@@ -1,4 +1,4 @@
-# session_log.py — replay a Claude Code transcript and attribute each turn's context growth.
+# session_log.py — replay local transcripts and attribute each turn's context growth.
 #
 # The reusable half of `context`. Sibling `usage` reads the same *.jsonl for cost; both share the
 # price model in session_cost.py.
@@ -34,7 +34,7 @@ def project_name(root=None) -> str:
 
 	All three tools defaulted to the authoring machine's path in the harness's notation, so on any
 	other clone they read an empty directory and said "no such project" while the transcripts sat one
-	name over. The I6 ratchet missed it: it greps that path spelled with slashes, and this is the same
+	name over. The I6 ceiling missed it: it greps that path spelled with slashes, and this is the same
 	path spelled with dashes. The harness's rule is one substitution — every character outside
 	[A-Za-z0-9] becomes a dash — so a slash and a drive letter fall out of it alike, named nowhere.
 	"""
@@ -105,14 +105,11 @@ def walk(path: Path, sidechain: bool = False) -> dict:
 	seen: set = set()
 	turns: list = []
 	appears: dict = defaultdict(int)
-	reads = gates = prev = 0
+	reads = gates = prev = peak = 0
 	spend = 0.0
 
-	for line in path.open(errors='replace', encoding='utf-8'):
-		try:
-			event = json.loads(line)
-		except json.JSONDecodeError:
-			continue
+	from session_turns import events
+	for event in events(path):
 		if bool(event.get('isSidechain')) != sidechain:
 			continue
 		kind = event.get('type')
@@ -150,11 +147,12 @@ def walk(path: Path, sidechain: bool = False) -> dict:
 			for name in pending:
 				appears[name] += 1
 			prev = context
+			peak = max(peak, context)
 			pending.clear()
 			pending['assistant output'] = sum(
 				len(json.dumps(b)) for b in blocks(message))
 
-	return {'turns': turns, 'reads': reads, 'gates': gates, 'peak': prev,
+	return {'turns': turns, 'reads': reads, 'gates': gates, 'peak': peak,
 	        'appears': dict(appears), 'spend': spend}
 
 

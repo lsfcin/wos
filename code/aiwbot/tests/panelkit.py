@@ -1,4 +1,4 @@
-# panelkit.py — shared panel-test scaffolding: a fake backend plus keyboard readers.
+# panelkit.py — shared panel-test kit: a fake backend plus keyboard readers.
 from backend import Capabilities
 
 FAVS = ["opencode/a", "opencode/b", "opencode/c", "opencode/d"]

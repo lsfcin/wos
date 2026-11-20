@@ -1,32 +1,18 @@
 # ZCode registration contract
 > What ZCode must spawn, how its events map onto the canonical ones, and what is still unverified.
 
-Split from [`CONTEXT.md`](CONTEXT.md) 2026-08-24: a `CONTEXT.md` is the only enforced-read type, so
-a contract living in its head is read by everyone who touches the folder whether they need it or
-not (`core/SCHEMA.md` § Placement). The head keeps the pointer; the contract lives here.
+Split from [`CONTEXT.md`](CONTEXT.md) 2026-08-24: a `CONTEXT.md` is the only enforced-read type, so a contract living in its head is read by everyone who touches the folder whether they need it or not (`core/SCHEMA.md` § Placement). The head keeps the pointer; the contract lives here.
 
-What this must satisfy — the canonical gates, the shim contract, the coverage table — is
-[`core/hooks/SPECS.md`](../core/hooks/SPECS.md) (shim specifics:
+What this must satisfy — the canonical gates, the shim contract, the coverage table — is [`core/hooks/SPECS.md`](../core/hooks/SPECS.md) (shim specifics:
 [`SPECS.md`](../core/hooks/SPECS.md)); the install check is [`SETUP.md`](../SETUP.md)
 § Already wired. Measured protocol findings:
 [`core/experiments/zcode-hook-protocol.md`](../core/experiments/zcode-hook-protocol.md).
 
 ## Hook registration — `config.json`
 
-Direct registration (the 2A shape): every command in `config.json` is
-`sh ${ZCODE_PROJECT_DIR}/core/run hooks/<script>` — the canonical `core/hooks/*` scripts, spawned
-through `core/run` so the interpreter is never spelled (see that file's header for why), mirroring
-`.claude/settings.json` one-to-one. No adapter script, no second copy of a rule — ZCode's hook
-protocol matches Claude Code's closely enough (events, matchers on tool names, stdin JSON,
-exit 2 = block) that the canonical scripts are spawned as-is. ZCode reads this file on every session
-start in the workspace. The variable is ZCode's own spelling, a documented synonym of
-`${CLAUDE_PROJECT_DIR}`; a ZCode registration should not wear Claude's name.
+Direct registration (the 2A shape): every command in `config.json` is `sh ${ZCODE_PROJECT_DIR}/core/run hooks/<script>` — the canonical `core/hooks/*` scripts, spawned through `core/run` so the interpreter is never spelled (see that file's header for why), mirroring `.claude/settings.json` one-to-one. No adapter script, no second copy of a rule — ZCode's hook protocol matches Claude Code's closely enough (events, matchers on tool names, stdin JSON, exit 2 = block) that the canonical scripts are spawned as-is. ZCode reads this file on every session start in the workspace. The variable is ZCode's own spelling, a documented synonym of `${CLAUDE_PROJECT_DIR}`; a ZCode registration should not wear Claude's name.
 
-**Trusted 2026-09-04 (Sonda 2, see the experiment):** project-scope hooks fire — the check
-dump, the deny check and the canonical gates themselves (context-gate, pre-edit chain) all ran
-in the first post-trust session. The rtk compaction shim is unaffected by any of this: it rides
-ZCode's **user scope** (`~/.zcode/cli/config.json`,
-[`SETUP-compaction.md`](../SETUP-compaction.md)), which has no trust gate.
+**Trusted 2026-09-04 (Sonda 2, see the experiment):** project-scope hooks fire — the check dump, the deny check and the canonical gates themselves (context-gate, pre-edit chain) all ran in the first post-trust session. The rtk compaction shim is unaffected by any of this: it rides ZCode's **user scope** (`~/.zcode/cli/config.json`, [`SETUP-compaction.md`](../SETUP-compaction.md)), which has no trust gate.
 
 ### Event → script mapping
 
@@ -41,37 +27,29 @@ ZCode's **user scope** (`~/.zcode/cli/config.json`,
 | PostToolUse `Read` | same | `facade/facade-tracker.py`, `read/context-tracker.py` |
 | UserPromptSubmit | same | `session/context-meter.py` |
 | SessionStart `^compact$` | **PreCompact** | `session/precompact-wipe.py` |
-| SessionStart (no matcher) | SessionStart | `session/session-prune.py`, `git/branch_marker.py record`, `session/mirror-heal.py`, `session/nudges.py` |
+| SessionStart (no matcher) | SessionStart | `session/session-prune.py`, `session/mirror-heal.py`, `session/reminders.py` |
 
 Event differences vs Claude Code, and how they are covered:
 
-- **No `SubagentStart`** — `agent-context.py` is registered under PreToolUse `Agent|Task` (the
-  matcher Claude Code's own settings.json uses for the same script).
-- **No `PreCompact`** — `precompact-wipe.py` rides SessionStart with matcher `^compact$`, which
-  ZCode fires after a compaction. Same wipe, later moment; the script is currently
-  feature-disabled anyway.
+- **No `SubagentStart`** — `agent-context.py` is registered under PreToolUse `Agent|Task` (the matcher Claude Code's own settings.json uses for the same script).
+- **No `PreCompact`** — `precompact-wipe.py` rides SessionStart with matcher `^compact$`, which ZCode fires after a compaction. Same wipe, later moment; the script is currently feature-disabled anyway.
 - Matchers add ZCode's aliases (`ApplyPatch`, `Task`) so renamed tools still hit the gates.
 
 ### Measured answers (Sonda 2, 2026-09-04 — [`core/experiments/zcode-hook-protocol.md`](../core/experiments/zcode-hook-protocol.md))
 
-- **stdin payload shape**: flat JSON with duplicated camelCase/snake_case keys
-  (`session_id`/`sessionId`, `transcript_path`/`transcriptPath`, `hook_event_name`), plus
-  `cwd`, `permission_mode`, `traceId`, `turnId`. `session_id` present — no PPID fallback;
+- **stdin payload shape**: flat JSON with duplicated camelCase/snake_case keys (`session_id`/`sessionId`, `transcript_path`/`transcriptPath`, `hook_event_name`), plus `cwd`, `permission_mode`, `traceId`, `turnId`. `session_id` present — no PPID fallback;
   `hook_input.py` tolerates the shape as-is.
 - **Exit-2 fidelity**: a plain-text stdout reason on exit 2 reached the agent **verbatim** —
   the 2A-vs-adapter criterion is answered; the direct registration stands and the adapter is
   never built.
-- **`${ZCODE_PROJECT_DIR}` expansion**: confirmed — the check executed through the expanded
-  path, and the env carries both spellings (`ZCODE_PROJECT_DIR` and `CLAUDE_PROJECT_DIR`).
+- **`${ZCODE_PROJECT_DIR}` expansion**: confirmed — the check executed through the expanded path, and the env carries both spellings (`ZCODE_PROJECT_DIR` and `CLAUDE_PROJECT_DIR`).
 
 The check instruments that measured this (`core/hooks/zcode/`) were deleted the same session —
 done work; git holds them and the experiment file holds the dump's findings.
 
 ## Skills mirror — `skills/`
 
-Generated by [`core/tools/wos/sync-skills`](../core/tools/wos/sync-skills) like the opencode and
-Claude Code mirrors: `<name>/SKILL.md` is a generated COPY of `core/skills/<name>.md`. The pre-commit fragment
-`core/hooks/commit/generators.py` stages it. Do not edit by hand.
+Generated by [`core/tools/wos/sync-skills`](../core/tools/wos/sync-skills) like the opencode and Claude Code mirrors: `<name>/SKILL.md` is a generated COPY of `core/skills/<name>.md`. The pre-commit fragment `core/hooks/commit/generators.py` stages it. Do not edit by hand.
 
 ## Session artifacts — `plans/`
 

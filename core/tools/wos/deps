@@ -87,6 +87,12 @@ def check(spec: str) -> bool:
         if not script.exists():
             return False
         cmd = [str(script), '--version']
+    elif verb == 'venv-import':  # `<venv>:<module>` — a dep that lives in a sibling venv, e.g. .venv-pdf
+        venv, _, module = arg.partition(':')
+        python = platform_law.venv_script('python', venv)
+        if not python.exists():
+            return False
+        cmd = [str(python), '-c', f'import {module}']
     elif verb == 'cmd':
         cmd = arg
     else:

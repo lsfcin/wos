@@ -88,3 +88,11 @@ def test_check_notices_a_config_that_no_longer_matches(tmp_path):
 
     target.write_text(json.dumps({'permissions': module.render_claude(other)}), encoding='utf-8', newline='\n')
     assert module._check() == 1, '--check passed a config that does not match the answer'
+
+
+def test_codex_permission_difference_is_explicit_without_a_runtime_override():
+    module = _tool()
+    for level in LEVELS:
+        assert 'host' in module.codex_gaps(level)
+        assert 'no complete native equivalent' in module.codex_gaps(level)
+    assert not hasattr(module, 'write_codex')

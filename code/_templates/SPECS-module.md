@@ -1,8 +1,6 @@
 # SPEC: [module name]
 <!-- Machine-parseable module contract (spec-driven development). Keep the header keys below. -->
-spec-version: 0
-status: draft
-verify: none
+spec-version: 0 status: draft verify: none
 
 <!--
   status:  draft  = spec exists; the read-gate is NOT armed yet, conformance not wired.

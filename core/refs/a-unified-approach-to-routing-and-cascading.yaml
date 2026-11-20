@@ -1,0 +1,8 @@
+# Reference for a-unified-approach-to-routing-and-cascading
+key: a-unified-approach-to-routing-and-cascading
+title: "A Unified Approach to Routing and Cascading"
+url: "https://arxiv.org/abs/2410.10347"
+level: P
+section: "Model level, cost & execution interface"
+contributions:
+  - "multi-level model cascading foundations."

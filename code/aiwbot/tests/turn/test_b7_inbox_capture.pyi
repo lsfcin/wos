@@ -1,0 +1,9 @@
+import pytest
+from _typeshed import Incomplete
+
+HEAD: Incomplete
+
+@pytest.fixture
+def capture_file(tmp_path, monkeypatch): ...
+def test_append_entry_refuses_when_another_writer_clobbers_it(capture_file, monkeypatch): ...
+def test_every_concurrent_capture_lands(capture_file) -> None: ...

@@ -8,10 +8,8 @@ core/run tools/forms/gforms apply     --account personal <form_id> requests.json
 core/run tools/forms/gforms responses --account personal <form_id>     # answers as text
 ```
 
-The spec format, the two auth grants, why `SERVICE_DISABLED` is not a permission bug, and what
-`responses` returns: [`SPECS.md`](SPECS.md). The specs Lucas actually applies live with the course
-material, one copy per discipline — [`academy/teaching/ai4good/`](../../../academy/teaching/ai4good/CONTEXT.md)
-and [`academy/teaching/tecnologias-na-educacao/`](../../../academy/teaching/tecnologias-na-educacao/CONTEXT.md) —
+The spec format, the two auth grants, why `SERVICE_DISABLED` is not a permission bug, and what `responses` returns: [`SPECS.md`](SPECS.md). The specs Lucas actually applies live with the course material, one copy per discipline — [`academy/teaching/classes/ai4good/`](../../../academy/teaching/classes/ai4good/CONTEXT.md)
+and [`academy/teaching/classes/techedu/`](../../../academy/teaching/classes/techedu/CONTEXT.md) —
 because the answers are read per turma, never pooled.
 
 <!-- routing:start -->

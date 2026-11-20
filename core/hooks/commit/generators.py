@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import feature_law  # noqa: E402
 import file_law  # noqa: E402
 from platform_law import rel  # noqa: E402
-from pre_commit import Blocked, git, spawn  # noqa: E402
+from pre_commit import Blocked, git, spawn, stage  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'stubgen'))
 import stubs  # noqa: E402
@@ -20,17 +20,14 @@ import stubs  # noqa: E402
 
 def _stage(commit, *paths):
     """git add, tolerant: a generator that could not write is reported by its own arm, not here."""
-    for path in paths:
-        git('add', str(path), cwd=commit.toplevel)
+    stage(commit.toplevel, *paths)
 
 
 def prepare(commit):
     """Brain stats and the self-healing .gitignore allowlist. First -- both stage files."""
-    # Only on a staged brain/goals/ file, so unrelated commits are not polluted. Resolved against
-    # the MACHINERY root: this hook fires in every repo, and a cwd-relative path only happens to
-    # work in the one that has brain/GOALS.md.
-    if (commit.root / 'brain/GOALS.md').is_file() and \
-            any(p.startswith('brain/goals/') for p in commit.staged):
+    # Only in the brain repo, on a staged goals/ file, so unrelated commits are not polluted.
+    if Path(commit.toplevel).resolve() == (commit.root / 'brain').resolve() and \
+            any(p.startswith('goals/') for p in commit.staged):
         spawn(commit, 'core/hooks/brain/brain_stats.py')
 
     import gitignore_heal
@@ -94,40 +91,6 @@ def _typescript(commit, staged):
         print(f'✓ .d.ts generated: {project}')
 
 
-def _keeps_a_list(commit) -> bool:
-    """A PROJECT keeps its own findings; a TARGET keeps none.
-
-    core/tools/links/SPECS.md gives that as the reason the redirect clone is a target. This hook is
-    global, so it fired there anyway and shipped a list into a public repo on every build. Asked
-    of the same .gitignore the project map reads, so nothing here holds a second list of names.
-    """
-    if commit.is_workspace:
-        return True
-    here = rel(commit.toplevel, commit.root)
-    if Path(here).is_absolute():   # outside the workspace: it borrows the hook and owns its list
-        return True
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'entropy'))
-    from entropy_corpus import declared_projects  # noqa: PLC0415
-    return here in declared_projects(commit.root)
-
-
-def issues(commit):
-    """This repo's own entropy findings, written into its own ISSUES.md and staged.
-
-    Ruled 2026-09-04 (Lucas): each repo counts only itself, and writes where its reader is. Scanning
-    the nested projects from outside committed lists nobody typed and nobody pushed
-    (b20260831-scattered-lists-never-push), against a table that described one disk (b20260902).
-    WRITES AND WARNS, never refuses: a gate here would refuse commits over a debt they did not make.
-    """
-    if not feature_law.is_enabled('entropy-dashboard'):
-        return
-    if not _keeps_a_list(commit):
-        return
-    if spawn(commit, 'core/hooks/entropy/dashboard/entropy-dashboard.py',
-             '--repo', str(commit.toplevel)).returncode == 0:
-        _stage(commit, commit.toplevel / 'ISSUES.md')
-
-
 def interfaces(commit):
     """.pyi, .d.ts and .dart.api, generated and staged into this commit.
 
@@ -138,7 +101,15 @@ def interfaces(commit):
     if not feature_law.is_enabled('interface-stubs'):
         return
 
-    python = [p for p in commit.matching('.py') if '__pycache__' not in p]
+    # A deleted source takes its stub along: `rm` is no Edit, so nothing else ever saw it, and four
+    # .pyi outlived their tests by days (2026-11-19).
+    for source in (Path(p) for p in commit.deleted if not p.endswith('.d.ts')):
+        suffix = {'.py': '.pyi', '.js': '.d.ts', '.ts': '.d.ts', '.tsx': '.d.ts'}.get(source.suffix)
+        stub = source.with_suffix(suffix) if suffix else Path(f'{source}.api') if source.suffix == '.dart' else None
+        if stub:
+            git('rm', '-q', '--ignore-unmatch', '--', stub.as_posix(), cwd=commit.toplevel)
+
+    python =[p for p in commit.matching('.py') if '__pycache__' not in p]
     for source in commit.existing(_sweep(commit, python, '*.py')):
         if stubs.emit_pyi(commit.toplevel / source):
             _stage(commit, Path(source).with_suffix('.pyi'))

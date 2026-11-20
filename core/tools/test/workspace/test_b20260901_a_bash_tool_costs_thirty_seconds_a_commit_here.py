@@ -19,7 +19,7 @@ from conftest import WORKSPACE_ROOT
 
 
 def test_no_bash_tool_remains_under_core_tools():
-    """The port's own thesis (test_port_ratchet.py): porting bash to Python removes the per-OS
+    """The port's own thesis (test_port_ceiling.py): porting bash to Python removes the per-OS
     axis. These two were the half of B12 that was left undecided -- the launcher learned to
     dispatch on the shebang, and *why these two were still bash* never got an answer."""
     listed = subprocess.run(['git', 'ls-files', 'core/tools'], cwd=WORKSPACE_ROOT,

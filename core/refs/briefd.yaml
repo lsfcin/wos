@@ -1,0 +1,8 @@
+# Reference for briefd
+key: briefd
+title: "briefd"
+url: "https://github.com/ismailperim/briefd"
+level: C
+section: "Context engineering & progressive disclosure"
+contributions:
+  - "markdown in git, compiled per task into one bundle under a token budget over MCP, instead of re-sending CLAUDE.md every turn. Its 86% figure is the project's own marketing. Read against our chain gate: `ROADMAP.md` § Measurement."

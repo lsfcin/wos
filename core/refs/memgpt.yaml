@@ -1,0 +1,8 @@
+# Reference for memgpt
+key: memgpt
+title: "MemGPT"
+url: "https://arxiv.org/abs/2310.08560"
+level: P
+section: "Agent memory & security"
+contributions:
+  - "· [MemOS](https://arxiv.org/abs/2505.22101) · [AIOS](https://arxiv.org/abs/2403.16971) — operating system primitives for agent memory."

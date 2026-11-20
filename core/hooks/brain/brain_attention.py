@@ -24,6 +24,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import feature_law  # noqa: E402
+from platform_law import is_repo  # noqa: E402
 from brain_common import GOALS_DIR, GOALS_FILE, WORKSPACE, workspace_rel  # noqa: E402
 
 # The deepest window any caller asks for (brain_common.PERIODS tops out at 4 years). One
@@ -77,7 +78,7 @@ def governing_repo(rel_path):
         return None
     here = target if target.is_dir() else target.parent
     while True:
-        if (here / ".git").exists():
+        if is_repo(here):
             within = workspace_rel(target, here)
             # Resolving to a repo is not the same as having history in it. `branches/*`
             # and `code/*` are gitignored by the workspace repo, so a path under one that

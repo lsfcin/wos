@@ -1,11 +1,7 @@
 # routing
 > The CONTEXT.md routing-table generator, and the delimited-block writer every generator shares.
 
-**This directory is not split**, and the boundary it would split on is what each module does to a
-document: reads it (`header`, `hoist`, `workspace_meta`, `workspace_scanner`) against writes into it
-(`blocks`, `context_synchronizer`, `norms`, `part_table`). Costed 2026-08-24 alongside
-`core/hooks/entropy/`, same verdict — the hop removes less table than it adds, and a new directory
-is a `CONTEXT.md` the whole tree pays to read.
+**This directory is not split**, and the boundary it would split on is what each module does to a document: reads it (`header`, `hoist`, `workspace_meta`, `workspace_scanner`) against writes into it (`blocks`, `context_synchronizer`, `norms`, `part_table`). Costed 2026-08-24 alongside `core/hooks/entropy/`, same verdict — the hop removes less table than it adds, and a new directory is a `CONTEXT.md` the whole tree pays to read.
 
 <!-- routing:start -->
 ## Routing

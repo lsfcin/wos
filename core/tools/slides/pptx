@@ -1,0 +1,53 @@
+# Usage: core/tools/slides/pptx <template|lint|flatten> … — a slide template as real masters and layouts; lint a deck's motion and text; flatten every click into a slide for the PDF
+import sys, json, pathlib, argparse
+
+_HERE = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE))
+import pptx_masters
+
+
+def cmd_template(spec_path: str, out: str) -> None:
+    spec = json.loads(pathlib.Path(spec_path).read_text(encoding="utf-8"))
+    prs = pptx_masters.build(spec)
+    prs.save(out)
+    print(f"{out}: {pptx_masters.summary(prs)}")
+    print(f"  to PowerPoint online: core/run tools/files/onedrive put {out}")
+
+
+def cmd_lint(deck: str, fonts: list[str] | None) -> int:
+    import pptx, pptx_check
+    found = pptx_check.lint(pptx.Presentation(deck), fonts=fonts)
+    print("\n".join(found) or f"{deck}: clean")
+    return 1 if found else 0
+
+
+def cmd_flatten(deck: str, out: str) -> None:
+    import pptx, pptx_check
+    prs = pptx.Presentation(deck)
+    added = pptx_check.flatten(prs)
+    prs.save(out)
+    print(f"{out}: {len(prs.slides)} slides ({added} added, one per click)")
+    print(f"  its PDF: core/run tools/files/onedrive put {out} && core/run tools/files/onedrive pdf slides/{pathlib.Path(out).name} --out <file.pdf>")
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(prog="pptx")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    pt = sub.add_parser("template", help="one master per section colour, the same layouts in each")
+    pt.add_argument("spec", help="JSON: neutral, fonts, type, cover, footer, sections, layouts")
+    pt.add_argument("--out", required=True)
+    pl = sub.add_parser("lint", help="Morph pairs, effect timing, the one-third rule, text size, faces")
+    pl.add_argument("deck"); pl.add_argument("--fonts", nargs="*", help="the faces the design system allows")
+    pf = sub.add_parser("flatten", help="a copy where every click is its own slide: the PDF reads as a flipbook")
+    pf.add_argument("deck"); pf.add_argument("--out", required=True)
+    args = p.parse_args()
+    if args.cmd == "template":
+        cmd_template(args.spec, args.out)
+    elif args.cmd == "lint":
+        sys.exit(cmd_lint(args.deck, args.fonts))
+    elif args.cmd == "flatten":
+        cmd_flatten(args.deck, args.out)
+
+
+if __name__ == "__main__":
+    main()

@@ -20,15 +20,35 @@ BUG_ID_RE = re.compile(r'^##\s+(b[\w-]+)', re.IGNORECASE | re.MULTILINE)
 # heading can never match a spec filename — every FIXED flip would block forever. Found 2026-09-04
 # by the first flip that used the gate (B5): a valid spec on disk, and the gate still demanded one.
 FIXED_RE = re.compile(r'^##\s+(b[\w-]+)\b[^\n]*\bFIXED\b', re.IGNORECASE | re.MULTILINE)
+
+# A BULLET IS AN ITEM TOO (2026-09-21). The heading above is the documented shape and the one this
+# suite has always exercised — and no ISSUES.md in this workspace has ever used it. The root, the
+# template and code/aiwbot's all hold `## Open` over bullet entries, so the gate fired 937 times
+# and blocked nothing, while ISSUES.md's own head told every reader it governed the file. Both
+# shapes are read now; neither replaces the other.
+ITEM_RE = re.compile(r'^- .*?(?=\n(?:- |#|<!--)|\Z)', re.DOTALL | re.MULTILINE)
+# A bullet's KEY is the id it carries inline, anywhere in its text. Un-keyed bullets stay invisible
+# on purpose: every entry that predates this rule has no id, and a gate that retroactively refuses
+# every edit to the list is one nobody can land.
+ID_RE = re.compile(r'\bb\d{6,8}(?:[-_][a-z0-9]+)*\b', re.IGNORECASE)
+FIXED_WORD = re.compile(r'\bFIXED\b')
 SKIP_DIRS = {'.venv', 'node_modules', '__pycache__'}
 
 
+def _items(text: str) -> list[str]:
+	"""The bullet entries, each from its own bullet to the next one or to the next block."""
+	return ITEM_RE.findall(text or '')
+
+
 def bug_ids(text: str) -> set[str]:
-	return {i.lower() for i in BUG_ID_RE.findall(text or '')}
+	return ({i.lower() for i in BUG_ID_RE.findall(text or '')}
+	        | {i.lower() for item in _items(text) for i in ID_RE.findall(item)})
 
 
 def fixed_ids(text: str) -> set[str]:
-	return {i.lower() for i in FIXED_RE.findall(text or '')}
+	return ({i.lower() for i in FIXED_RE.findall(text or '')}
+	        | {i.lower() for item in _items(text) if FIXED_WORD.search(item)
+	           for i in ID_RE.findall(item)})
 
 
 def repo_root(path: Path) -> Path | None:
@@ -102,4 +122,5 @@ def main() -> int:
 	return 2
 
 
-sys.exit(main())
+if __name__ == '__main__':
+	sys.exit(main())

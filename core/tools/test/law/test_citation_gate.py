@@ -162,7 +162,7 @@ def test_a_generated_block_is_authored_by_nobody(tmp_path):
 
 
 def test_the_checker_exempts_itself_and_its_tests():
-    """Otherwise the check fails on the file that defines it — the corpse of a self-referring rule."""
+    """Otherwise the check fails on the file that defines it — the trap of a self-referring rule."""
     exempt = entropy_citations.citation_exempt_paths(WORKSPACE_ROOT)
     here = Path(__file__).resolve()
     checker = WORKSPACE_ROOT / 'core/hooks/checks/citation-gate.py'

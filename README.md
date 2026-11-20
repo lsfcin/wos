@@ -1,12 +1,8 @@
 # Workspace OS
 
-A personal operating system for working with coding agents. It is a git repository that holds
-projects, research and life management side by side, plus an enforcement layer that makes an agent
-navigate, verify and clean up after itself without being asked each time.
+A personal operating system for working with coding agents. It is a git repository that holds projects, research and life management side by side, plus an enforcement layer that makes an agent navigate, verify and clean up after itself without being asked each time.
 
-The design principle is one line: **the file system is the source of truth.** Nothing that matters
-lives only in an agent's memory, a chat history, or a machine's config — if it is real, it is a
-file, and it is versioned.
+The design principle is one line: **the file system is the source of truth.** Nothing that matters lives only in an agent's memory, a chat history, or a machine's config — if it is real, it is a file, and it is versioned.
 
 ## Running it
 
@@ -16,14 +12,11 @@ file, and it is versioned.
 core/run hooks/entropy/dashboard/entropy-dashboard.py   # the drift report → ISSUES.md
 ```
 
-Setting up a fresh machine is a separate question, answered by [`SETUP.md`](SETUP.md). What each
-gate blocks, and the contract a new agent's shim must satisfy, is in
-[`core/hooks/SPECS.md`](core/hooks/SPECS.md).
+Setting up a fresh machine is a separate question, answered by [`SETUP.md`](SETUP.md). What each gate blocks, and the contract a new agent's shim must satisfy, is in [`core/hooks/SPECS.md`](core/hooks/SPECS.md).
 
 ## Where things are
 
-Every directory carries a `CONTEXT.md` saying what it is and where to go inside it. That chain is
-the routing system, and reading it is enforced rather than suggested.
+Every directory carries a `CONTEXT.md` saying what it is and where to go inside it. That chain is the routing system, and reading it is enforced rather than suggested.
 
 | Directory | What lives there |
 |---|---|
@@ -35,14 +28,11 @@ the routing system, and reading it is enforced rather than suggested.
 | [`models/`](models/CONTEXT.md) | Local model checkpoints and weights |
 | `outputs/` | Generated artifacts, untracked |
 
-Two files at the root are read before anything else: [`AGENTS.md`](AGENTS.md), the rules that always
-apply, and [`ROADMAP.md`](ROADMAP.md), what is intended and what was rejected.
+Two files at the root are read before anything else: [`AGENTS.md`](AGENTS.md), the rules that always apply, and [`ROADMAP.md`](ROADMAP.md), what is intended and what was rejected.
 
 ## What the enforcement layer buys you
 
-Every item below is a hook that can block, not advice an agent may skip. Each is listed with the
-failure it exists to prevent, because a rule whose cost you can see and whose benefit you cannot is
-a rule that gets switched off.
+Every item below is a hook that can block, not advice an agent may skip. Each is listed with the failure it exists to prevent, because a rule whose cost you can see and whose benefit you cannot is a rule that gets switched off.
 
 **Navigation — so a big repo does not cost a big context.**
 
@@ -81,34 +71,17 @@ a rule that gets switched off.
 
 ## Features beyond the repo
 
-[`core/tools/`](core/tools/CONTEXT.md) holds CLI tools callable from any agent's bash — no MCP, no
-per-agent wiring. **The directory is the feature, the file is the provider**, so swapping a
-vendor changes a leaf and never a family: `mail/gmail`, `calendar/gcalendar`, `files/gdrive`,
-`slides/gslides`, `docs/gdocs`, `notes/notion`, `web/search`, `paper/papers`, `video/video`.
+[`core/tools/`](core/tools/CONTEXT.md) holds CLI tools callable from any agent's bash — no MCP, no per-agent wiring. **The directory is the feature, the file is the provider**, so swapping a vendor changes a leaf and never a family: `mail/gmail`, `calendar/gcalendar`, `files/gdrive`, `slides/gslides`, `docs/gdocs`, `notes/notion`, `web/search`, `paper/papers`, `video/video`.
 
 ## Agent support
 
 Claude Code, GitHub Copilot, opencode, and Antigravity all run the same canonical hooks through a thin shim.
-Adding another means implementing three hook points against a documented stdin/exit-code contract
-— see [`core/hooks/SPECS.md`](core/hooks/SPECS.md) § Canonical behaviour, and the contract a new
-agent's shim must satisfy.
+Adding another means implementing three hook points against a documented stdin/exit-code contract — see [`core/hooks/SPECS.md`](core/hooks/SPECS.md) § Canonical behaviour, and the contract a new agent's shim must satisfy.
 
 ## Cloning it for yourself
 
-Clone the repo, open your own coding agent, and tell it to follow [`SETUP.md`](SETUP.md) — **the
-harness you already opened is the installer.** There is no `curl | sh` and there is not going to be
-one: an installer would have to be ported to every agent, while a procedure works on whichever one
-you have. Every step there declares how to tell it is already done, an idempotent install, and a
-check that proves it worked, so the agent runs the whole thing and hands you back the short list
-only you can finish — an API key, a consent screen, a device pairing. Agents with skill support can
-open the same file with `/install`.
+Clone the repo, open your own coding agent, and tell it to follow [`SETUP.md`](SETUP.md) — **the harness you already opened is the installer.** There is no `curl | sh` and there is not going to be one: an installer would have to be ported to every agent, while a procedure works on whichever one you have. Every step there declares how to tell it is already done, an idempotent install, and a check that proves it worked, so the agent runs the whole thing and hands you back the short list only you can finish — an API key, a consent screen, a device pairing. Agents with skill support can open the same file with `/install`.
 
-Dependencies are declared in [`core/tools/deps.txt`](core/tools/deps.txt), with what each one's
-absence *looks like* — the expensive ones do not announce themselves as missing, they just return a
-worse answer. `core/tools/wos/deps` checks them all.
+Dependencies are declared in [`core/tools/deps.txt`](core/tools/deps.txt), with what each one's absence *looks like* — the expensive ones do not announce themselves as missing, they just return a worse answer. `core/tools/wos/deps` checks them all.
 
-Installing only a **subset** works: every feature is declared in
-[`core/features.txt`](core/features.txt), the answers for this machine live in
-[`core/profile.txt`](core/profile.txt), and `core/tools/wos/features --on|--off <name>` is how one is
-switched. What crosses into the public copy and what never does is
-[`core/public.txt`](core/public.txt), which carries its own reasons.
+Installing only a **subset** works: every feature is declared in [`core/features.txt`](core/features.txt), the answers for this machine live in [`core/profile.txt`](core/profile.txt), and `core/tools/wos/features --on|--off <name>` is how one is switched. What crosses into the public copy and what never does is [`core/public.txt`](core/public.txt), which carries its own reasons.

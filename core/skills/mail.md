@@ -10,8 +10,7 @@ Arguments: $ARGUMENTS
 
 ## Overview
 
-Pull recent unread emails, classify via AI, present to Lucas for confirmation, then write confirmed entries to
-`brain/INBOX.md`. Downloads attachments and scaffolds draft replies when needed.
+Pull recent unread emails, classify via AI, present to Lucas for confirmation, then write confirmed entries to `brain/INBOX.md`. Downloads attachments and drafts replies when needed.
 
 ## Protocol
 

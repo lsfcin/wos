@@ -1,0 +1,8 @@
+# Reference for lost-in-the-middle
+key: lost-in-the-middle
+title: "Lost in the Middle"
+url: "https://aclanthology.org/2024.tacl-1.9/"
+level: A
+section: "Context engineering & progressive disclosure"
+contributions:
+  - "(TACL 2024) — positional degradation underlying context rot."

@@ -4,7 +4,7 @@
 # The rule, why a field rather than prose, and the limits it accepts:
 # core/SCHEMA.md § Every field that names our own code is verified.
 #
-# Total, like entropy_stores.py: no allowlist, no ratchet inside the module. The ratchet is the
+# Total, like entropy_stores.py: no allowlist, no ceiling inside the module. The ceiling is the
 # CALLER's — type-gate.py asks only about files a commit adds, the dashboard asks about all of them.
 import re
 import sys
@@ -17,6 +17,7 @@ sys.path.insert(0, str(_HOOKS / 'routing'))
 
 import feature_law  # noqa: E402
 from header import header_fields  # noqa: E402
+from platform_law import is_repo  # noqa: E402
 
 WORKSPACE_ROOT = _HOOKS.parents[1]
 
@@ -59,7 +60,7 @@ def _repo_root(path: Path) -> Path:
     """The repo a file belongs to — the workspace root for most of the tree, a nested repo under
     code/ for the rest. A field in a nested repo names paths inside THAT repo."""
     for parent in path.resolve().parents:
-        if (parent / '.git').exists():
+        if is_repo(parent):
             return parent
     return WORKSPACE_ROOT
 
@@ -68,8 +69,8 @@ def _items(value: str, field: str) -> list:
     """The comma list, as the tokens this field can be held to. Empty for prose.
 
     A path and a name are each ONE word, so an item is its first token and whatever follows is a
-    human qualifier: `frontend/ streaming` names `frontend/`, and `substrate — nothing else runs
-    until these do` claims the name `substrate`. Reading the whole item would put a sentence in
+    human qualifier: `frontend/ streaming` names `frontend/`, and `venv — nothing else runs
+    until these do` claims the name `venv`. Reading the whole item would put a sentence in
     the finding and make the same wrong claim harder to see.
     """
     out = []
@@ -92,7 +93,7 @@ def _is_path(token: str) -> bool:
 def _resolves(path: Path, token: str) -> bool:
     """Tried against the document's own directory, then its repo, then the workspace.
 
-    Forgiving on purpose: `code/SPECS-git.md` names a workspace path and `code/flows/SPECS-data.md`
+    Forgiving on purpose: `core/hooks/git/SPECS.md` names a workspace path and `code/flows/SPECS-data.md`
     names a repo-relative one, both correctly. A finding is only worth printing when NO reading of
     the token finds anything — otherwise the check would be enforcing a base nobody agreed on.
     """

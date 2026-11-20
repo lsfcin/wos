@@ -8,11 +8,7 @@ core/run tools/wos/publish/repo --orphans   # the audit list, one path per line
 core/run tools/wos/publish/repo --check     # exit 1 if anything crossing carries a credential
 ```
 
-The floor — which trees are eligible at all, and where the target is checked out — is
-[`../../../public.txt`](../../../public.txt), which carries its own reasons. Why nothing crosses by
-default and what the orphan list is for: the head of [`crossing.py`](crossing.py). Why the
-credential check refuses rather than redacts: the head of [`repo`](repo), and
-[`../../secret_law.py`](../../secret_law.py).
+The floor — which trees are eligible at all, and where the target is checked out — is [`../../../public.txt`](../../../public.txt), which carries its own reasons. Why nothing crosses by default and what the orphan list is for: the head of [`crossing.py`](crossing.py). Why the credential check refuses rather than redacts: the head of [`repo`](repo), and [`../../secret_law.py`](../../secret_law.py).
 
 <!-- routing:start -->
 ## Routing

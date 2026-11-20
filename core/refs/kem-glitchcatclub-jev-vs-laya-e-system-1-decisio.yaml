@@ -1,0 +1,8 @@
+# Reference for kem-glitchcatclub-jev-vs-laya-e-system-1-decisio
+key: kem-glitchcatclub-jev-vs-laya-e-system-1-decisio
+title: "Kem GlitchCatClub — JEV vs Laya e System-1 Decision Layer"
+url: "https://www.instagram.com/reel/Dd1SON3tqGZ/?utm_source=ig_web_copy_link"
+level: C
+section: "Model level, cost & execution interface"
+contributions:
+  - "[src: web:instagram.com] Review prático do JEV (TypeSafe AI) vs Laya: arquitetura de decisão rápida (boolean, choice, score) para triagem de mensagens/DMs e routing de agentes sem custo de LLM completo."

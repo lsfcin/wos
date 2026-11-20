@@ -1,0 +1,245 @@
+# undo the line breaks a dead rule left behind: one paragraph, one line. Zero-token, no network.
+#
+# WHY THERE IS ANYTHING TO UNDO: the document cap replaced a per-line width limit on 2026-09-14
+# (core/hooks/limits.env), leaving every older paragraph wrapped to a width nothing measures.
+# Lucas ruled one paragraph one line, and ruled the LINE cap stays — it serves code, and code has
+# no paragraphs. REFLOWING IS NOT CUTTING (AGENTS.md, 2026-08-31): this removes thousands of lines
+# and not one word, so it pays no reduction debt whatever `size` says. The before and after live in
+# core/experiments/reflow-not-cutting.md.
+#
+# WHAT MAKES IT SAFE IS THE ROUND TRIP, not the rules below: a file is rewritten only if its WORDS
+# come back identical — see `words()`. The rules decide what is worth joining; the assertion decides
+# whether the join was allowed to happen at all. What the assertion CANNOT see is structure, which
+# is why the rules are conservative and why ROADMAP.md was read by eye before any of this ran.
+import argparse
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+_WS = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(_WS / 'core' / 'hooks'))
+sys.path.insert(0, str(_WS / 'core' / 'tools'))
+import file_law  # noqa: E402
+import tool_law  # noqa: E402
+
+# A line that opens something with its own line semantics. `---` is both a rule and the frontmatter
+# fence and a setext underline, and none of the three may be joined to anything.
+OPENER = ('#', '|', '>', '```', '~~~', '<!--', '-->', '---', '***', '___', '===', '<')
+LIST_ITEM = re.compile(r'^\s*(?:[-*+]|\d+[.)])\s')
+INDENTED = re.compile(r'^(?: {4,}|\t)')
+FENCE = re.compile(r'^\s*(```|~~~)')
+BLOCK = re.compile(r'<!--\s*[a-z-]+:(start|end)\s*-->')
+# Two trailing spaces are a markdown hard break: somebody MEANT the line to end there. It is what
+# separates one backlog item from the next in every goal file, so ignoring it would fuse a list.
+HARD_BREAK = re.compile(r'\S {2,}$')
+SQUEEZE = re.compile(r'\s+')
+
+# A LINE ENDING A SENTENCE MAY HAVE ENDED ON PURPOSE, and "one paragraph, one line" taken literally
+# cannot tell the two apart. Measured against ROADMAP.md on 2026-09-18, where a break IS the field
+# separator: the literal rule fused `*What*`, `*Why*` and `*Done when*` into one run-on line, in the
+# most-read file in the workspace, and the round trip passed because not a word had moved. So the
+# join is only ever made MID-SENTENCE, where no intent can be destroyed because none can be
+# expressed: the previous line stops without terminal punctuation, so it was the width limit that
+# died on 2026-09-14 that ended it, and nothing else could have.
+#
+# A CLOSING `*` COUNTS AS TERMINAL for the same reason, found in the same file: an item's title is a
+# wholly bold line, and nothing about it says "sentence" except that it does not end in a full stop.
+# A false negative here costs one break left in place; a false positive costs a document.
+CONTINUES = re.compile(r'[^.:!?;*—)\]]\s*$')
+
+
+QUOTE = re.compile(r'^(\s*>[ >]*)(.*)$')
+
+
+def lane(line: str):
+    """(kind, prefix, body), or None when the line has syntax this tool must not move.
+
+    THREE LANES, because the same wrapped sentence wears three costumes and only one of them is
+    bare. A backlog item in a goal file is `> ` quoted and a `SETUP.md` step is a list item with an
+    indented continuation — together 1,770 of the breaks on 2026-09-18, and skipping them would
+    have left the two files Lucas actually reads untouched. A continuation only ever joins BACKWARD
+    into the line that opened its lane, so the opener's marker is what survives.
+    """
+    stripped = line.strip()
+    if not stripped:
+        return None
+    quoted = QUOTE.match(line)
+    if quoted and quoted.group(2).strip():
+        return ('quote', quoted.group(1), quoted.group(2))
+    if stripped.startswith(OPENER):
+        return None
+    marker = LIST_ITEM.match(line)
+    if marker:
+        return ('item', line[:marker.end()], line[marker.end():].strip())
+    if INDENTED.match(line):
+        return None      # four spaces or a tab is an indented CODE block, never a continuation
+    if line[:1].isspace():
+        return ('cont', '', stripped)     # one to three spaces continues the line above it
+    return ('prose', '', stripped)
+
+
+# Which lane may follow which, and nothing else joins. `item` never follows `item`: two bullets are
+# two things however the first one ended.
+FOLLOWS = {('prose', 'prose'), ('quote', 'quote'), ('item', 'cont'), ('cont', 'cont')}
+
+
+def is_prose(line: str) -> bool:
+    """Kept as a name: every caller asks the same question the lane above answers."""
+    return lane(line) is not None
+
+
+def _header_end(lines: list) -> int:
+    """Where the `> key: value` header stops — every line before it is untouchable.
+
+    THE HEADER IS FIELDS, NOT PROSE, and joining two loses one in silence. The first run fused
+    `> governs:` into `> enforced-by:` in 18 files and nothing caught it: header.py reads the first
+    `key:` on a line and treats the rest as that value, so the second field stopped existing while
+    the check that verifies fields reported clean. Refused as a whole block, because that parser
+    already defines it as one and a fused field is indistinguishable from a wrapped value after.
+    """
+    if not lines or not lines[0].lstrip().startswith('#'):
+        return 0
+    end = 1
+    while end < len(lines) and lines[end].lstrip().startswith('>'):
+        end += 1
+    return end
+
+
+def paragraphs(lines: list) -> list:
+    """Runs of consecutive lines in one lane, outside every fence, generated block and frontmatter.
+
+    Yields (start, end) half-open, only for runs longer than one line — a paragraph already on one
+    line is the answer, not a candidate.
+    """
+    runs, run, fenced, generated = [], [], False, False
+    frontmatter = lines and lines[0].strip() == '---'
+    header = _header_end(lines)
+    for i, line in enumerate(lines):
+        if frontmatter:
+            if i and line.strip() == '---':
+                frontmatter = False
+            run = []
+            continue
+        if FENCE.match(line):
+            fenced = not fenced
+        if BLOCK.search(line):
+            generated = 'start' in BLOCK.search(line).group(0)
+        here = None if (fenced or generated or i < header) else lane(line)
+        if here is None:
+            if len(run) > 1:
+                runs.append((run[0], run[-1] + 1))
+            run = []
+            continue
+        if run:
+            previous = lines[run[-1]]
+            ended = not CONTINUES.search(previous) or HARD_BREAK.search(previous)
+            if ended or (lane(previous)[0], here[0]) not in FOLLOWS:
+                # The line before ended on purpose — a full stop, or a hard break — or this one
+                # opens a different lane. Close the run rather than joining across the intent.
+                if len(run) > 1:
+                    runs.append((run[0], run[-1] + 1))
+                run = []
+        if run or here[0] != 'cont':
+            run.append(i)     # a continuation with nothing before it opens nothing
+    if len(run) > 1:
+        runs.append((run[0], run[-1] + 1))
+    return runs
+
+
+def words(text: str) -> str:
+    """The text with every marker and every run of whitespace gone — what the round trip compares.
+
+    A whole-text comparison cannot be used, and that is not a weakening: joining `> a` to `> b`
+    legitimately DELETES the second `>`, which is a non-whitespace character, so the strict
+    comparison refuses every correct quote join. Markers are what this tool is allowed to drop;
+    words are what it is not. So the guard is on the words, and it still proves that nothing was
+    lost, reordered or invented.
+    """
+    bare = [QUOTE.sub(r'\2', line) for line in text.split('\n')]
+    bare = [LIST_ITEM.sub('', line, count=1) for line in bare]
+    return SQUEEZE.sub(' ', ' '.join(bare)).strip()
+
+
+def reflow(text: str) -> tuple:
+    """The rewritten text and how many line breaks it removed. Never returns damaged text.
+
+    A file failing the round trip is returned unchanged with a count of zero: a tool that
+    half-rewrites a document is worse than one that refuses.
+    """
+    lines = text.split('\n')
+    runs = paragraphs(lines)
+    if not runs:
+        return text, 0
+    out, previous, removed = [], 0, 0
+    for start, end in runs:
+        out += lines[previous:start]
+        # The opener's marker is the one that survives; every line after it contributes its body.
+        out.append(lane(lines[start])[1] + ' '.join(lane(line)[2] for line in lines[start:end]))
+        removed += end - start - 1
+        previous = end
+    out += lines[previous:]
+    joined = '\n'.join(out)
+    if words(joined) != words(text):
+        return text, 0
+    return joined, removed
+
+
+def candidates(root: Path, paths: list) -> list:
+    """Tracked `.md` this tool is allowed to touch, in this repo and no other.
+
+    Generated and vendored files are excluded through file_law, the one reader of those two lists:
+    a generated file is rewritten by its generator on the next run, and a vendored one was written
+    by somebody else — reflowing it edits the artifact being compared (brain/drafts/).
+    """
+    if paths:
+        listed = [Path(p) for p in paths]
+    else:
+        out = subprocess.run(['git', '-C', str(root), 'ls-files', '*.md'],
+                             capture_output=True, text=True, encoding='utf-8').stdout
+        listed = [Path(line) for line in out.splitlines()]
+    return [p for p in listed
+            if not file_law.is_generated_artifact(root / p, root)
+            and not file_law.is_vendored(root / p, root)]
+
+
+def main() -> int:
+    tool_law.require('reflow')   # before argparse: off means off, including --help
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('paths', nargs='*', help='files to reflow; default is every tracked .md')
+    ap.add_argument('--write', action='store_true',
+                    help='rewrite the files; without it nothing is touched and the count is printed')
+    ap.add_argument('--quiet', action='store_true', help='totals only, no per-file rows')
+    args = ap.parse_args()
+
+    root, rows, total, refused = _WS, [], 0, []
+    for rel in candidates(root, args.paths):
+        path = root / rel
+        try:
+            text = path.read_text(encoding='utf-8')
+        except (OSError, UnicodeDecodeError):
+            continue
+        new, removed = reflow(text)
+        if new != text and words(new) != words(text):
+            refused.append(str(rel))
+            continue
+        if not removed:
+            continue
+        rows.append((removed, str(rel)))
+        total += removed
+        if args.write:
+            path.write_text(new, encoding='utf-8', newline='\n')
+
+    if not args.quiet:
+        for removed, rel in sorted(rows, reverse=True)[:20]:
+            print(f'{removed:6d}  {rel}')
+    for rel in refused:
+        print(f'  REFUSED  {rel} — round trip failed, left untouched')
+    verb = 'removed' if args.write else 'would remove'
+    print(f'reflow: {verb} {total:,} line break(s) in {len(rows):,} file(s)')
+    print('  reflowing is not cutting — the corpus loses lines and not one word (AGENTS.md)')
+    return 1 if refused else 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

@@ -1,5 +1,5 @@
 # gmail_attachments.py — download and summarize Gmail attachments for Core/tools/mail/gmail
-import base64, pathlib, subprocess
+import base64, pathlib, re, subprocess
 import anthropic
 import sys as _sys, pathlib as _pathlib
 _sys.path.insert(0, str(_pathlib.Path(__file__).resolve().parents[1]))  # tools root
@@ -10,17 +10,32 @@ from platform_law import WORKSPACE_ROOT, interpreter
 BRAIN_ATTACHMENTS = WORKSPACE_ROOT / "brain/attachments"
 
 
+PREVIEW_CHARS = 3000
+# A PDF attachment gets its twin (Lucas, 2026-09-25): the summary then reads scans and figures too,
+# and the twin is there for the next reader. It takes minutes, where every other format takes 30 s.
+TIMEOUTS = {'.pdf': 3600}
+TWIN_LINE = re.compile(r'^(?:written|fresh)\s+(.+?\.md)(?:\s|$)', re.M)
+
+
+def _command(filepath: pathlib.Path) -> list:
+    # Spawned through interpreter(), never by its own path: a tool is an extensionless script
+    # whose shebang only means anything on POSIX, so naming it alone fails with WinError 193
+    # here -- and this arm swallows every exception, so the summary would just come back empty.
+    tool = 'pdf/docling' if filepath.suffix.lower() == '.pdf' else 'paper/parse'
+    return [interpreter(), str(WORKSPACE_ROOT / 'core/tools' / tool), str(filepath)]
+
+
 def _extract_text(filepath: pathlib.Path) -> str:
-    """Try to extract text from file using Core/tools/parse."""
+    """The attachment's text: parse's output, or for a PDF the body of the twin it now has."""
     try:
-        # Spawned through interpreter(), never by its own path: `parse` is an extensionless script
-        # whose shebang only means anything on POSIX, so naming it alone fails with WinError 193
-        # here -- and this arm swallows every exception, so the summary would just come back empty.
-        result = subprocess.run(
-            [interpreter(), str(WORKSPACE_ROOT / "core/tools/paper/parse"), str(filepath)],
-            capture_output=True, text=True, timeout=30, encoding='utf-8'
-        )
-        return result.stdout[:3000] if result.returncode == 0 else ""
+        result = subprocess.run(_command(filepath), capture_output=True, text=True, encoding='utf-8',
+                                timeout=TIMEOUTS.get(filepath.suffix.lower(), 30))
+        if result.returncode != 0:
+            return ""
+        text = result.stdout
+        if twin := TWIN_LINE.search(text):   # the twin's body, past its frontmatter
+            text = pathlib.Path(twin.group(1)).read_text(encoding='utf-8').split('\n---\n', 1)[-1]
+        return text[:PREVIEW_CHARS]
     except Exception:
         return ""
 

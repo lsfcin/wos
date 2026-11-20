@@ -1,0 +1,8 @@
+# Reference for deterministic-enforcement-in-llm-systems
+key: deterministic-enforcement-in-llm-systems
+title: "Deterministic Enforcement in LLM Systems"
+url: "https://medium.com/neuralnotions/deterministic-enforcement-in-probabilistic-llm-systems-the-engineering-case-for-claude-code-hooks-64a4196c7d32"
+level: C
+section: "Legidade, vocabulário e registros de decisão"
+contributions:
+  - "case for deterministic hook gates."

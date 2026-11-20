@@ -1,0 +1,12 @@
+# Usage: core/run tools/pdf/pymupdf <pdf>... [--from <file>] [--describer agy|local|claude] [--origin <url>] [--force] [--review | --reviewed-by <who>] — a PDF becomes its twin folder through PyMuPDF4LLM: CPU, seconds to a minute per PDF, finds fewer tables than docling
+import sys
+from pathlib import Path
+
+_HERE = Path(__file__).resolve().parent
+sys.path[:0] = [str(_HERE), str(_HERE.parent), str(_HERE.parents[1] / 'hooks')]
+import tool_law  # noqa: E402
+
+tool_law.require('pdf')
+import pdf_cli  # noqa: E402
+
+sys.exit(pdf_cli.main('pymupdf', 'pymupdf', sys.argv[1:]))

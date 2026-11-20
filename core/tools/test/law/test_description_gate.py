@@ -8,7 +8,7 @@
 #
 # It rides in type-gate.py rather than in a gate of its own: `core/hooks/checks/` is at the
 # crowding cap, and a second standalone gate over the same staged-add set would have been a new
-# file to say "and also this" — the ratchet, the corpus filters and the failure format are
+# file to say "and also this" — the ceiling, the corpus filters and the failure format are
 # already there.
 from conftest import WORKSPACE_ROOT  # the depth lives in one file, not nine
 
@@ -69,7 +69,7 @@ def test_the_message_names_the_shape_the_file_needs(tmp_path):
 
 
 def test_the_gate_runs_it_over_what_the_commit_adds(tmp_path):
-    """Wired into the ratchet, not just importable — the failure the wiring exists to produce."""
+    """Wired into the ceiling, not just importable — the failure the wiring exists to produce."""
     source = tmp_path / 'thing.py'
     source.write_text('x = 1\n', encoding='utf-8', newline='\n')
     failures = type_gate.failures_for(source, {'CONTEXT.md'}, set(), {}, set())

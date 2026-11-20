@@ -3,6 +3,9 @@ from pathlib import Path
 
 BUG_ID_RE: Incomplete
 FIXED_RE: Incomplete
+ITEM_RE: Incomplete
+ID_RE: Incomplete
+FIXED_WORD: Incomplete
 SKIP_DIRS: Incomplete
 
 def bug_ids(text: str) -> set[str]: ...

@@ -1,4 +1,4 @@
-# Nudges, never blocks: first-line description, facade boundary, CONTEXT.md line 2 and goal link.
+# Reminders, never blocks: first-line description, facade boundary, CONTEXT.md line 2 and goal link.
 # Sourced by core/hooks/post-edit.sh — a FRAGMENT, not a standalone script:
 # it relies on $file, $dir, $TSC and find_tsconfig from the caller.
 

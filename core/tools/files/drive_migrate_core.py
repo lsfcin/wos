@@ -35,7 +35,7 @@ SLIDE_MIMETYPES = {
 }
 
 FOLDER_MAP = {
-    "Tec. na Educação":                 "tecnologias-na-educacao",
+    "Tec. na Educação":                 "techedu",
     "AI4Good":                          "ai4good",
     "P1":                               "programacao-1",
     "Computação Gráfica":               "computacao-grafica",

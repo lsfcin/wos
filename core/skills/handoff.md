@@ -5,45 +5,24 @@ description: Emit a copy-pasteable resume prompt for the next session. For the f
 
 # Handoff skill
 
-Produce the resume prompt for the next session. Capture only what is **not already in project files** — reference the
-file instead of repeating it.
+Produce the resume prompt for the next session. Capture only what is **not already in project files** — reference the file instead of repeating it.
 
 Arguments: $ARGUMENTS  (focus for next session)
 
-> **Narrow by design.** This emits only the resume prompt. To also archive completed work, route session knowledge to
-> durable files, drain the INBOX, and run the verification gate first, use `/roundup` — it runs those phases, then calls
-> `/handoff`.
-
 ## Decide first — is there anything to hand off?
 
-**If the work is finished and there is no next action, do not emit a resume prompt.** Writing one
-*manufactures* a next action at the last turn before a `/clear` — the output rule
-([`roundup.md`](roundup.md) § The output rule) applied to the hand-off itself. That is not a rare
-edge case; it is how a session that closed properly ends.
+**If the work is finished and there is no next action, do not emit a resume prompt.** Writing one *manufactures* a next action at the last turn before a `/clear` — the output rule ([`roundup.md`](roundup.md) § The output rule) applied to the hand-off itself. That is not a rare edge case; it is how a session that closed properly ends.
 
-Skipping is one command and one line:
+Skipping is one line: *nothing open — no hand-off written.* Nothing else, and stop here. The handoff this session opened is already gone — taking it deleted it.
 
-```bash
-rm -f outputs/handoff.md
-```
+**A taken handoff's threads are this session's.** Each one is finished, moved to its `ROADMAP.md` or `ISSUES.md`, or carried into this session's own handoff — never dropped. **A handoff file's existence means exactly one thing: its threads are open.**
 
-Then say: *nothing open — no hand-off written.* Nothing else, and stop here.
-
-Deleting is the point. **The file's existence means exactly one thing: a thread is open.** Leaving
-the previous session's block in place would let the next window resume a thread that closed
-sessions ago, and a stub saying "nothing open" costs a read to learn there is nothing to read.
-
-Hand off when any of these is true: work is mid-flight, a decision is pending, or something was
-tried and left unresolved. Ambiguity resolves toward writing it — a hand-off nobody needed costs
-one read; a thread dropped silently costs the session that re-derives it.
+Hand off when work is mid-flight, a decision is pending, or a trial remains unresolved. If unsure, write it: a dropped thread costs the next session its reconstruction.
 
 ## Gather state
 
 **If [`core/tools/wos/roundup`](../tools/wos/roundup) ran this session, every line it printed *is*
-the State block — copy them verbatim and gather nothing.** They are the same facts, already
-paid for. Re-deriving them costs a second round of git at the session's most expensive turn, and
-lets the two disagree. Which lines it prints is the script's business, never this file's: naming
-them here is a copy that goes stale without failing anything.
+the State block — copy them verbatim and gather nothing.** They are the same facts, already paid for. Re-deriving them costs a second round of git at the session's most expensive turn, and lets the two disagree. Which lines it prints is the script's business, never this file's: naming them here is a copy that goes stale without failing anything.
 
 Only when it did not run (`/handoff` invoked mid-session, standalone):
 
@@ -57,41 +36,24 @@ git log --oneline main..develop 2>/dev/null | wc -l
 
 Cite a verification result only if one is fresh from this session; otherwise say "not run".
 
-**Report sync divergence, never fix it.** `/handoff` can be invoked mid-session, so merging here risks
-promoting unverified work. Just state what is unpushed or unpromoted (`[ahead N]` on any branch, or
-`develop` ahead of `main`) so a session resumed on another machine knows what it is missing.
+**Report sync divergence, never fix it.** `/handoff` can be invoked mid-session, so merging here risks promoting unverified work. Just state what is unpushed or unpromoted (`[ahead N]` on any branch, or `develop` ahead of `main`) so a session resumed on another machine knows what it is missing.
 Promotion is `/roundup` Phase 4 — point there if anything is behind.
 
 ## Output
 
-**Write the block to `outputs/handoff.md`, then print it.** The file is the deliverable; the
-print is a convenience. A path is what survives a `/clear` — the next session opens by reading
-it, with no block to carry across by hand, which is why
-[`core/hooks/session/context-meter.py`](../hooks/session/context-meter.py) names this same path
-at `CTX_LOUD`. Overwrite it: the newest hand-off is the only one worth resuming, and `outputs/`
-is gitignored, so nothing durable is lost.
+**One handoff per repository** (Lucas, 2026-11-10): `outputs/handoff-<key>.md`, the key being the repository's path under the workspace (`workspace`, `code-apptime`). `core/run tools/wos/handoff --json` lists this session's repositories in `repos`, ranked by confirmed Edit/patch lines; each block holds only that repository's threads. Prepare one block per repository with open threads in a temporary file and publish it with `--write <file> --repo <path>`. A pending file is never overwritten: sections from sessions that never met accumulate, and re-writing replaces only this session's own. The measurement's limits: shell/script writes, full-file replacements and implicit deletions are not counted, and the shared dirty tree never is. Native session variables identify the session; when unavailable, pass `--session` and `--agent`. Local code: no model call.
+
+**A handoff is opened by taking it**: `core/run tools/wos/handoff --take <key>` prints every pending section and deletes the file, and `handoff-gate` refuses any other read.
 
 **Never spawn a successor session.** Decided 2026-08-13 ([`core/SPECS.md`](../SPECS.md) § AD-09):
-`claude --bg`
-can start a fresh-context agent but cannot move the terminal Lucas types into, so a spawned
-successor would work the same branch *unattended, in parallel with the live session*. Prepare
-the artifact; let Lucas move his own attention.
+`claude --bg` can start a fresh-context agent but cannot move the terminal Lucas types into, so a spawned successor would work the same branch *unattended, in parallel with the live session*. Prepare the artifact; let Lucas move his own attention.
 
-**Every section earns its place or is omitted** — the same rule as the phases in
-[`roundup.md`](roundup.md). A section with nothing behind it is deleted, header and all; there is
-no "none.", no placeholder, no shape to fill. Last session's ran to 48 lines and 3 of its 5
-open threads were already written in `ROADMAP.md` — that is what these caps exist to stop.
+**Every section earns its place or is omitted.** Delete empty headers; no placeholders. The caps below keep the next session from rereading project lists.
 
-**Name what you decided alone.** git holds what changed and never the option that was rejected, so a
-choice a session made for Lucas without asking is invisible the moment it lands — and the longer it
-holds, the more expensive it is to reopen. List them; the point is that he can object cheaply, while
-the alternative is still live. The durable record is [`roundup.md`](roundup.md) Phase 2's job (a
-design decision goes to `SPECS.md` → Architecture Decisions, Context / Decision / Consequences);
+**Name what you decided alone.** git holds what changed and never the option that was rejected, so a choice a session made for Lucas without asking is invisible the moment it lands — and the longer it holds, the more expensive it is to reopen. List them; the point is that he can object cheaply, while the alternative is still live. The durable record is [`roundup.md`](roundup.md) Phase 2's job (a design decision goes to `SPECS.md` → Architecture Decisions, Context / Decision / Consequences);
 this section only makes sure he *sees* the ones nobody asked him about.
 
-**Say it once.** If a fact is already in a list — a `ROADMAP.md` item, a `ISSUES.md` entry, a
-`SPECS.md` decision — point at the file; do not restate it. The next session reads those anyway,
-and a hand-off that duplicates them is a second copy to keep in sync.
+**Say it once.** If a fact is already in a list — a `ROADMAP.md` item, a `ISSUES.md` entry, a `SPECS.md` decision — point at the file; do not restate it. The next session reads those anyway, and a hand-off that duplicates them is a second copy to keep in sync.
 
 Print the block between the `---` markers:
 
@@ -124,11 +86,6 @@ Print the block between the `---` markers:
 
 After printing:
 
-> Resume prompt ready — written to `outputs/handoff.md`. Open a new session (`/clear` or a fresh
-> window) and start it with: `Read outputs/handoff.md and plan what you'll do in this session.`
-> **Plan, never "continue"** — ruled 2026-08-16 (Lucas). "Continue" makes a session start at the
-> next action this file names and never look up; planning forces it to read the whole list first,
-> which is what surfaces blocked decisions and cross-item ordering. The session that ruled it opened
-> that way and closed six decision items that had been open for weeks because nobody had asked which
-> ones were blocking. Pasting the block itself
-> works too, but the file is what survives if this session dies first.
+> Resume prompt ready — written to `<returned path>`. Open a new session and start it with: `Roda <returned resume>, depois entra em plan mode e discute comigo em detalhes (em pt-br) qual vai ser o plano pra essa sessão.` — one line per repository handed off. **Plan, never "continue"** (Lucas, 2026-08-16): planning reads the whole list and surfaces blocked decisions before work resumes. **Take, then plan** (Lucas, 2026-11-10): the take deletes a file, which plan mode forbids, so the prompt is pasted outside it; an exemption written in the prompt and a non-deleting `--peek` were rejected — text cannot outrank the harness, and a peek lets two sessions read the same threads.
+
+**A command handed to Lucas stands alone** (Lucas, 2026-11-17): absolute paths, never a `cd` relative to this session's directory — a chained relative `cd` failed on 2026-11-11.

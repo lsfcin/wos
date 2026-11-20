@@ -1,10 +1,7 @@
 # checks
 > Coverage for `core/hooks/checks/`: the standalone blocking checks the commit and edit hooks run.
 
-Two clusters, and each is the boundary that put it here. The heredoc gate and the interpreter-heredoc
-bug share a runner — one is the rule, the other is the shell shape that walked past it. The
-issues-gate trio shares `issues_gate_harness.py`, a throwaway repo carrying an `ISSUES.md`: the
-duplication gate refused the second inline copy, which is why the harness exists at all.
+Two clusters, and each is the boundary that put it here. The heredoc gate and the interpreter-heredoc bug share a runner — one is the rule, the other is the shell shape that walked past it. The issues-gate trio shares `issues_gate_harness.py`, a throwaway repo carrying an `ISSUES.md`: the duplication gate refused the second inline copy, which is why the harness exists at all.
 
 <!-- routing:start -->
 ## Routing

@@ -80,6 +80,11 @@ for skill in "${GLOBAL_SKILLS[@]}"; do
   fi
 done
 
+# Canonical workspace symlink in $HOME so cd ~/workspace is universal across machines
+if [[ "$WORKSPACE" != "$HOME/workspace" ]]; then
+  link "$WORKSPACE" "$HOME/workspace"
+fi
+
 if [[ "$MODE" == "--check" ]]; then
   [[ $rc -eq 0 ]] && echo "OK: global skill links in sync"
 else

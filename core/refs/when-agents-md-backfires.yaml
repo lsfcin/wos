@@ -1,0 +1,8 @@
+# Reference for when-agents-md-backfires
+key: when-agents-md-backfires
+title: "When AGENTS.md Backfires"
+url: "https://notchrisgroves.com/when-agents-md-backfires/"
+level: C
+section: "Context engineering & progressive disclosure"
+contributions:
+  - "curated context cuts runtime 28.6% and output tokens 16.6% (Lulla et al.); avoid generated bloat."

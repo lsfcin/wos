@@ -34,6 +34,8 @@ SOURCE = ROOT / 'core' / 'agents'
 # failure mode core/flows/craft/routing.md carries a **VOLATILE** banner about.
 CLAUDE = {'low': 'haiku', 'medium': 'sonnet', 'high': 'opus'}
 HARNESSES = {'claude': (CLAUDE, Path('.claude') / 'agents')}
+# On-demand execution only: no Codex agent catalog or mirrored role files.
+CODEX = {'low': 'low', 'medium': 'medium', 'high': 'high'}
 
 FIELD = re.compile(r'^(\w+):[ \t]*(.*)$')
 
@@ -177,6 +179,8 @@ def _listing() -> int:
 		rendered = ' · '.join(f'{harness}: {table.get(level, "?")}'
 		                      for harness, (table, _dir) in HARNESSES.items())
 		print(f'  {name:<12} {level:<7} {rendered}')
+	print('\nCodex loads definitions from core/agents only when the workspace flow requests them; '
+	      'it inherits the session model. Effort: ' + ', '.join(f'{k}={v}' for k, v in CODEX.items()))
 	print('\nThe main thread is not here: its level is chosen when a session is launched, and no '
 	      'config file reaches it. core/levels.txt says why that is still 97.5% of the bill.')
 	return 0

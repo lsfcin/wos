@@ -54,7 +54,7 @@ def collect(data: dict) -> int:
 	existing = target.read_text(encoding='utf-8').splitlines() if target.exists() else []
 	fresh = [line for line in lines if line not in existing]
 	if fresh:
-		# NAMED, NEVER INHERITED (core/tools/test/workspace/test_encoding_ratchet.py). The briefing carries an em dash, and a
+		# NAMED, NEVER INHERITED (core/tools/test/workspace/ceilings/test_encoding_ceiling.py). The briefing carries an em dash, and a
 		# bare open() encodes with the machine's codepage: written cp1252, read back as utf-8,
 		# byte 0x97 raised and the WHOLE hook died -- so a worker got no briefing and the
 		# orchestrator was never told. The read side below already named utf-8; only one half did.

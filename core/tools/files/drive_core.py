@@ -34,6 +34,8 @@ EXPORT_EXT = {
 FILE_FIELDS = "id,name,mimeType,modifiedTime,size,parents,webViewLink"
 
 GDOC_MIME = "application/vnd.google-apps.document"
+GSLIDES_MIME = "application/vnd.google-apps.presentation"
+GSHEET_MIME = "application/vnd.google-apps.spreadsheet"
 
 
 def get_service(alias: str, write: bool = False):
@@ -88,7 +90,7 @@ def download_file(alias: str, file_id: str, dest_dir: pathlib.Path, export_as: s
     else:
         req = svc.files().get_media(fileId=file_id)
 
-    path = dest_dir / name
+    path = dest_dir / name.replace("/", "-")  # a Drive name may hold "/" ("Tec. p/ Educação")
     with open(path, "wb") as fh:
         dl = MediaIoBaseDownload(fh, req)
         done = False
@@ -148,6 +150,11 @@ def copy_file(svc, file_id: str, name: str, parent_id: str) -> dict:
     ).execute()
 
 
+def rename_file(svc, file_id: str, name: str) -> dict:
+    """Rename in place: the id, and so every link already handed out, stays the same."""
+    return svc.files().update(fileId=file_id, body={"name": name}, fields="id, name").execute()
+
+
 def list_permissions(svc, file_id: str) -> list:
     """Who can reach this file, and how. Read before copying anything someone else edits —
     a copy starts private, so the other person silently loses the file unless this is replayed."""
@@ -175,16 +182,16 @@ def trash_file(svc, file_id: str) -> dict:
     return svc.files().update(fileId=file_id, body={"trashed": True}, fields="id, name").execute()
 
 
-def upload_local(svc, path: pathlib.Path, parent_id: str, as_gdoc: bool = False,
+def upload_local(svc, path: pathlib.Path, parent_id: str, convert_to: str = None,
                  name: str = None) -> dict:
-    """Upload a local file to parent_id. When as_gdoc, the target mimeType is a
-    Google Doc so Drive converts (e.g. .docx→Google Doc) on import. Returns the
-    created file's {id, name, webViewLink}."""
+    """Upload a local file to parent_id. convert_to is a Google-native mimeType
+    (GDOC_MIME, GSLIDES_MIME, GSHEET_MIME): Drive converts on import (.docx→Doc, .pptx→Slides, .csv→Sheet,
+    masters and layouts included). Returns the created file's {id, name, webViewLink}."""
     path = pathlib.Path(path)
     media = MediaFileUpload(str(path), resumable=True)
     body = {"name": name or path.name, "parents": [parent_id]}
-    if as_gdoc:
-        body["mimeType"] = GDOC_MIME
+    if convert_to:
+        body["mimeType"] = convert_to
     return svc.files().create(
         body=body, media_body=media, fields="id,webViewLink,name"
     ).execute()

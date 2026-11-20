@@ -29,14 +29,18 @@ for _dir in ('', 'commit', 'git', 'checks', 'stubgen'):
     sys.path.insert(0, str(_HOOKS / _dir))
 
 import file_law  # noqa: E402
-from platform_law import WORKSPACE_ROOT  # noqa: E402
+from platform_law import WORKSPACE_ROOT, interpreter, rel  # noqa: E402
 
 # Every message this pipeline prints carries ⛔ ✓ → ⚠, and a git hook's stdout is whatever pipe
 # git handed it -- on Windows that resolves to the console codepage, where those characters raise
 # UnicodeEncodeError and the gate dies printing its own verdict. Named here so no stage has to
 # think about it, per core/SCHEMA.md: a text stream never inherits the machine's encoding.
+# A stream with no reconfigure is the dispatcher's StringIO capture: already text, nothing to set.
+# Calling it anyway killed every importer run in-process -- the branch gate died silently on every
+# write until 2026-11-10 (b20261110).
 for _stream in (sys.stdout, sys.stderr):
-    _stream.reconfigure(encoding='utf-8', errors='replace')
+    if hasattr(_stream, 'reconfigure'):
+        _stream.reconfigure(encoding='utf-8', errors='replace')
 
 
 class Blocked(Exception):
@@ -78,11 +82,32 @@ def spawn(commit, relative, *args, stdin=None):
     caller sees a traceback where a skip message belonged. Set once here, it covers every child
     rather than being re-fixed in each one.
     """
-    from platform_law import interpreter
-    environment = {**os.environ, 'PYTHONIOENCODING': 'utf-8'}
+    environment ={**os.environ, 'PYTHONIOENCODING': 'utf-8'}
     return subprocess.run([interpreter(), str(commit.root / relative), *args],
                           input=stdin, cwd=commit.toplevel, capture_output=True, text=True,
                           encoding='utf-8', errors='replace', env=environment)
+
+
+def is_partial() -> bool:
+    """`git commit -- <paths>`: hooks get a temp index (next-index-*.lock), not index/index.lock."""
+    return os.path.basename(os.environ.get('GIT_INDEX_FILE') or 'index') not in ('index', 'index.lock')
+
+
+def stage(cwd, *paths, named_only=False) -> None:
+    """git add, tolerant but never silent. `named_only`, in a partial commit: an AGGREGATE (ISSUES.md,
+    GOALS.md, .gitignore) rides only if named; a companion of a named file (stub, CONTEXT.md) always rides.
+
+    A failed add never stops the commit, but it says so: a silent one left the brain stats on disk
+    and out of every commit for weeks (2026-11-06), a dirty tree whose cause nobody could see.
+    """
+    if named_only and is_partial():
+        named = set(git('diff', '--cached', '--name-only', '--relative', cwd=cwd).splitlines())
+        paths = [p for p in paths if Path(os.path.relpath(Path(cwd) / p, cwd)).as_posix() in named]
+    for path in paths:
+        done = subprocess.run(['git', 'add', str(path)], cwd=cwd, capture_output=True, text=True,
+                              encoding='utf-8', errors='replace')
+        if done.returncode:
+            print(f"⚠ could not stage {path} from {cwd}: {done.stderr.strip()}", file=sys.stderr)
 
 
 @dataclass
@@ -159,7 +184,6 @@ def stages() -> list:
             generators.routing,
             generators.interfaces,
             generators.skills,
-            generators.issues,
             gates.lint]
 
 

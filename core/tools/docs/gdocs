@@ -119,7 +119,7 @@ def _parser() -> argparse.ArgumentParser:
     pl.add_argument("--name", default="", help="filter by name substring")
 
     pr = sub.add_parser("read")
-    pr.add_argument("--account", required=True)
+    pr.add_argument("--account", default=None, help="default: the home account (personal)")
     pr.add_argument("--outline", dest="as_outline", action="store_true",
                     help="body indices and structure instead of markdown — the edit handles")
     pr.add_argument("--json", dest="as_json", action="store_true", help="raw API JSON")
@@ -128,38 +128,38 @@ def _parser() -> argparse.ArgumentParser:
     pr.add_argument("document_id")
 
     pn = sub.add_parser("new")
-    pn.add_argument("--account", required=True)
+    pn.add_argument("--account", default=None, help="default: the home account (personal)")
     pn.add_argument("--from", dest="from_md", default="", help="markdown file to convert into the body")
     pn.add_argument("--folder", default="", help="Drive folder id to create it in")
     pn.add_argument("--short-name", default="", help="also mint a short link for the new document")
     pn.add_argument("title")
 
     pp = sub.add_parser("push")
-    pp.add_argument("--account", required=True)
+    pp.add_argument("--account", default=None, help="default: the home account (personal)")
     pp.add_argument("document_id")
     pp.add_argument("md_path", help="markdown file that REPLACES the whole body")
 
     pap = sub.add_parser("apply")
-    pap.add_argument("--account", required=True)
+    pap.add_argument("--account", default=None, help="default: the home account (personal)")
     pap.add_argument("--force", action="store_true",
                      help="skip the index-order check (only if indices account for the shift)")
     pap.add_argument("document_id")
     pap.add_argument("requests_json", help="file holding a JSON array of Docs API requests")
 
     pt = sub.add_parser("text")
-    pt.add_argument("--account", required=True)
+    pt.add_argument("--account", default=None, help="default: the home account (personal)")
     pt.add_argument("--at", type=int, required=True, dest="index")
     pt.add_argument("document_id")
     pt.add_argument("text")
 
     prp = sub.add_parser("replace")
-    prp.add_argument("--account", required=True)
+    prp.add_argument("--account", default=None, help="default: the home account (personal)")
     prp.add_argument("document_id")
     prp.add_argument("old")
     prp.add_argument("new")
 
     pc = sub.add_parser("comments")
-    pc.add_argument("--account", required=True)
+    pc.add_argument("--account", default=None, help="default: the home account (personal)")
     pc.add_argument("--all", action="store_true", dest="include_resolved",
                     help="include resolved threads")
     pc.add_argument("document_id")

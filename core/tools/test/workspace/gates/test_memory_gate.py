@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# T0 the memory gate: a memory is written when Lucas asks for one, and the switch is what says so.
+# T0 the memory gate: the workspace keeps no memory store, and a refused write is routed, not escalated.
 #
 # The gate reads only the payload's path — no repo state, no disk — so unlike the issues-gate trio
 # beside it this needs no throwaway repo, just the two answers and the two paths.
@@ -44,6 +44,14 @@ def test_the_refusal_names_where_the_fact_goes_instead() -> None:
     said = run(STORE).stderr
     for target in ('core/norms/', 'ISSUES.md', 'ROADMAP.md', 'CONTEXT.md'):
         assert target in said, f'the refusal does not route the fact to {target}: {said}'
+
+
+def test_the_refusal_offers_no_switch_to_ask_lucas_for() -> None:
+    """b20260924: the refusal ended with 'switch memory-gate off if Lucas asked', and an agent took
+    that as the path — it passed the question to Lucas instead of routing the fact."""
+    said = run(STORE).stderr
+    assert 'profile.txt' not in said and 'switch' not in said, said
+    assert 'Do not ask Lucas' in said, said
 
 
 def test_a_write_anywhere_else_is_untouched() -> None:

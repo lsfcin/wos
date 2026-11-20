@@ -1,0 +1,8 @@
+# Reference for iso-704-ddd-ubiquitous-language
+key: iso-704-ddd-ubiquitous-language
+title: "ISO 704 / DDD Ubiquitous Language"
+url: "https://www.iso.org/standard/38109.html"
+level: A
+section: "Legidade, vocabulário e registros de decisão"
+contributions:
+  - "term selection prioritizes semantic clarity; one canonical glossary (`core/SCHEMA.md`)."

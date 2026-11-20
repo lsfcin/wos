@@ -7,8 +7,7 @@ description: >
 
 # /accessible-deck
 
-Transform slide presentations into rich, accessible study guides and NotebookLM podcast scripts
-paired with the deck's visual progression.
+Transform slide presentations into rich, accessible study guides and NotebookLM podcast scripts paired with the deck's visual progression.
 
 Arguments: `$ARGUMENTS` (Google Slides URL or presentation ID, or path to local `.pdf` / `.pptx`)
 
@@ -37,18 +36,14 @@ core/run tools/slides/gslides read --account personal <presentation_id>
    core/run tools/slides/gslides sample "$ARGUMENTS" --out /tmp/sample_deck --max-samples 25
    ```
 2. Read the generated `/tmp/sample_deck/manifest.json` and `/tmp/sample_deck/slides_summary.txt`.
-3. The sampler clusters consecutive animation frames (e.g., progressive bullet points or diagram
-   build-ups) and renders only the consolidated key slides into `/tmp/sample_deck/imgs/`.
-4. Inspect the rendered PNG images using your visual/multimodal inspection tools to understand
-   the exact visual geometry, equations, flowcharts and spatial layout.
+3. The sampler clusters consecutive animation frames (e.g., progressive bullet points or diagram build-ups) and renders only the consolidated key slides into `/tmp/sample_deck/imgs/`.
+4. Inspect the rendered PNG images using your visual/multimodal inspection tools to understand the exact visual geometry, equations, flowcharts and spatial layout.
 
 ### Step 2: Educational Node Mapping
-Group the slides into coherent thematic modules according to the Didactic Tree
-([`academy/teaching/SPECS-aulas.md`](../../academy/teaching/SPECS-aulas.md)). Each module typically covers 3 to 10
-slides representing one conceptual milestone.
+Group the slides into coherent thematic modules according to the Didactic Tree ([`academy/teaching/SPECS-aulas.md`](../../academy/teaching/SPECS-aulas.md)). Each module typically covers 3 to 10 slides representing one conceptual milestone.
 
 ### Step 3: Authoring the Tri-Block Guide
-Generate a Markdown document (recommended path: `academy/teaching/<turma>/<nome>-guia-acessivel-slides.md`).
+Generate a Markdown document (recommended path: `academy/teaching/classes/<turma>/<nome>-guia-acessivel-slides.md`).
 The file must strictly follow the **Tri-Block standard**:
 
 - **Header & Meta:**
@@ -76,8 +71,7 @@ The file must strictly follow the **Tri-Block standard**:
 Ensure the written text contains:
 - Rhetorical questions and conversational bridges between sections.
 - Conceptual contrast pairs (e.g., "RNN sequential bottleneck vs. Transformer parallel attention").
-- Step-by-step instructions at the top for the user to upload the Markdown file + Slides PDF into
-  [Google NotebookLM](https://notebooklm.google.com/) and generate an Audio Overview episode.
+- Step-by-step instructions at the top for the user to upload the Markdown file + Slides PDF into [Google NotebookLM](https://notebooklm.google.com/) and generate an Audio Overview episode.
 
 ---
 
@@ -92,5 +86,5 @@ When describing complex diagrams for blind or low-vision students:
 
 ## 4. Reference Implementation
 
-- Canonical production example: [`academy/teaching/ai4good/transformers-guia-acessivel-slides.md`](../../academy/teaching/ai4good/transformers-guia-acessivel-slides.md)
+- Canonical production example: [`academy/teaching/classes/ai4good/transformers-guia-acessivel-slides.md`](../../academy/teaching/classes/ai4good/transformers-guia-acessivel-slides.md)
 - Governed by: [`academy/teaching/SPECS-aulas.md`](../../academy/teaching/SPECS-aulas.md)

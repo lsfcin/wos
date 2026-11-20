@@ -1,0 +1,8 @@
+# Reference for self-improvements-in-modern-agentic-systems
+key: self-improvements-in-modern-agentic-systems
+title: "Self-Improvements in Modern Agentic Systems"
+url: "https://arxiv.org/abs/2607.13104"
+level: P
+section: "Context engineering & progressive disclosure"
+contributions:
+  - "(KAUST, 2026-07) — agent = model + the layer around it (prompts, memory, tools, control logic); self-improvement updates that layer."

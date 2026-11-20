@@ -136,3 +136,53 @@ def test_a_thinking_heavy_session_does_not_read_as_self_authored(tmp_path):
 	assert 'written ourselves 0.0%' in printed
 	assert 'of which unlogged 100.0%' in printed
 	assert 'really costs 1.0x list price' in printed
+
+
+def test_codex_usage_records_are_not_counted_again_as_token_events(tmp_path, monkeypatch):
+	root = tmp_path / 'sessions'
+	root.mkdir()
+	usage = {'input_tokens': 1000, 'cached_input_tokens': 900, 'output_tokens': 100, 'reasoning_output_tokens': 80}
+	info = {'last_token_usage': usage, 'total_token_usage': usage}
+	records = [{'type': 'session_meta', 'payload': {'id': 'native-id', 'cwd': '/ws'}},
+	           {'type': 'turn_context', 'payload': {'model': 'gpt-6.1-sol'}},
+	           {'type': 'response_item', 'payload': {'type': 'message', 'role': 'assistant',
+	              'content': [{'type': 'output_text', 'text': 'ok'}]}},
+	           {'type': 'token_usage_record', 'payload': {'response_id': 'response-1', 'usage': usage}},
+	           {'type': 'event_msg', 'payload': {'type': 'token_count', 'info': info}},
+	           {'type': 'event_msg', 'payload': {'type': 'token_count', 'info': info}}]
+	path = root / 'rollout-native-id.jsonl'
+	path.write_text('\n'.join(json.dumps(r) for r in records), encoding='utf-8', newline='\n')
+	monkeypatch.setattr(session_turns, 'CODEX_ROOT', root)
+	rows = list(turns('-ws', 'native-id', 'codex'))
+	assert len(rows) == 1 and rows[0][0] == 1000 and rows[0][4] == 100
+	assert rows[0][5] == pytest.approx(2 / CHARS_PER_TOKEN)
+	assert sum(rows[0][1].values()) == pytest.approx(0.00129)
+	assert session_turns.paths_for('-other', provider='codex') == []
+
+
+def test_codex_older_logs_dedupe_cumulative_updates_and_track_model_changes(tmp_path):
+	usage = {'input_tokens': 1000, 'cached_input_tokens': 900, 'output_tokens': 100}
+	info = {'last_token_usage': usage, 'total_token_usage': usage}
+	token = {'type': 'event_msg', 'payload': {'type': 'token_count', 'info': info}}
+	records = [{'type': 'turn_context', 'payload': {'model': 'gpt-6.1-sol'}}, token, token,
+	           {'type': 'turn_context', 'payload': {'model': 'unknown-native-model'}},
+	           {'type': 'event_msg', 'payload': {'type': 'token_count', 'info': {
+	              'last_token_usage': {**usage, 'input_tokens': 950},
+	              'total_token_usage': {'input_tokens': 1950}}}}]
+	path = tmp_path / 'native.jsonl'
+	path.write_text('\n'.join(json.dumps(r) for r in records), encoding='utf-8', newline='\n')
+	rows = list(session_turns.responses(path).values())
+	assert len(rows) == 2
+	assert rows[1][2] == 'unpriced (unknown-native-model)'
+	assert sum(rows[1][1].values()) == 0
+	from session_log import walk
+	assert rows[1][0] == 950 and walk(path)['peak'] == 1000
+
+
+def test_native_long_context_prices_the_full_request_without_double_billing_reasoning():
+	from session_cost import turn_components
+	short = {'input_tokens': 272000, 'output_tokens': 100}
+	long = {'input_tokens': 272001, 'output_tokens': 100}
+	assert turn_components('gpt-6.1-sol', short)['input'] == pytest.approx(0.544)
+	assert turn_components('gpt-6.1-sol', long)['input'] == pytest.approx(1.088004)
+	assert turn_components('gpt-6.1-sol', long)['output'] == pytest.approx(0.0015)

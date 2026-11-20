@@ -10,7 +10,7 @@ import tool_law  # noqa: E402
 from video_core import assemble
 
 USAGE = ("Usage: core/tools/video/video <url>... | --from <file> "
-         "[--level auto|meta|captions|speech|ocr|visual|full] [--save] [--json]")
+         "[--level auto|meta|captions|speech|ocr|visual|full] [--save] [--json] [--force]")
 FETCH = pathlib.Path(__file__).resolve().parents[1] / "web" / "fetch"
 # ) and ] are excluded so a markdown link yields the url, not the closing bracket.
 URL_RE = re.compile(r'https?://[^\s<>"\'()\[\]]+')
@@ -34,10 +34,13 @@ def web_fetch(url):
     return r.stdout.strip()
 
 
-def extract_one(url, level="auto", save=False, _assemble=None, _fetch=None):
+def extract_one(url, level="auto", save=False, force=False, _assemble=None, _fetch=None):
     """One bundle for one url. Never raises: a failure is a bundle with ok=False."""
     try:
-        b = (_assemble or assemble)(url, level=level, save=save)
+        try:
+            b = (_assemble or assemble)(url, level=level, save=save, force=force)
+        except TypeError:
+            b = (_assemble or assemble)(url, level=level, save=save)
     except Exception as e:                                    # noqa: BLE001 - isolate the link
         b = {"url": url, "source": url, "ok": False, "method": "none",
              "text": "", "error": f"{type(e).__name__}: {e}"}
@@ -55,9 +58,9 @@ def extract_one(url, level="auto", save=False, _assemble=None, _fetch=None):
     return b
 
 
-def run_batch(urls, level="auto", save=False, _assemble=None, _fetch=None):
+def run_batch(urls, level="auto", save=False, force=False, _assemble=None, _fetch=None):
     """One bundle per url. A failing link never stops the ones behind it."""
-    return [extract_one(u, level, save, _assemble, _fetch) for u in urls]
+    return [extract_one(u, level, save, force, _assemble, _fetch) for u in urls]
 
 
 def print_block(b, idx=None, total=None):
@@ -69,6 +72,9 @@ def print_block(b, idx=None, total=None):
         print(f"by {b['uploader']}")
     if not b.get("ok"):
         print(f"[incomplete: {b.get('error')}]", file=sys.stderr)
+    if b.get("held_long_video"):
+        print(f"[HELD: {b.get('long_video_reason')}]", file=sys.stderr)
+        print(f"[To extract full video frames: core/run tools/video/video {b['url']} --level full --force]", file=sys.stderr)
     print()
     print(b.get("text") or "(no text extracted)")
     if b.get("saved_path"):
@@ -76,8 +82,8 @@ def print_block(b, idx=None, total=None):
 
 
 def parse_args(args):
-    """-> (urls, level, save, as_json). Raises ValueError with a message on misuse."""
-    urls, level, save, as_json, src = [], "auto", False, False, None
+    """-> (urls, level, save, as_json, force). Raises ValueError with a message on misuse."""
+    urls, level, save, as_json, force, src = [], "auto", False, False, False, None
     i = 0
     while i < len(args):
         a = args[i]
@@ -92,6 +98,8 @@ def parse_args(args):
             save = True
         elif a == "--json":
             as_json = True
+        elif a == "--force":
+            force = True
         elif a.startswith("-"):
             raise ValueError(f"unknown option: {a}")
         else:
@@ -104,7 +112,7 @@ def parse_args(args):
         urls = urls_from_text(path.read_text(encoding='utf-8')) + urls
     if level == "meta":
         level = "metadata"
-    return urls, level, save, as_json
+    return urls, level, save, as_json, force
 
 
 def main(argv=None):
@@ -114,7 +122,7 @@ def main(argv=None):
         print(USAGE, file=sys.stderr)
         return 1
     try:
-        urls, level, save, as_json = parse_args(args)
+        urls, level, save, as_json, force = parse_args(args)
     except ValueError as e:
         print(f"{e}\n{USAGE}", file=sys.stderr)
         return 1
@@ -122,7 +130,7 @@ def main(argv=None):
         print("no links found — nothing to extract", file=sys.stderr)
         return 0
 
-    bundles = run_batch(urls, level=level, save=save)
+    bundles = run_batch(urls, level=level, save=save, force=force)
     if as_json:
         print(json.dumps(bundles, ensure_ascii=False, indent=2))
         return 0

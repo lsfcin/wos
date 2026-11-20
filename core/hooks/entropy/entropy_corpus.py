@@ -8,7 +8,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from platform_law import posix  # noqa: E402
+from file_law import is_vendored  # noqa: E402
+from platform_law import is_repo, posix  # noqa: E402
 
 # What a markdown link looks like, defined once. Two checks ask different questions of the same
 # syntax — core/tools/test/workspace/test_pointer_integrity.py asks whether a target EXISTS and
@@ -26,7 +27,7 @@ SKIP_DIRS = {'.venv', 'node_modules', '.mypy_cache', '.pytest_cache', '.Trash-10
              'Downloads'}
 
 def staged_added_files() -> list:
-    """Only files this commit ADDS — the ratchet every Level 0 gate shares.
+    """Only files this commit ADDS — the ceiling every Level 0 gate shares.
 
     Renames count as adds of the new name: a file arriving under a new name is arriving,
     and the gates that read this all ask about the name and the content it lands with.
@@ -80,7 +81,7 @@ def owning_repo(path: Path, root: Path) -> Path:
     straight past its own `.git`, called root the owner, and root's .gitignore names every
     nested repo wholesale, so `code/CONTEXT.md` lost all 15 project rows at once.
     """
-    return next((d.resolve() for d in [path, *path.parents] if (d / '.git').exists()),
+    return next((d.resolve() for d in [path, *path.parents] if is_repo(d)),
                 root.resolve())
 
 
@@ -116,7 +117,7 @@ def nested_repos(root: Path, depth: int = 3) -> list:
         for child in directory.iterdir():
             if not child.is_dir() or child.name.startswith('.') or child.name in SKIP_DIRS:
                 continue
-            if (child / '.git').exists():
+            if is_repo(child):
                 found.append(child)
             else:
                 walk(child, level + 1)
@@ -145,6 +146,7 @@ def declared_projects(root: Path) -> set:
 # list the day it is registered, or it is counted as authored prose nobody can fix. Only the
 # skills subtree is a mirror: a harness's own config and CONTEXT.md are authored.
 MIRRORS = ('.claude/', '.opencode/', '.github/', '.zcode/skills/')
+_ROOT = Path(__file__).resolve().parents[3]
 
 
 def is_generated_mirror(path: Path) -> bool:
@@ -152,7 +154,12 @@ def is_generated_mirror(path: Path) -> bool:
     # where a path stringifies with `\` not one of them matched and every mirror was judged as
     # authored prose — findings against files nobody can edit, in the report that exists to list
     # only what someone can act on.
-    return any(part in posix(path) for part in MIRRORS)
+    # RELATIVE TO THE ROOT this code serves, never absolute: a worktree lives under .claude/worktrees/,
+    # so every file in one matched `.claude/` and the checks run there were blind (2026-10-24).
+    # absolute(), not resolve(): a mirror may be a symlink, and its target is authored prose.
+    where = Path(path).absolute()
+    seen = where.relative_to(_ROOT) if where.is_relative_to(_ROOT) else where
+    return any(part in posix(seen) for part in MIRRORS)
 
 
 # The law, the check that enforces it, that check's tests, and the report that quotes the findings
@@ -179,20 +186,14 @@ _LOCAL_LIST = 'ISSUES.md'
 
 
 def enforcement_paths(root: Path) -> set:
+    # A VENDORED FILE IS EXEMPT FOR THE OPPOSITE REASON to everything above it: those may name a
+    # retired token because they are the law about it, this one because the words are not ours to
+    # rename. core/hooks/vendored.txt already promises exemption from every authoring rule and
+    # this check never read it, so a draft another harness wrote sat in the report as a finding
+    # nobody could clear — the fix would have edited the artifact being compared (2026-09-18).
     here = Path(__file__).resolve().parent
     return ({(root / name).resolve() for name in ENFORCEMENT}
             | {here / name for name in _CHECKER}
             | {p.resolve() for pattern in _CHECKER_TESTS for p in root.glob(pattern)}
-            | {(repo / _LOCAL_LIST).resolve() for repo in nested_repos(root)})
-
-
-# brain/memory holds cross-session agent memory, and its `[[name]]` names ANOTHER MEMORY rather
-# than a goal. A name with no file yet is allowed there on purpose — it marks a memory worth
-# writing later. Only the wiki-link check is relaxed: retired tokens are still enforced there, and
-# the day the store arrived that check caught four memories naming files renamed in July.
-# Memory rots exactly like documentation, and nothing was watching it before.
-MEMORY_DIR = 'brain/memory'
-
-
-def wiki_exempt_paths(root: Path) -> set:
-    return enforcement_paths(root) | {p.resolve() for p in (root / MEMORY_DIR).rglob('*.md')}
+            | {(repo / _LOCAL_LIST).resolve() for repo in nested_repos(root)}
+            | {p.resolve() for p in tracked_files(root) if is_vendored(p, root)})

@@ -1,4 +1,4 @@
-# Usage: core/tools/wos/diagram/architecture [--out <path>] [--check] — draw the workspace as it is (enforcement matrix, routing spine, folder mass) into one self-contained ARCHITECTURE.html; --check exits 1 when the committed file is stale
+# Usage: core/tools/wos/diagram/architecture [--out <path>] [--check] — draw the workspace as it is (enforcement matrix, routing tree, folder mass) into one self-contained ARCHITECTURE.html; --check exits 1 when the committed file is stale
 #
 # Zero-token and deterministic: no model runs, and the output carries no timestamp and no commit
 # sha. That is what makes --check meaningful — the file changes when the WORKSPACE changed, and
@@ -6,7 +6,7 @@
 import sys
 from pathlib import Path
 
-# NAMED, NEVER INHERITED - the law is core/tools/test/workspace/test_encoding_ratchet.py. This tool
+# NAMED, NEVER INHERITED - the law is workspace/ceilings/test_encoding_ceiling.py. This tool
 # prints a status line carrying non-ascii, and a console codepage cannot encode it: the run dies
 # after drawing the whole page. core/run exports PYTHONIOENCODING for what it spawns, which is
 # /roundup and not the suite, so the tool says it itself rather than trusting who launched it.
@@ -23,13 +23,13 @@ import diagram_lifecycle as lifecycle_form
 import diagram_matrix as matrix_form
 import diagram_overview as overview_form
 import diagram_page as page
-import diagram_spine as spine_form
+import diagram_routing as routing_form
 import diagram_treemap as mass_form
 import tool_law
 from diagram_data import WORKSPACE_ROOT
 
 OUTPUT = WORKSPACE_ROOT / 'ARCHITECTURE.html'
-SPINE_DEPTH = 3
+ROUTING_DEPTH = 3
 
 
 def build() -> tuple:
@@ -42,7 +42,8 @@ def build() -> tuple:
     panels = {
         'matrix': (matrix_form.render(rows, columns, cells, data.trigger_of),
                    matrix_form.legend()),
-        'spine': (spine_form.render(nodes, edges, SPINE_DEPTH), spine_form.legend(coverage)),
+        'routing': (routing_form.render(nodes, edges, ROUTING_DEPTH),
+                    routing_form.legend(coverage)),
         'mass': (mass_form.render(mass), mass_form.legend(mass)),
     }
     summary = overview_form.render(health.by_layer(rows, 'automatic'),
@@ -88,7 +89,7 @@ def report(coverage: dict, counts: dict) -> None:
           f'· {counts["features"]} features · {counts["directories"]} directories')
     if unparsed:
         print(f'  {len(unparsed)} UNPARSED: ' + ', '.join(unparsed))
-        print('  those subtrees are missing from the spine — fix the routing block, then re-run.')
+        print('  those subtrees are missing from the drawing — fix the routing block, then re-run.')
 
 
 FLAGS = ('--out', '--check')

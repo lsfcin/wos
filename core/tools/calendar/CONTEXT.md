@@ -1,9 +1,7 @@
 # calendar
 > Read what is scheduled. Provider leaf: `gcalendar`. Auth: [`../auth/gauth.py`](../auth/gauth.py).
 
-Read-only by design — nothing here writes an event. `--account all` fans out over every alias in
-`accounts.json`, which is the normal case: Lucas's teaching, research and personal calendars are
-three separate Google accounts.
+Read-only by design — nothing here writes an event. `--account all` fans out over every alias in `accounts.json`, which is the normal case: Lucas's teaching, research and personal calendars are three separate Google accounts.
 
 <!-- routing:start -->
 ## Routing

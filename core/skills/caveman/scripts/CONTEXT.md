@@ -4,17 +4,9 @@
 
 Run from the parent directory: `python3 -m scripts <absolute-filepath>`.
 
-Third-party code synced from upstream — attribution in [`../CONTEXT.md`](../CONTEXT.md). It
-**complies with workspace rules** like first-class code: there is **no `.vendor` exemption** (one
-was tried and rejected — see `../SPECS.md` § Local adaptations), so these files were **split to
-satisfy the size gate**, not exempted from it. Record any re-split there so the next upstream re-sync
-can diff. It carries generated `.pyi` stubs like every other source directory; being package-shaped
-(`__init__.py`) buys it no exemption from that either.
+Third-party code synced from upstream — attribution in [`../CONTEXT.md`](../CONTEXT.md). It **complies with workspace rules** like first-class code: there is **no `.vendor` exemption** (one was tried and rejected — see `../SPECS.md` § Local adaptations), so these files were **split to satisfy the size gate**, not exempted from it. Record any re-split there so the next upstream re-sync can diff. It carries generated `.pyi` stubs like every other source directory; being package-shaped (`__init__.py`) buys it no exemption from that either.
 
-**The pass is ordered so the cheapest step can refuse the expensive one**: detect the file type
-locally, spending no model tokens; compress; then validate what the model was forbidden to touch and
-cherry-pick fixes, up to two retries. The layering is declared in `__init__.py` — nothing imports
-upward.
+**The pass is ordered so the cheapest step can refuse the expensive one**: detect the file type locally, spending no model tokens; compress; then validate what the model was forbidden to touch and cherry-pick fixes, up to two retries. The layering is declared in `__init__.py` — nothing imports upward.
 
 <!-- routing:start -->
 ## Routing

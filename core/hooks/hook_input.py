@@ -189,9 +189,9 @@ def mark_facade(session_id: str, path: str) -> None:
 def announced(session_id: str, kind: str, key: str) -> bool:
 	"""True when `key` has already been said this session — and records it when it has not.
 
-	Every "say it once" nudge wants this and each used to grep its own text file for a substring,
+	Every "say it once" reminder wants this and each used to grep its own text file for a substring,
 	which matched a path that merely CONTAINED another. Ask-and-record in one call, because the two
-	halves apart are what let a nudge mark itself said on a turn it was never shown.
+	halves apart are what let a reminder mark itself said on a turn it was never shown.
 	"""
 	if key in _load(session_id, kind):
 		return True

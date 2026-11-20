@@ -60,13 +60,8 @@ npm run verify:fast   # or make verify-fast
 npm run verify:full   # or make verify-full
 ```
 
-TypeScript projects: include `tsc --noEmit` in `verify:fast` alongside lint+unit from day
-one — it's cheap to keep clean early, expensive to retrofit later (see code/ROADMAP-verify.md G7:
-isoroll deferred this and accumulated 304 strict-mode errors before anyone noticed). If the
-project uses `@league-of-foundry-developers/foundry-vtt-types` or similar ambient-global
-type packages, set `"types": ["<package-name>"]` explicitly in tsconfig.json — don't rely
-on `typeRoots` pointing into the package's `src/`, and never leave `"types": []` set (it
-silently disables all global type inclusion).
+TypeScript projects: include `tsc --noEmit` in `verify:fast` alongside lint+unit from day one — it's cheap to keep clean early, expensive to retrofit later (see code/ROADMAP-verify.md G7:
+isoroll deferred this and accumulated 304 strict-mode errors before anyone noticed). If the project uses `@league-of-foundry-developers/foundry-vtt-types` or similar ambient-global type packages, set `"types": ["<package-name>"]` explicitly in tsconfig.json — don't rely on `typeRoots` pointing into the package's `src/`, and never leave `"types": []` set (it silently disables all global type inclusion).
 
 ## Release
 <!-- Optional. How to cut a release, create a tag, or deploy.

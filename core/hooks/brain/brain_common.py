@@ -9,12 +9,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from platform_law import rel  # noqa: E402
 
-# Paths stay workspace-relative: the hooks run with cwd at the workspace root and git
-# reports --name-only against the same origin, so a relative path compares directly to
-# what git prints. WORKSPACE is the one absolute, needed to resolve an owned path to the
-# nested repo that actually holds its history.
+# Paths are relative to the brain repo's root: brain/ is its own repo since 2026-11-19, and these
+# run as its pre-commit generator with cwd there, so a path compares directly to what git prints.
+# WORKSPACE is the one absolute, needed to resolve an owned path to the repo holding its history.
 WORKSPACE  = Path(__file__).resolve().parents[3]
-BRAIN      = Path("brain")
+BRAIN      = Path(".")
 GOALS_FILE = BRAIN / "GOALS.md"
 LOG_DIR    = BRAIN / ".log"        # runtime state only (compass-last.txt), never an archive
 GOALS_DIR  = BRAIN / "goals"
@@ -40,7 +39,30 @@ PERIODS = [
 
 DONE_KEEP = 3
 
-AREAS = ["health", "career", "finances", "fun", "spiritual"]
+# THE AREAS ARE THE LAW'S, NOT THIS FILE'S. They were a list here, a prose line in core/hooks/brain/SPECS.md
+# and a comment in the goal template — three declarations, and on 2026-09-18 all three
+# disagreed: the spec had dropped `craft`, the template had dropped `career`, and this list had
+# dropped `craft` too, so twelve goals drew no area bar at all and the workspace goal only showed up
+# because it was filed under `health`. Read from the file that owns the definition, same as every
+# other law module in this workspace reads its answer out of a data file rather than holding one.
+# The list wraps over several lines and `Horizon:` is the next thing in the file, so the capture
+# has to stop there — reading one line would have found three of the six and reading to the blank
+# line finds the horizons as well, which is how a parser invents an area called `dream`.
+_AREA_LINE = re.compile(r'^Area\s+—\s+((?:.*\n?)*?)(?=^\s*$|^Horizon)', re.M)
+
+
+def areas(spec=Path(__file__).resolve().parent / "SPECS.md"):
+    """The goal areas core/hooks/brain/SPECS.md declares, in the order it declares them.
+
+    Empty when the spec is missing — a clone before install — and every caller draws no area bar
+    rather than inventing five. A default here would be a fourth declaration.
+    """
+    try:
+        text = Path(spec).read_text(encoding="utf-8")
+    except OSError:
+        return []
+    found = _AREA_LINE.search(text)
+    return list(dict.fromkeys(re.findall(r'`([a-z]+)`', found.group(1)))) if found else []
 
 
 def git(*args):

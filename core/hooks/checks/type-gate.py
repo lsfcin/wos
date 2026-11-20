@@ -8,7 +8,7 @@
 # class the gate is meant to catch — a second copy in the checker would be the same bug
 # wearing a lab coat.
 #
-# Ratchet, like the spec-drive gate (core/hooks/pre-commit 1d): only files this commit ADDS
+# A ceiling, like the spec-drive gate (core/hooks/pre-commit 1d): only files this commit ADDS
 # are blocked. Pre-existing violations are reported by the entropy dashboard
 # (entropy-dashboard.py), not by failing every commit in a repo that
 # inherited them.
@@ -22,10 +22,10 @@ sys.path.insert(0, str(_HOOKS))
 sys.path.insert(0, str(_HOOKS / 'entropy'))
 
 import feature_law  # noqa: E402
+from file_law import is_generated_artifact  # noqa: E402
 from entropy_context import (check_description, check_goal_link,  # noqa: E402
                              check_inventory)
-from entropy_corpus import (enforcement_paths, staged_added_files,  # noqa: E402
-                            wiki_exempt_paths)
+from entropy_corpus import enforcement_paths, staged_added_files  # noqa: E402
 from entropy_fields import field_hits  # noqa: E402
 from entropy_list import (finished_work_hits, goal_vocabulary,  # noqa: E402
                             wiki_link_hits)
@@ -52,7 +52,10 @@ def check_name(path: Path, allowed: set, exempt: set) -> str | None:
 
 
 def failures_for(path: Path, allowed: set, exempt: set, scopes: dict,
-                 vocabulary: set) -> list:
+                 vocabulary: set, enforced: set | None = None) -> list:
+    # `enforced` walks the whole tree: main() asks once per commit, not twice per staged file —
+    # a 687-file sync commit spent two minutes here and timed out the target's suite (2026-11-20).
+    enforced = enforcement_paths(WORKSPACE_ROOT) if enforced is None else enforced
     found = [f for f in (check_name(path, allowed, exempt),
                          check_inventory(path) if path.name == 'CONTEXT.md' else None,
                          check_description(path),
@@ -61,14 +64,14 @@ def failures_for(path: Path, allowed: set, exempt: set, scopes: dict,
                          check_dirs(path, WORKSPACE_ROOT),
                          check_placement(path, scopes, WORKSPACE_ROOT)) if f]
     return (found
-            + wiki_link_hits([path], vocabulary, wiki_exempt_paths(WORKSPACE_ROOT))
+            + wiki_link_hits([path], vocabulary, enforced)
             # Completion is deletion, and until this line the rule was detected by the dashboard
-            # and enforced by nobody. Ratcheted like everything else here: a file this commit ADDS
+            # and enforced by nobody. Held like everything else here: a file this commit ADDS
             # may not arrive already describing work that landed. The inherited queue stays the
-            # dashboard's, on the ceiling in test_corpus_ratchet.py.
-            + finished_work_hits([path], enforcement_paths(WORKSPACE_ROOT))
+            # dashboard's, on the ceiling in ceilings/test_corpus_ceiling.py.
+            + finished_work_hits([path], enforced)
             # The two doubt stores are small, closed and clean today, so this one goes in total
-            # rather than on a ratchet: a new experiment or a newly judged reference arrives with
+            # rather than on a ceiling: a new experiment or a newly judged reference arrives with
             # the discipline or does not arrive (core/SPECS.md § AD-16 band 1).
             + experiment_hits([path]) + ref_level_hits([path])
             # A header field naming our own code is a claim about our own tree, and the tree is
@@ -87,10 +90,12 @@ def main() -> int:
     allowed, exempt = load_law(SCHEMA)
     scopes = load_scopes(SCHEMA)
     vocabulary = goal_vocabulary(WORKSPACE_ROOT / 'brain/goals')
-    failures = []
+    failures, enforced = [], enforcement_paths(WORKSPACE_ROOT)
     for path in staged_added_files():
-        if path.exists():
-            failures.extend(failures_for(path, allowed, exempt, scopes, vocabulary))
+        # A tool's output is exempt from every authoring rule (core/hooks/generated.txt), and this
+        # gate's rules are authoring rules: a PDF twin inherits its PDF's name and opens on frontmatter.
+        if path.exists() and not is_generated_artifact(path.resolve(), WORKSPACE_ROOT):
+            failures.extend(failures_for(path, allowed, exempt, scopes, vocabulary, enforced))
     if failures:
         print('⛔ type gate:')
         for failure in failures:

@@ -1,9 +1,7 @@
 # Core
 > Agent library: skills, agents, prompts, flows, tools. Provider-agnostic.
 
-**Runtime-agnostic** — no provider-specific code. Skills invoke via `/skill-name`. Tools call via
-bash. Flows orchestrate agents. `agents/lead.md` is the entrypoint for any research task; it plans
-and spawns the specialist workers beside it.
+**Runtime-agnostic** — no provider-specific code. Skills invoke via `/skill-name`. Tools call via bash. Flows orchestrate agents. `agents/lead.md` is the entrypoint for any research task; it plans and spawns the specialist workers beside it.
 
 <!-- routing:start -->
 ## Routing
@@ -14,8 +12,9 @@ and spawns the specialist workers beside it.
 | [`flows/`](flows/CONTEXT.md) | Workflow protocols; each names the agents and steps to execute. |
 | [`hooks/`](hooks/CONTEXT.md) | The enforcement layer: git hooks, agent lifecycle hooks, and the Level 0 checks they run. |
 | [`norms/`](norms/CONTEXT.md) | Rules obeyed rather than enforced. One file each; `AGENTS.md`'s rule block is generated from them. |
-| [`refs/`](refs/CONTEXT.md) | Captured references for the agent library / workspace-os scaffold — level-1 links in [REFS.md](refs/REFS.md). |
+| [`refs/`](refs/CONTEXT.md) | Captured references for the agent library — level-1 links in [REFS.md](refs/REFS.md). |
 | [`skills/`](skills/CONTEXT.md) | Agent skills — provider-agnostic workflows invoked as slash commands or by instruction. |
+| [`state/`](state/CONTEXT.md) | — |
 | [`tools/`](tools/CONTEXT.md) | CLI tools callable via bash, one directory per family; routing block auto-synced on save. |
 
 | File | Description |

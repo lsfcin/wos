@@ -226,11 +226,12 @@ def report() -> Report:
     f = floor()
     pool = eligible(f)
     seeds = expand(claims(), pool)
-    # A `file` or `tree` row is substrate: SETUP.md § substrate names the category — what every
-    # feature runs on, which installs no feature and gets no registry row. The floor names each one
-    # with its reason, and that IS the claim; asking a feature to claim verify.py would invent owner.
-    substrate = list(f.files) + [p for p in pool if any(p.startswith(t + '/') for t in f.trees)]
-    crossing = closure([c.path for c in seeds] + substrate, pool)
+    # A `file` or `tree` row is machine state: SETUP.md § machine state names the category — what
+    # every feature runs on, which installs no feature and gets no registry row. The floor names each
+    # one with its reason, and that IS the claim; asking a feature to claim verify.py would invent an
+    # owner.
+    machine_state = list(f.files) + [p for p in pool if any(p.startswith(t + '/') for t in f.trees)]
+    crossing = closure([c.path for c in seeds] + machine_state, pool)
     crossing |= _paired(crossing, pool)
     crossing |= _described(crossing, pool)
     by_feature: dict[str, set[str]] = {}
