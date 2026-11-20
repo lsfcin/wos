@@ -1,0 +1,8 @@
+# Reference for mermaid
+key: mermaid
+title: "Mermaid"
+url: "https://mermaid.js.org/"
+level: C
+section: "Tooling, visualization & evaluation"
+contributions:
+  - "+ `git log --numstat` — zero-binary self-contained dependency & evolution diagram generation."

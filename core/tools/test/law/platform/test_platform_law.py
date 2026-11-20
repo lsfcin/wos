@@ -62,3 +62,34 @@ def test_every_shell_hook_parses_including_the_ones_with_no_extension():
         if done.returncode != 0:
             broken.append(f'{script.relative_to(WORKSPACE_ROOT).as_posix()}: {done.stderr.strip()}')
     assert not broken, 'shell scripts that will not parse:\n' + '\n'.join(broken)
+
+
+def _dot_git(tmp_path, kind):
+    if kind == 'head':
+        (tmp_path / '.git').mkdir()
+        (tmp_path / '.git' / 'HEAD').write_text('ref: refs/heads/main\n', encoding='utf-8', newline='\n')
+    elif kind == 'file':
+        (tmp_path / '.git').write_text('gitdir: ../x\n', encoding='utf-8', newline='\n')
+    elif kind == 'empty':
+        (tmp_path / '.git').mkdir()
+
+
+def test_a_repo_is_a_git_dir_with_a_head_or_a_git_file(tmp_path):
+    """The Codex sandbox leaves EMPTY `.git` mount points; those are not repos."""
+    for kind, expected in (('head', True), ('file', True), ('empty', False), ('none', False)):
+        sub = tmp_path / kind
+        sub.mkdir()
+        _dot_git(sub, kind)
+        assert platform_law.is_repo(sub) is expected, kind
+        assert platform_law.is_repo(str(sub)) is expected, kind
+
+
+def test_no_hook_tests_for_a_repo_by_whether_dot_git_exists():
+    """One definition of "is a repo": grep the hooks for the bare test it replaces."""
+    import re
+    bare = re.compile(r"""['"]\.git['"]\)\.(exists|is_dir|is_file)\(""")
+    hits = [p for p in (WORKSPACE_ROOT / 'core/hooks').rglob('*.py') if bare.search(p.read_text(encoding='utf-8'))]
+    assert not hits, hits
+    defs = [p for p in (WORKSPACE_ROOT / 'core').rglob('*.py')
+            if re.search(r'^def is_repo\b', p.read_text(encoding='utf-8'), re.M)]
+    assert len(defs) == 1, defs

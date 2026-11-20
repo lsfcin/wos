@@ -15,7 +15,7 @@ from test_pointer_integrity import check_separators
 
 def _context(tmp_path, body):
     (tmp_path / "CONTEXT.md").write_text(body, encoding="utf-8", newline="\n")
-    return check_separators(tmp_path, tmp_path / "no-memory-here")
+    return check_separators(tmp_path)
 
 
 def test_a_backslash_in_a_link_target_is_a_finding(tmp_path):
@@ -49,8 +49,7 @@ def test_a_posix_target_is_clean(tmp_path):
 
 
 def test_the_whole_workspace_is_clean():
-    """Not a ratchet: the corpus was swept when the two generators were fixed."""
+    """Not a ceiling: the corpus was swept when the two generators were fixed."""
     from conftest import WORKSPACE_ROOT
-    from test_pointer_integrity import MEMORY_DIR
-    failures = check_separators(WORKSPACE_ROOT, MEMORY_DIR)
+    failures = check_separators(WORKSPACE_ROOT)
     assert not failures, "Host separators published into content:\n" + "\n".join(failures)

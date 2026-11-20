@@ -14,6 +14,7 @@
 import json
 import subprocess
 import sys
+import uuid
 from types import SimpleNamespace
 
 from conftest import WORKSPACE_ROOT
@@ -28,6 +29,13 @@ from generators import _sweep  # noqa: E402
 from stubs import interface_for  # noqa: E402
 
 
+def _session(name: str) -> str:
+    """A session no earlier run has used. The gate's markers live in core/state and outlive a reboot;
+    tmp_path lives in /tmp and does not, so after one the pytest-N paths repeat and a fixed session
+    finds this file already announced — the first suite run after a boot failed, the next ones passed."""
+    return f'{name}-{uuid.uuid4().hex[:12]}'
+
+
 def _read(path, session: str) -> subprocess.CompletedProcess:
     """The hook as the Read protocol delivers it: payload on stdin, verdict in the exit code."""
     payload = json.dumps({'session_id': session, 'tool_input': {'file_path': str(path)}})
@@ -40,7 +48,7 @@ def test_a_missing_stub_is_announced_and_the_read_is_allowed(tmp_path):
     source = tmp_path / 'nostub.py'
     source.write_text('def f(x):\n    return x\n', encoding='utf-8', newline='\n')
 
-    result = _read(source, 'missing-stub')
+    result = _read(source, _session('missing-stub'))
 
     assert result.returncode == 0, 'a missing stub must not block the reader'
     assert 'NO INTERFACE' in result.stdout, (
@@ -49,14 +57,15 @@ def test_a_missing_stub_is_announced_and_the_read_is_allowed(tmp_path):
 
 
 def test_the_announcement_is_made_once_per_file_per_session(tmp_path):
-    """A loop over one file says this once — the codegraph nudge's rule, for the same reason."""
+    """A loop over one file says this once — the codegraph reminder's rule, for the same reason."""
     source = tmp_path / 'nostub.py'
     source.write_text('def f(x):\n    return x\n', encoding='utf-8', newline='\n')
 
-    _read(source, 'dedup-session')
-    again = _read(source, 'dedup-session')
+    session = _session('dedup-session')
+    _read(source, session)
+    again = _read(source, session)
 
-    assert again.stdout == '', f'the nudge repeated within one session:\n{again.stdout!r}'
+    assert again.stdout == '', f'the reminder repeated within one session:\n{again.stdout!r}'
 
 
 def test_an_empty_stub_counts_as_absent(tmp_path):
@@ -69,7 +78,7 @@ def test_an_empty_stub_counts_as_absent(tmp_path):
     source.write_text('MODALS.edit = `<dialog></dialog>`;\n', encoding='utf-8', newline='\n')
     (tmp_path / 'partial.d.ts').write_text('', encoding='utf-8', newline='\n')
 
-    result = _read(source, 'empty-stub')
+    result = _read(source, _session('empty-stub'))
 
     assert result.returncode == 0, 'an empty stub must never block a source read'
     assert 'NO INTERFACE' in result.stdout, 'an empty stub is absent, and absence must speak'
@@ -80,7 +89,7 @@ def test_a_type_with_no_interface_convention_stays_silent(tmp_path):
     prose = tmp_path / 'notes.md'
     prose.write_text('# notes\n', encoding='utf-8', newline='\n')
 
-    result = _read(prose, 'no-convention')
+    result = _read(prose, _session('no-convention'))
 
     assert result.returncode == 0
     assert result.stdout == '', f'a .md has no interface to miss:\n{result.stdout!r}'
@@ -92,7 +101,7 @@ def test_a_present_stub_still_blocks(tmp_path):
     source.write_text('def f(x):\n    return x\n', encoding='utf-8', newline='\n')
     (tmp_path / 'stubbed.pyi').write_text('def f(x): ...\n', encoding='utf-8', newline='\n')
 
-    result = _read(source, 'present-stub')
+    result = _read(source, _session('present-stub'))
 
     assert result.returncode == 2, 'the interface-first gate must still block on a current stub'
     assert 'READ INTERFACE FIRST' in result.stderr

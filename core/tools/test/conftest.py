@@ -67,30 +67,30 @@ def floor_of(**kw):
 
 
 def git_lines(*args) -> list:
-    """Lines of a git query against the workspace, minus the ratchet files themselves.
+    """Lines of a git query against the workspace, minus the ceiling files themselves.
 
-    Shared because a ratchet necessarily NAMES what it forbids: a test asserting nobody spells the
+    Shared because a ceiling necessarily NAMES what it forbids: a test asserting nobody spells the
     authoring machine's absolute root has to spell it to search for it, and would otherwise be its
-    own only finding. Any path containing `_ratchet` is dropped for that reason — the rule is the
-    file kind, not a list of filenames, so splitting the ratchets into a second file cannot
+    own only finding. Any path containing `_ceiling` is dropped for that reason — the rule is the
+    file kind, not a list of filenames, so splitting the ceilings into a second file cannot
     silently make one of them count itself.
 
-    The ratchets get the needle itself from `platform_law.AUTHORING_ROOT` rather than spelling it,
+    The ceilings get the needle itself from `platform_law.AUTHORING_ROOT` rather than spelling it,
     so this docstring names it in words. That is not evasion of the count — it is the same rule
     ROADMAP.md § Portability already follows for the same reason.
     """
     import subprocess
     done = subprocess.run(['git', *args], cwd=WORKSPACE_ROOT, capture_output=True, text=True, encoding='utf-8')
-    hits = [line for line in done.stdout.splitlines() if line and '_ratchet' not in line]
+    hits = [line for line in done.stdout.splitlines() if line and '_ceiling' not in line]
     return [line for line in hits if not _inside_generated_block(line)]
 
 
 def _inside_generated_block(hit: str) -> bool:
     """Whether a `path:line:text` hit lands in a block no author wrote.
 
-    The same exemption `_ratchet` gets, for the same reason: the file necessarily carries what the
-    ratchet forbids, and rewriting it would falsify rather than fix. ISSUES.md's `verify:` block
-    QUOTES the last red suite log, so a traceback naming the venv path made four ratchets red over
+    The same exemption `_ceiling` gets, for the same reason: the file necessarily carries what the
+    ceiling forbids, and rewriting it would falsify rather than fix. ISSUES.md's `verify:` block
+    QUOTES the last red suite log, so a traceback naming the venv path made four ceilings red over
     a record — and the only fix would have been to hand-edit a generated block, which
     core/SCHEMA.md forbids outright.
 
@@ -176,6 +176,11 @@ def _no_test_dirties_the_real_tree(request):
     rather than a random red in a file its author never touched.
     """
     if request.node.get_closest_marker('serial'):
+        # Run by hand under -n, a serial case is the coin flip pytest_configure describes: its
+        # neighbours went red by the dozen, blamed on tests that did nothing wrong (2026-11-16).
+        if hasattr(request.config, 'workerinput'):
+            pytest.fail('`serial` case in a parallel (-n) run. Run verify.py, or split it: '
+                        '`-m serial`, then `-n auto -m "not serial"`.', pytrace=False)
         yield
         return
     before = _shape()
@@ -206,5 +211,30 @@ def pytest_configure(config):
     # exports this. Declared once here rather than per spawn: a spec that runs a gate barer than the
     # harness ever does is testing a gate that does not exist, and it fails as a TypeError about
     # NoneType — the child writes a glyph, the parent cannot decode it, the reader thread dies and
-    # stdout comes back None. The law: core/tools/test/workspace/test_encoding_ratchet.py
+    # stdout comes back None. The law: core/tools/test/workspace/ceilings/test_encoding_ceiling.py
     os.environ['PYTHONIOENCODING'] = 'utf-8'
+
+
+# The branch lock's fixture, shared by its gate and its close tests: a governed repo on clean
+# develop, whose lsfcin GitHub origin is rewritten to a local bare repo so every push lands on disk.
+LOCK_URL = 'https://github.com/lsfcin/lock-test.git'
+
+
+def run(repo, *args):
+    import subprocess  # noqa: PLC0415 — the scrub above runs before git is first imported
+    return subprocess.run(['git', *args], cwd=repo, capture_output=True, text=True, encoding='utf-8', check=True).stdout.strip()
+
+
+def governed_repo(tmp_path, name='repo'):
+    import subprocess  # noqa: PLC0415
+    """A repo on clean develop with a bare origin reached through the lsfcin URL."""
+    bare, repo = tmp_path / f'{name}.git', tmp_path / name
+    subprocess.run(['git', 'init', '-q', '--bare', '-b', 'develop', str(bare)], check=True)
+    subprocess.run(['git', 'init', '-q', '-b', 'develop', str(repo)], check=True)
+    run(repo, 'config', f'url.{bare}.insteadOf', LOCK_URL)
+    run(repo, 'remote', 'add', 'origin', LOCK_URL)
+    (repo / 'README.md').write_text('x\n', encoding='utf-8', newline='\n')
+    run(repo, 'add', '.')
+    run(repo, '-c', 'core.hooksPath=/dev/null', 'commit', '-qm', 'init')
+    run(repo, 'push', '-q', '-u', 'origin', 'develop')
+    return repo

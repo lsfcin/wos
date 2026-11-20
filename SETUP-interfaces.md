@@ -5,8 +5,7 @@
 > feature: interface-stubs, lint-typescript, latex
 > enforced-by: core/tools/test/workspace/test_setup_executable.py
 
-The five-part contract: [`SETUP.md`](SETUP.md). A missing generator turns its gate off **silently**,
-which is why each Verify below produces output rather than a version string.
+The five-part contract: [`SETUP.md`](SETUP.md). A missing generator turns its gate off **silently**, which is why each Verify below produces output rather than a version string.
 
 <!-- steps:start -->
 

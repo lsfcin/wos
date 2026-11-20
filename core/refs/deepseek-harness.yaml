@@ -1,0 +1,8 @@
+# Reference for deepseek-harness
+key: deepseek-harness
+title: "DeepSeek Harness"
+url: "https://github.com/deepseek-ai/deepseek-harness"
+level: C
+section: "Model level, cost & execution interface"
+contributions:
+  - "runtime modular de agentes (Cordis), sandboxing local com Bubblewrap e web UI."

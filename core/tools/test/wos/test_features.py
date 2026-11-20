@@ -75,6 +75,14 @@ def test_every_row_is_complete_and_in_its_closed_set():
             'nobody accepts an enforcement layer whose value they cannot see')
 
 
+def test_every_need_is_a_declared_feature():
+    """A misspelled need would fail open, and the feature would stay on with its dependency off."""
+    declared = law.names()
+    for row in law.load_registry():
+        for need in law.needs(row):
+            assert need in declared and need != row['name'], (row['name'], need)
+
+
 def test_runs_is_not_recoverable_from_enforcement():
     """The column exists because the two axes cross, and a later tidy-up would collapse them back.
 

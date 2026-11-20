@@ -1,4 +1,4 @@
-# T0 unanswered scaffold placeholders (first-line-comment rule, core/hooks/SPECS.md). Zero-token, runs in verify-fast.
+# T0 unanswered placeholders (first-line-comment rule, core/hooks/SPECS.md). Zero-token, runs in verify-fast.
 #
 # Split from test_entropy_list.py 2026-08-15, alongside the check itself. The branch
 # these cover shipped with NO test, which is how it went a year labelled as the wrong
@@ -43,7 +43,7 @@ def test_only_context_files_carry_the_marker(tmp_path):
 
 
 def test_a_generated_mirror_has_no_placeholder_to_answer(tmp_path):
-    """Same rule as the corpse check: a mirror is fixed at its generator."""
+    """Same rule as the finished-work check: a mirror is fixed at its generator."""
     mirror = tmp_path / '.claude' / 'skills'
     mirror.mkdir(parents=True)
     assert entropy_list.unanswered_placeholders(

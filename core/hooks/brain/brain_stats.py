@@ -8,6 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import feature_law  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'commit'))
+from pre_commit import stage  # noqa: E402
 from brain_attention import Attention  # noqa: E402
 from brain_common import (
     DONE_KEEP, GOALS_DIR, GOALS_FILE, LOG_DIR, PERIODS,
@@ -43,12 +45,12 @@ def build_stats_block(name, attention):
     files, ~320 lines of the corpus, and NOTHING read them: GOALS.md builds its dashboard straight
     from `brain_attention.harvest`, and no checker, tool or skill parses a goal file's stats. It was
     36 copies of a number that already lives on the dashboard. Every count survives here; only the
-    table scaffolding went.
+    table's frame went.
     """
     counts = {period: attention.count(name, days) for period, days in PERIODS}
     lt     = attention.last_touch(name)
 
-    # The six periods are named once, in brain/SPECS.md, instead of on 36 goal files. Spelling
+    # The six periods are named once, in core/hooks/brain/SPECS.md, instead of on 36 goal files. Spelling
     # them here costs 43 characters a line across 36 files — and it is the same restatement the
     # table was.
     return (
@@ -94,9 +96,12 @@ def load_goal_files():
     files = {}
     for f in sorted(GOALS_DIR.glob("*.md")):
         name = f.stem
-        # `_`-prefixed files are scaffolding, never goals. This replaces an
-        # ALL-CAPS skip that only worked while the template was ARCHETYPE.md.
-        if name.startswith("_"):
+        # `_`-prefixed files are a shape, never a goal — core/SCHEMA.md § A leading underscore
+        # marks a shape, never an instance. The ALL-CAPS skip beside it is NOT redundant and was
+        # dropped once, when this replaced a skip that only worked while the template was
+        # ARCHETYPE.md: an uppercase name is a document TYPE by the same law, so `brain/goals/
+        # CONTEXT.md` came back as a goal called `CONTEXT` with a row and a bar of its own.
+        if name.startswith("_") or name.isupper():
             continue
         files[name] = f
     return files
@@ -159,8 +164,9 @@ def pre_commit():
     to_stage = modified[:]
     if GOALS_FILE.exists():
         to_stage.append(str(GOALS_FILE))
+    # From the brain repo's root, where brain_common's relative paths start.
     if to_stage:
-        git("add", *to_stage)
+        stage(Path('.'), *to_stage, named_only=True)
 
     check_compass_reminder()
 

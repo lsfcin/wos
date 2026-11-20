@@ -1,0 +1,8 @@
+# Reference for cline
+key: cline
+title: "Cline"
+url: "https://cline.bot/"
+level: C
+section: "Model level, cost & execution interface"
+contributions:
+  - "agente autônomo de engenharia de software para VS Code/CLI."

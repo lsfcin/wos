@@ -1,0 +1,13 @@
+from _typeshed import Incomplete
+
+A: str
+P: str
+R: str
+NSDECL: Incomplete
+W: Incomplete
+H: Incomplete
+
+def box(i: int, name: str, x, y, w, h, fill: str = 'accent1') -> str: ...
+def placeholder(i: int, name: str, kind: str, idx: int, x, y, w, h, *, size: int = 24, color: str = 'dk1', bold: bool = False, italic: bool = False, font=None, anchor: str = 't', align: str = 'l', sample: str = '') -> str: ...
+def text(i: int, name: str, x, y, w, h, content: str, *, size: int = 10, color: str = 'dk2', font=None, align: str = 'l') -> str: ...
+def layout(name: str, shapes: list[str]) -> str: ...

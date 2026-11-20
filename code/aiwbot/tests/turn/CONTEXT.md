@@ -8,6 +8,7 @@
 | File | Interface | API | Description |
 |------|-----------|-----|-------------|
 | [`__init__.py`](__init__.py) | [`__init__.pyi`](__init__.pyi) | — | **facade** — __init__.py — marks tests/turn as a package. |
+| [`test_b7_inbox_capture.py`](test_b7_inbox_capture.py) | [`test_b7_inbox_capture.pyi`](test_b7_inbox_capture.pyi) | `capture_file` | test_b7_inbox_capture.py — b7: a capture the bot confirmed must still be in the file. |
 | [`test_bot.py`](test_bot.py) | [`test_bot.pyi`](test_bot.pyi) | — | test_bot.py — free unit test: "bot"-prefix trigger routing logic. |
 | [`test_directives.py`](test_directives.py) | [`test_directives.pyi`](test_directives.pyi) | — | test_directives.py — F3a: read leading harness/model words off a bot-prefixed message, $0. The index is fixed here so the test neither shells opencode nor reads its sqlite — it pins the PARSING, and backend_names() (used for harness self-aliases) is pure, no I/O. |
 | [`test_f2_papercuts.py`](test_f2_papercuts.py) | [`test_f2_papercuts.pyi`](test_f2_papercuts.pyi) | — | test_f2_papercuts.py — the F2 batch: phrase tone, flat glyphs, the reply anchor, and the "bote" mishearing. Each choice below was made by Lucas against a live Telegram prototype (2026-07-26), so these tests pin decisions, not guesses. |

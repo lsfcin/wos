@@ -2,7 +2,7 @@
 > What must exist before anything else in this workspace runs: the permission level the installing
 > agent works under, the interpreter every tool is spawned with, and the gates that fire on commit.
 > Run these in order and stop at the first check that will not pass.
-> feature: permissions, declared-deps, github-auth, git-hooks, skill-mirrors
+> feature: permissions, declared-deps, github-auth, brain-dashboard, git-hooks, skill-mirrors
 > enforced-by: core/tools/test/workspace/test_setup_executable.py
 
 The five-part contract, and the handover rule for the one step marked `agent: no`: [`SETUP.md`](SETUP.md).
@@ -40,7 +40,7 @@ The policy is versioned; the rendered `.claude/settings.local.json` is git-ignor
 versioned `bypassPermissions` would arrive switched on for whoever cloned next.
 
 ## The venv
-> substrate: yes · agent: yes
+> machine state: yes · agent: yes
 
 One virtualenv at the workspace root, shared by every tool and the suite. `code/*` repos own theirs.
 
@@ -110,6 +110,26 @@ gh auth status
 git push --dry-run origin HEAD
 ```
 
+## Brain
+> feature: `brain-dashboard` · agent: yes
+
+`brain/` is its own private repo, ignored by this one, so a fresh clone has none of it.
+
+**Precondition**
+```bash
+test -d brain/.git
+```
+
+**Install** — needs the GitHub account above:
+```bash
+gh repo clone lsfcin/brain brain
+```
+
+**Verify**
+```bash
+git -C brain rev-parse HEAD
+```
+
 ## Git hook
 > feature: `git-hooks` · agent: yes
 
@@ -152,7 +172,7 @@ that will fail to run.
 > feature: `skill-mirrors` · agent: yes
 
 Every harness looks for skills in its own directory, so `core/skills/<name>.md` is published as a
-copy into `.claude/skills/`, `.opencode/skills/`, `.zcode/skills/` and `.claude/commands/`. **Those
+copy into the discovery locations declared in `core/harnesses.txt`, including `.agents/skills/` for Codex. **Those
 copies are generated and git does not track them**, which is why this step is not optional: a fresh
 clone has the sources and none of the copies, so every `/<skill>` is missing until it runs.
 
@@ -171,3 +191,19 @@ core/run tools/wos/sync-skills
 sync`. Any `MISSING` / `STALE` / `ORPHAN` line names the file and the source it disagrees with.
 
 <!-- steps:end -->
+
+
+## Local lifecycle hooks
+> feature: `git-hooks` · agent: no
+
+**Precondition** — in the desktop app or CLI, inspect `/hooks` for this trusted workspace.
+
+**Install** — review and trust the definitions in `.codex/hooks.json`. They resolve `core/run`
+from the workspace tree and call `core/hooks/codex/policy.py`, which reuses the common gates.
+Trust is stored by the runtime against each definition's hash; a changed definition needs review.
+No agent catalog, separate instructions or permission override is installed.
+
+**Verify** — `/hooks` lists six trusted events, including the existing prompt meter; routine
+success is silent. A fresh session blocks an edit in an
+unread subtree, then permits it after reading its context chain. The local behavioral tests are
+`core/tools/test/workspace/shims/test_codex_shim.py`; they make no model calls.

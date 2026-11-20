@@ -13,22 +13,14 @@ Arguments: $ARGUMENTS — a feature short name to install just one feature, or e
 
 ## What you are
 
-**You are the installer.** There is no install script and there is not going to be one: an
-installer would have to be ported to every harness, while the newcomer's own agent works on
-whichever harness they already opened. That is you.
+**You are the installer.** There is no install script and there is not going to be one: an installer would have to be ported to every harness, while the newcomer's own agent works on whichever harness they already opened. That is you.
 
-**This skill is a door, not a copy.** The procedure is [`SETUP.md`](../../SETUP.md) at the
-workspace root plus the `SETUP-<name>.md` parts it routes to, and it stands alone — a stranger
-on another agent has no skill loaded and installs from those files directly. Never restate a command from it here or in
-your reply; read it and run it.
-If you catch yourself explaining a step, you are drifting into a second copy that will disagree
-with the first one.
+**This skill is a door, not a copy.** The procedure is [`SETUP.md`](../../SETUP.md) at the workspace root plus the `SETUP-<name>.md` parts it routes to, and it stands alone — a stranger on another agent has no skill loaded and installs from those files directly. Never restate a command from it here or in your reply; read it and run it.
+If you catch yourself explaining a step, you are drifting into a second copy that will disagree with the first one.
 
 ## Protocol
 
-1. **Read `SETUP.md`, then every part its routing table names.** The index carries the contract each
-   step follows — `> feature:`, **Precondition**, **Install**, **Verify** — plus what is already
-   wired and the whole-install check; it holds **no steps of its own**. The steps live in the
+1. **Read `SETUP.md`, then every part its routing table names.** The index carries the contract each step follows — `> feature:`, **Precondition**, **Install**, **Verify** — plus what is already wired and the whole-install check; it holds **no steps of its own**. The steps live in the
    `SETUP-<name>.md` siblings, between each one's `<!-- steps:start -->` and `<!-- steps:end -->`
    markers, one `##` section each. Nothing outside those markers is a step. `SETUP-clone.md` runs
    first; the rest are independent.
@@ -65,4 +57,4 @@ with the first one.
   plainly with the output. An install that reports success it did not verify is worse than one that
   reports the gap.
 - **A step that will not fit the contract is a finding**, not a nuisance: it means the procedure is
-  not executable, and it belongs at the end of `brain/INBOX.md`.
+  not executable, and it belongs in the root `ISSUES.md`, tagged `[src: agent YYYY-MM-DD]`.

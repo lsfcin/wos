@@ -1,0 +1,139 @@
+# Usage: core/run tools/files/onedrive <auth|put|get|pdf|list|link|rm> [args] — OneDrive through rclone: upload, download, list, delete to the recycle bin, the web link that opens a .pptx in PowerPoint online, and Office's own PDF of it
+import sys, json, pathlib, argparse, subprocess, shutil, urllib.request, urllib.parse, urllib.error
+
+_HERE = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE.parents[1] / 'hooks'))
+from platform_law import WORKSPACE_ROOT
+
+CONF_DIR = pathlib.Path.home() / ".config" / "workspace-onedrive"
+CONF = CONF_DIR / "rclone.conf"
+ACCOUNTS = CONF_DIR / "accounts.json"  # alias -> the address to sign in as, read at runtime
+DOWNLOAD_DIR = WORKSPACE_ROOT / "Downloads/workspace-onedrive"
+GRAPH = "https://graph.microsoft.com/v1.0"
+
+
+def _rclone(*args: str, capture: bool = True) -> subprocess.CompletedProcess:
+    exe = shutil.which("rclone") or str(pathlib.Path.home() / ".local/bin/rclone")
+    return subprocess.run([exe, "--config", str(CONF), *args], capture_output=capture, text=True, encoding="utf-8")
+
+
+def _fix(alias: str) -> str:
+    who = json.loads(ACCOUNTS.read_text(encoding="utf-8")).get(alias, "?") if ACCOUNTS.exists() else "?"
+    return f"core/run tools/files/onedrive auth {alias}   (entre como {who})"
+
+
+def _token(alias: str) -> str:
+    _rclone("about", f"{alias}:")  # rclone refreshes an expired token and writes it back
+    for block in CONF.read_text(encoding="utf-8").split("[")[1:]:
+        if block.startswith(f"{alias}]"):
+            for line in block.splitlines():
+                if line.startswith("token = "):
+                    return json.loads(line[8:])["access_token"]
+    sys.exit(f"onedrive: no login for '{alias}'. Run:\n  {_fix(alias)}")
+
+
+def _graph(alias: str, path: str, method: str = "GET") -> dict:
+    req = urllib.request.Request(GRAPH + path, method=method, headers={"Authorization": f"Bearer {_token(alias)}"})
+    with urllib.request.urlopen(req) as r:
+        return json.load(r) if r.status != 204 else {}
+
+
+def cmd_auth(alias: str) -> None:
+    """Consent in the browser, then pin drive_id: rclone's own lookup fails on personal drives
+    ("ObjectHandle is Invalid"), and `rclone config update` re-opens the consent and hangs."""
+    CONF_DIR.mkdir(parents=True, exist_ok=True); CONF_DIR.chmod(0o700)
+    _rclone("config", "create", alias, "onedrive", "drive_type=personal", "config_is_local=true", capture=False)
+    CONF.chmod(0o600)
+    drive = _graph(alias, "/me/drive")
+    text = CONF.read_text(encoding="utf-8")
+    if f"drive_id = {drive['id']}" not in text:
+        CONF.write_text(text.replace(f"[{alias}]\n", f"[{alias}]\ndrive_id = {drive['id']}\n", 1), encoding="utf-8", newline="\n")
+    accounts = json.loads(ACCOUNTS.read_text(encoding="utf-8")) if ACCOUNTS.exists() else {}
+    accounts[alias] = drive.get("owner", {}).get("user", {}).get("email") or drive["owner"]["user"]["displayName"]
+    ACCOUNTS.write_text(json.dumps(accounts, indent=2), encoding="utf-8", newline="\n")
+    print(f"onedrive: '{alias}' ready ({accounts[alias]}, drive {drive['id']})")
+
+
+def _web_url(alias: str, remote: str) -> str:
+    return _graph(alias, "/me/drive/root:/" + urllib.parse.quote(remote.strip("/")))["webUrl"]
+
+
+def cmd_put(alias: str, files: list[str], to: str) -> int:
+    failed = []
+    for f in files:
+        dest = f"{to.strip('/')}/{pathlib.Path(f).name}"
+        r = _rclone("copyto", f, f"{alias}:{dest}")
+        if r.returncode:
+            why = r.stderr.strip().splitlines()[-1]
+            if "423" in why:  # PowerPoint online holds a lock while the deck is open
+                why = f"{dest} está aberto no PowerPoint online: feche a aba e rode de novo, ou envie com outro nome"
+            failed.append(f); print(f"✗ {f}\n  {why}"); continue
+        print(f"✓ {dest}\n  {_web_url(alias, dest)}")
+    print(f"{len(files) - len(failed)}/{len(files)} enviados" + (f"; falharam: {', '.join(failed)}" if failed else ""))
+    return 1 if failed else 0
+
+
+def cmd_pdf(alias: str, remote: str, out: pathlib.Path) -> int:
+    """Office's own renderer converts the file: the fonts and layout PowerPoint online shows, not a local guess."""
+    url = GRAPH + "/me/drive/root:/" + urllib.parse.quote(remote.strip("/")) + ":/content?format=pdf"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {_token(alias)}"})
+    with urllib.request.urlopen(req) as r:
+        out.write_bytes(r.read())
+    print(f"✓ {remote} → {out} ({out.stat().st_size // 1024} KB)")
+    return 0
+
+
+def cmd_get(alias: str, paths: list[str], out: pathlib.Path) -> int:
+    out.mkdir(parents=True, exist_ok=True)
+    failed = [p for p in paths if _rclone("copy", f"{alias}:{p}", str(out)).returncode]
+    print(f"{len(paths) - len(failed)}/{len(paths)} baixados em {out}" + (f"; falharam: {', '.join(failed)}" if failed else ""))
+    return 1 if failed else 0
+
+
+def cmd_rm(alias: str, paths: list[str]) -> int:
+    """Graph's DELETE moves a file or a whole folder to the recycle bin, recoverable the way `gdrive rm` is."""
+    failed = []
+    for p in paths:
+        try:
+            _graph(alias, "/me/drive/root:/" + urllib.parse.quote(p.strip("/")), "DELETE")
+            print(f"✓ {p} → lixeira")
+        except urllib.error.HTTPError as e:
+            failed.append(p); print(f"✗ {p}\n  {e.code} {e.reason}" + (": aberto no PowerPoint online, feche a aba" if e.code == 423 else ""))
+    print(f"{len(paths) - len(failed)}/{len(paths)} na lixeira" + (f"; falharam: {', '.join(failed)}" if failed else ""))
+    return 1 if failed else 0
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(prog="onedrive")
+    ap.add_argument("--account", default="personal")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("auth")
+    p = sub.add_parser("put"); p.add_argument("files", nargs="+"); p.add_argument("--to", default="slides")
+    g = sub.add_parser("get"); g.add_argument("paths", nargs="+"); g.add_argument("--out", type=pathlib.Path, default=DOWNLOAD_DIR)
+    pd = sub.add_parser("pdf", help="a remote .pptx/.docx rendered to PDF by Office itself")
+    pd.add_argument("path"); pd.add_argument("--out", type=pathlib.Path, required=True)
+    ls = sub.add_parser("list"); ls.add_argument("folder", nargs="?", default="")
+    ln = sub.add_parser("link", help="PUBLIC read-only link: anyone holding it can open the file")
+    ln.add_argument("path")
+    rm = sub.add_parser("rm", help="files or folders to the recycle bin, recoverable"); rm.add_argument("paths", nargs="+")
+    a = ap.parse_args()
+    if a.cmd != "auth" and not CONF.exists():
+        sys.exit(f"onedrive: not configured. Run:\n  {_fix(a.account)}")
+    if a.cmd == "auth":
+        cmd_auth(a.account)
+    elif a.cmd == "put":
+        sys.exit(cmd_put(a.account, a.files, a.to))
+    elif a.cmd == "get":
+        sys.exit(cmd_get(a.account, a.paths, a.out))
+    elif a.cmd == "pdf":
+        sys.exit(cmd_pdf(a.account, a.path, a.out))
+    elif a.cmd == "list":
+        sys.exit(_rclone("lsl", f"{a.account}:{a.folder}", capture=False).returncode)
+    elif a.cmd == "link":
+        sys.exit(_rclone("link", f"{a.account}:{a.path}", capture=False).returncode)
+    elif a.cmd == "rm":
+        sys.exit(cmd_rm(a.account, a.paths))
+
+
+if __name__ == "__main__":
+    main()

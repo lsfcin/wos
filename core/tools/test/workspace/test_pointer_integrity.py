@@ -1,11 +1,6 @@
 # T0 pointer-integrity check (Level 0): every relative
-# ](path) link across CONTEXT.md / ROADMAP*.md / SCHEMA.md / AGENTS.md (repo) and
-# MEMORY.md (auto-memory) must resolve. Zero-token, runs in verify-fast.
-#
-# [[name]] resolution is intentionally NOT gated here: the memory spec allows a
-# dangling [[name]] as a "planned, not yet written" memory, and the corpus mixes
-# kebab-case `name:` fields with underscore filenames as the link target, so there
-# is no single rule to enforce yet. The entropy dashboard counts them instead.
+# ](path) link across CONTEXT.md / ROADMAP*.md / SCHEMA.md / AGENTS.md must resolve.
+# Zero-token, runs in verify-fast.
 import re
 import subprocess
 from pathlib import Path, PurePosixPath
@@ -13,13 +8,6 @@ from pathlib import Path, PurePosixPath
 from conftest import WORKSPACE_ROOT, carries  # the depth lives in one file, not nine
 from entropy_corpus import LINK_RE  # one definition of what a link is, not two
 from platform_law import rel
-
-# The auto-memory store lives IN the workspace as of 2026-08-15; the harness path
-# ~/.claude/projects/<name>/memory is a symlink to this directory, so every memory the
-# harness writes lands in git and can be trimmed like any other file. This used to reach
-# into $HOME and hardcode the project name — a Level 0 gate that read a path outside the
-# repo it guards, and that no clone of this workspace could satisfy.
-MEMORY_DIR = WORKSPACE_ROOT / "brain/memory"
 
 # Deleted content still on disk is not workspace structure. A file manager moves a
 # deleted project into .Trash-<uid>/, whose stale relative links then fail the check
@@ -55,15 +43,13 @@ def _strip_fences(text: str) -> str:
     return INLINE_CODE_RE.sub(" ", text)
 
 
-def _structural_files(root: Path, memory_dir: Path):
+def _structural_files(root: Path):
     for path in root.rglob("*.md"):
         if any(part in EXCLUDE_DIRS or part.startswith(EXCLUDE_PREFIXES)
                for part in path.parts):
             continue
         if STRUCTURAL_NAME.match(path.name):
             yield path
-    if memory_dir.is_dir():
-        yield from memory_dir.glob("*.md")
 
 
 def _deliberately_absent(root: Path, targets: list) -> set:
@@ -93,7 +79,7 @@ def _deliberately_absent(root: Path, targets: list) -> set:
     return unbuilt | {name for name in done.stdout.split('\0') if name}
 
 
-def check_separators(root: Path, memory_dir: Path) -> list:
+def check_separators(root: Path) -> list:
     """Link targets spelled with a backslash — the host's separator, published as content.
 
     A markdown separator is `/` on every operating system, and nothing checked that a generator
@@ -108,7 +94,7 @@ def check_separators(root: Path, memory_dir: Path) -> list:
     blind to the case that motivated it.
     """
     failures = []
-    for path in _structural_files(root, memory_dir):
+    for path in _structural_files(root):
         for link in LINK_RE.findall(path.read_text(encoding="utf-8")):
             if "\\" in link:
                 failures.append(
@@ -118,10 +104,10 @@ def check_separators(root: Path, memory_dir: Path) -> list:
     return failures
 
 
-def check_pointers(root: Path, memory_dir: Path) -> list:
+def check_pointers(root: Path) -> list:
     """Return a list of human-readable broken-pointer messages (empty = clean)."""
     failures, missing = [], []
-    for path in _structural_files(root, memory_dir):
+    for path in _structural_files(root):
         text = _strip_fences(path.read_text(encoding="utf-8"))
         for link in LINK_RE.findall(text):
             if link.startswith(("http://", "https://", "mailto:")):
@@ -142,7 +128,7 @@ def check_pointers(root: Path, memory_dir: Path) -> list:
 
 
 def test_pointer_integrity():
-    failures = check_pointers(WORKSPACE_ROOT, MEMORY_DIR)
+    failures = check_pointers(WORKSPACE_ROOT)
     assert not failures, "Pointer integrity broken:\n" + "\n".join(failures)
 
 
@@ -154,7 +140,7 @@ def test_dangling_relative_link_is_detected(tmp_path):
     (sub / "CONTEXT.md").write_text(
         "attribution in [`../.vendor`](../.vendor).\n", encoding="utf-8"
     , newline='\n')
-    failures = check_pointers(tmp_path, tmp_path / "no-memory-here")
+    failures = check_pointers(tmp_path)
     assert len(failures) == 1
     assert "../.vendor" in failures[0]
 
@@ -167,7 +153,7 @@ def test_a_pointer_into_a_tree_this_checkout_lacks_is_not_broken(tmp_path):
     (tmp_path / "CONTEXT.md").write_text(
         "goal [x](naoexiste-em-lugar-nenhum/goals/x.md) and [y](NAOEXISTE.md)\n",
         encoding="utf-8", newline='\n')
-    failures = check_pointers(tmp_path, tmp_path / "no-memory-here")
+    failures = check_pointers(tmp_path)
     assert len(failures) == 1, failures
     assert "NAOEXISTE.md" in failures[0]
 
@@ -175,7 +161,7 @@ def test_a_pointer_into_a_tree_this_checkout_lacks_is_not_broken(tmp_path):
 def test_clean_fixture_has_no_failures(tmp_path):
     (tmp_path / "target.md").write_text("target\n", encoding="utf-8", newline='\n')
     (tmp_path / "CONTEXT.md").write_text("see [target](target.md).\n", encoding="utf-8", newline='\n')
-    assert check_pointers(tmp_path, tmp_path / "no-memory-here") == []
+    assert check_pointers(tmp_path) == []
 
 
 def test_no_committed_symlink_carries_an_absolute_path():

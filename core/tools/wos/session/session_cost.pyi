@@ -1,6 +1,7 @@
 from _typeshed import Incomplete
 
 RATES: Incomplete
+NATIVE_RATES: Incomplete
 COMPONENTS: Incomplete
 UNPRICED: str
 

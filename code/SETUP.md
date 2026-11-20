@@ -1,5 +1,5 @@
 # Code Setup
-> Per-language setup, facade templates, and project scaffolding reference
+> Per-language setup, facade templates, and project template reference
 
 ## Facade Templates
 
@@ -86,8 +86,7 @@ Optional but recommended:
 
 ## codegraph
 
-Pre-indexed knowledge graph (tree-sitter + SQLite). Lets you query architecture, find callers, and explore flows without
-reading raw source. Per-project — each project has its own index.
+Pre-indexed knowledge graph (tree-sitter + SQLite). Lets you query architecture, find callers, and explore flows without reading raw source. Per-project — each project has its own index.
 
 ### Init a new project
 

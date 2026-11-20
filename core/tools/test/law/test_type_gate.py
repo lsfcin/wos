@@ -96,8 +96,8 @@ def test_harness_mandated_name_is_exempt(tmp_path):
 def test_prose_describing_finished_work_blocks_a_file_the_commit_adds(tmp_path):
     """Detected by the dashboard since the rule was written, enforced only from 2026-08-18.
 
-    Completion is deletion, and a detector nobody blocks on is what let the corpse queue grow to
-    nineteen. Ratcheted like every other check this gate runs: it fires on what a commit ADDS, so
+    Completion is deletion, and a detector nobody blocks on is what let the queue of finished
+    work grow to nineteen. Capped like every other check this gate runs: it fires on what a commit ADDS, so
     the inherited queue stays the dashboard's and the gate does not fail on the day it lands.
     """
     allowed, exempt = type_gate.load_law(SCHEMA)
@@ -108,7 +108,7 @@ def test_prose_describing_finished_work_blocks_a_file_the_commit_adds(tmp_path):
     assert any('finished work' in failure for failure in failures), failures
 
 
-def test_present_tense_state_is_not_a_corpse(tmp_path):
+def test_present_tense_state_is_not_finished_work(tmp_path):
     """The rule is about prose describing work that landed, not about mentioning the past.
 
     Without this the gate would be a ban on dates, and the guidance it prints — rewrite the line
@@ -120,3 +120,15 @@ def test_present_tense_state_is_not_a_corpse(tmp_path):
                       encoding='utf-8', newline='\n')
     failures = type_gate.failures_for(target, allowed, exempt, {}, set())
     assert not any('finished work' in failure for failure in failures), failures
+
+
+def test_a_pdf_twin_is_generated_so_no_authoring_rule_reads_it(tmp_path, monkeypatch, capsys):
+    """A twin inherits its PDF's name and opens on frontmatter; it is the tool's output (generated.txt)."""
+    twin = tmp_path / '2026-07-06_protocolo-AC01' / '2026-07-06_protocolo-AC01.md'
+    twin.parent.mkdir()
+    twin.write_text('---\nsource: "../2026-07-06_protocolo-AC01.pdf"\n---\n<!-- page 1 -->\n',
+                    encoding='utf-8', newline='\n')
+    monkeypatch.setattr(type_gate, 'staged_added_files', lambda: [twin])
+    assert type_gate.main() == 0, capsys.readouterr().out
+    twin.write_text('# not a twin\n', encoding='utf-8', newline='\n')
+    assert type_gate.main() == 1

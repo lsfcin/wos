@@ -1,0 +1,8 @@
+# Reference for agent-skills
+key: agent-skills
+title: "Agent Skills"
+url: "https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills"
+level: V
+section: "Context engineering & progressive disclosure"
+contributions:
+  - "(Anthropic) — SKILL.md spec, always-loaded description + on-demand body."

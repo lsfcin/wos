@@ -1,0 +1,8 @@
+# Reference for is-progressive-disclosure-all-you-need
+key: is-progressive-disclosure-all-you-need
+title: "Is Progressive Disclosure All You Need?"
+url: "https://arxiv.org/abs/2607.17598"
+level: P
+section: "Context engineering & progressive disclosure"
+contributions:
+  - "(arXiv 2607.17598, 2026-07) — 1 disclosure level ≥ 2; flat pack ≈ 2× accuracy at ½ tokens; index is cache-friendly."

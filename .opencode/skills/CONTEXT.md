@@ -4,6 +4,11 @@
 <!-- routing:start -->
 ## Routing
 
+| Subdirectory | Description |
+|--------------|-------------|
+| [`prepare/`](prepare/CONTEXT.md) | — |
+| [`slides/`](slides/CONTEXT.md) | — |
+
 | File | Description |
 |------|-------------|
 | [`accessible-deck/SKILL.md`](accessible-deck/SKILL.md) | Transform slide presentations (Google Slides, PDF, PPTX) into accessible study guides and Google NotebookLM podcast scripts with diagram audio-descriptions and tri-block pedagogy. |
@@ -15,12 +20,10 @@
 | [`drive/SKILL.md`](drive/SKILL.md) | List, search, and download files from Google Drive across all configured accounts (personal, cin, ufrpe). |
 | [`gforms/SKILL.md`](gforms/SKILL.md) | Google Forms as versioned specs: create, edit and read answers across all configured accounts — a form written as JSON, applied in one call. |
 | [`handoff/SKILL.md`](handoff/SKILL.md) | Emit a copy-pasteable resume prompt for the next session. For the full session-close ritual use /roundup, which calls this. |
-| [`inbox/SKILL.md`](inbox/SKILL.md) | Triage brain/INBOX.md — route each entry to a goal, task, reference, project doc, writing draft, or delete. Cross-domain front door: reaches into code ROADMAP/ISSUES and domain refs/, not just brain/. |
+| [`inbox/SKILL.md`](inbox/SKILL.md) | Triage brain/INBOX.md in bounded thematic batches; route entries and reorganize whole destination roadmaps and reference indexes while preserving their meaning and evidence. |
 | [`install/SKILL.md`](install/SKILL.md) | Install this workspace on the machine you are running on: check every step in SETUP.md, report what is missing, and execute it. Takes one feature short name, or nothing for everything. |
 | [`mail/SKILL.md`](mail/SKILL.md) | Triage Gmail across all configured accounts — classify, confirm routes, write to brain/INBOX.md. |
-| [`prepare/SKILL.md`](prepare/SKILL.md) | Turn a raw task into an optimized agent prompt: interviews for intent, classifies the task, recommends model and effort. |
 | [`publish/SKILL.md`](publish/SKILL.md) | Rebuild the public repo from this workspace and push it — what crosses, what the target regenerates, and the target's own suite as the gate. One way: nothing is ever edited on the far side. |
 | [`research/SKILL.md`](research/SKILL.md) | Execute a research workflow from the workspace Core research system. |
 | [`roundup/SKILL.md`](roundup/SKILL.md) | Full session-close ritual: drain the lists, route session knowledge to durable files, then verify and hand off. Use at session end. |
-| [`slides/SKILL.md`](slides/SKILL.md) | Read and edit Google Slides decks in place across all configured accounts — deck as navigable text, edits through batchUpdate. |
 <!-- routing:end -->

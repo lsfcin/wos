@@ -1,6 +1,7 @@
 # Usage: core/tools/wos/session/reads [--project <name>] [--session <id>] [--top N | --all]
-# [--sort weight|reads|chars] — which files a session reads, how often, and how much each re-read
-# cost. Reads the local transcripts; no network.
+# [--sort weight|reads|chars] [--span DAYS] — which files a session reads, how often, and how much
+# each re-read cost. Reads the local transcripts; no network. `--span` reads the matrix instead,
+# which is recorded at the read and therefore answers for every harness and across sessions.
 #
 # The question is ours, not the harness's: `context-gate.py` demands a whole CONTEXT.md chain before
 # any file access in a subtree, and `pre-read.py` redirects a source read to its stub. Both exist to
@@ -34,7 +35,32 @@ def _rel(path: str, root: Path) -> str:
 	return platform_law.rel(path, root)
 
 
+def _span(days: int) -> int:
+	"""The harness-agnostic arm: read counts over the last `days`, out of the matrix.
+
+	Everything else in this file replays a transcript one vendor writes, which is why the numbers
+	stop at this machine's harness. `read_matrix` is fed by a PostToolUse hook every harness runs, so
+	this arm answers for all of them — and answers across sessions, which a transcript cannot.
+	Same shape as `features --scoreboard` beside it: one command, the declaration and the behaviour.
+	"""
+	sys.path.insert(0, str(Path(__file__).resolve().parents[4] / 'core' / 'hooks' / 'read'))
+	import read_matrix
+	read_matrix.fold()   # the events since the last read: the matrix is local, folded where it is read
+	_asof, rows = read_matrix.load()
+	ranked = read_matrix.span(rows, days)
+	if not ranked:
+		print(f'\n  nothing recorded in the last {days} days\n')
+		return 1
+	print(f'\n  {sum(n for _p, n in ranked)} reads over {len(ranked)} files, last {days} days\n')
+	for name, count in ranked[:TOP]:
+		print(f'  {count:>5}x  {name}')
+	print()
+	return 0
+
+
 def main() -> int:
+	if '--span' in sys.argv:
+		return _span(int(_arg('--span', '30')))
 	project = _arg('--project', PROJECT)
 	session = _arg('--session')
 	top = 0 if '--all' in sys.argv else int(_arg('--top', str(TOP)))

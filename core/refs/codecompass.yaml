@@ -1,0 +1,8 @@
+# Reference for codecompass
+key: codecompass
+title: "CodeCompass"
+url: "https://arxiv.org/abs/2602.20048"
+level: P
+section: "Context engineering & progressive disclosure"
+contributions:
+  - "(arXiv 2602.20048, 2026-02) — graph-structured dependency navigation (99.4% vs 76.2% vanilla) beats flat symbol lists."

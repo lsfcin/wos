@@ -108,16 +108,8 @@ def sync_file_item(alias: str, file_meta: dict, target_dir: pathlib.Path, genera
         if generate_previews:
             previews_dir = target_dir / "_material" / "previews" / name
             try:
-                import slides_core, urllib.request
-                deck = slides_core.get_presentation(alias, fid)
-                slides = deck.get("slides", [])
-                previews_dir.mkdir(parents=True, exist_ok=True)
-                for idx, s in enumerate(slides, 1):
-                    sid = s["objectId"]
-                    url = slides_core.get_thumbnail_url(alias, fid, sid)
-                    if url:
-                        dest = previews_dir / f"slide_{idx:02d}_{sid}.png"
-                        urllib.request.urlretrieve(url, dest)
+                import slides_core
+                slides_core.previews(alias, fid, previews_dir)
             except Exception as e:
                 sys.stderr.write(f"[drive_sync] Warning generating preview for {name}: {e}\n")
         return None

@@ -1,19 +1,12 @@
 # entropy
 > The Level 0 checks that count what the tree has drifted into. One question each.
 
-Each module here answers one question about the corpus and hands back findings; nothing here
-prints, blocks or renders. Two callers consume them, and the split between those callers is the
-design: [`../checks/type-gate.py`](../checks/CONTEXT.md) **blocks**, on what a commit adds, and
-[`dashboard/`](dashboard/CONTEXT.md) **reports**, on everything, so a repo that inherited a
-violation is visible without being unable to commit.
+Each module here answers one question about the corpus and hands back findings; nothing here prints, blocks or renders. Two callers consume them, and the split between those callers is the design: [`../checks/type-gate.py`](../checks/CONTEXT.md) **blocks**, on what a commit adds, and [`dashboard/`](dashboard/CONTEXT.md) **reports**, on everything, so a repo that inherited a violation is visible without being unable to commit.
 
-[`entropy_corpus.py`](entropy_corpus.py) is the odd one and stays: it answers *which files a check
-may look at*, which every check needs before it can count anything.
+[`entropy_corpus.py`](entropy_corpus.py) is the odd one and stays: it answers *which files a check may look at*, which every check needs before it can count anything.
 
 **This directory is not split, and the boundary it would split on is named so nobody re-derives it:**
-what each check *reads* — the tree's shape (`corpus`, `naming`, `crowding`, `size`) against its text
-(`context`, `list`, `stores`, `vendor`). Costed and rejected 2026-08-24 (Lucas); it would make the
-dashboard import from two places to remove less table than the hop adds.
+what each check *reads* — the tree's shape (`corpus`, `naming`, `crowding`, `size`) against its text (`context`, `list`, `stores`, `vendor`). Costed and rejected 2026-08-24 (Lucas); it would make the dashboard import from two places to remove less table than the hop adds.
 
 <!-- routing:start -->
 ## Routing

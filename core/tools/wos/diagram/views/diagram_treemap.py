@@ -1,6 +1,6 @@
 # Folder mass: how much of the workspace each directory actually is, by tracked bytes.
 #
-# The question it answers is the one a routing table cannot: the spine says core/ holds hooks and
+# The question it answers is the one a routing table cannot: the routing tree says core/ holds hooks and
 # tools, and only area says that those two are most of the workspace while a directory beside them
 # is a rounding error. Squarified rather than sliced, so a small directory stays a readable
 # rectangle instead of a sliver.

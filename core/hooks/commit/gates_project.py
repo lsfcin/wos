@@ -26,13 +26,22 @@ CODE_SUFFIX = ('.js', '.jsx', '.ts', '.tsx', '.py', '.dart')
 GOAL_LINE = r'^>\s*goal:\s*(\[[^]]+\]\([^)]+\)|none)\s*$'
 
 
+WORKSPACE_MARKERS = ('AGENTS.md', 'core/SCHEMA.md')
+
+
 def _under_code(commit) -> bool:
     """Whether the repo committing is a project under code/ -- asked of the MACHINERY root.
 
     The bash matched an absolute `code/*` path on one machine, which is the whole reason this pipeline
     could not run on any other clone. `toplevel` is the repo being committed; `root` is where the
     workspace lives; the question is whether the first sits inside `code/` of the second.
+
+    A WORKSPACE CLONE IS NOT A PROJECT wherever it is checked out (ruled 2026-11-20, Lucas): the
+    public repo lives at code/wos, and judging its core/ by code-project rules asked 16 CONTEXT.md
+    for a `> spec:` the workspace never asks of core/. Both markers, so a project with one is not.
     """
+    if all((commit.toplevel / marker).is_file() for marker in WORKSPACE_MARKERS):
+        return False
     try:
         return commit.toplevel.relative_to(commit.root).parts[:1] == ('code',)
     except ValueError:
@@ -72,9 +81,9 @@ def project_contract(commit):
         _spec_declaration(commit)
 
     # Delegated gates carry their own guards, so they are not wrapped in a switch here.
-    import gitflow_gate
     import gitlink_gate
-    gitflow_gate.check(commit)
+    import lock
+    lock.check(commit)
 
     if project:
         for gate in ('checks/type-gate.py', 'checks/citation-gate.py'):
@@ -83,10 +92,6 @@ def project_contract(commit):
                 raise Blocked(done.stdout + done.stderr)
 
     gitlink_gate.check(commit)
-
-    # Branch drift: warn, never block. A deliberate mid-session switch is legitimate.
-    import branch_marker
-    branch_marker.check(commit)
 
 
 def _run_suite(commit, contract):
@@ -131,7 +136,7 @@ def _goal_link(commit):
 def _spec_declaration(commit):
     """A NEW module CONTEXT.md under code/ must declare '> spec: <file>' or '> spec: none'.
 
-    Ratchet / boy-scout: only files this commit ADDS, so existing modules are grandfathered and a
+    Gradual / boy-scout: only files this commit ADDS, so existing modules are grandfathered and a
     repo that inherited violations is not blocked on every commit. Mirrors the goal-link convention.
     """
     import re

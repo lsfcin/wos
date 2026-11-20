@@ -91,15 +91,14 @@ def test_the_vendored_waiver_reaches_the_edit_gate() -> None:
     It follows the SIZE half of the 2026-09-14 split, because the cap is what the waiver waives —
     `write_payload.py` declares the root and `size-gate.py` is the caller that spends it.
     """
-    needs('academy')
+    needs('brain')
     gate = HOOKS / 'checks/write_payload.py'
     depth = int(re.search(r'WORKSPACE_ROOT = Path\(__file__\)\.resolve\(\)\.parents\[(\d+)\]',
                           gate.read_text(encoding='utf-8')).group(1))
     root = gate.resolve().parents[depth]
-    # A vendored file this repo TRACKS. The fixture was code/corpora/depth_anything_v2/, which
-    # lives in a NESTED repo — so on any clone that has not also cloned it, this failed for a
-    # reason the workspace cannot fix, and blamed a fixture that had not moved.
-    vendored = WORKSPACE_ROOT / 'academy/administration/pda/template_extracted/word/document.xml'
+    # A vendored file this repo TRACKS. Twice the fixture sat in a tree that later became a NESTED
+    # repo (code/corpora/, then academy/administration/) and failed on every clone without it.
+    vendored = WORKSPACE_ROOT / 'brain/drafts/taste-galeria-1.md'
     assert vendored.exists(), 'fixture moved — pick another path listed in vendored.txt'
     assert is_vendored(vendored, root)
 
@@ -181,7 +180,7 @@ def test_no_checker_carries_its_own_extension_list() -> None:
         f'If the set is a different population, add it to NOT_THE_CODE_LAW with the reason.')
 
 
-def test_the_exemption_list_has_no_corpses() -> None:
+def test_the_exemption_list_has_no_dead_entries() -> None:
     """An exemption that no longer names a real file stops exempting and starts hiding."""
     missing = sorted(name for name in NOT_THE_CODE_LAW if not (HOOKS / name).exists())
     assert not missing, f'NOT_THE_CODE_LAW names files that do not exist: {missing}'

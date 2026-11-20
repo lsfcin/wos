@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from platform_law import WORKSPACE_ROOT  # noqa: E402
 
 # Freely readable: the deadlock guard, plus the docs that ARE the context.
-EXEMPT_NAMES = {'CONTEXT.md', 'AGENTS.md', 'CLAUDE.md', 'MEMORY.md'}
+EXEMPT_NAMES = {'CONTEXT.md', 'AGENTS.md', 'CLAUDE.md'}
 SKIP_PARTS = {'.git', 'node_modules', 'dist', '.codegraph', '__pycache__', '.vscode', '.hooks'}
 TOKEN_RE = re.compile(r'''[^\s'"`;|&<>()=]+''')
 

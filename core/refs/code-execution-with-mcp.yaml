@@ -1,0 +1,8 @@
+# Reference for code-execution-with-mcp
+key: code-execution-with-mcp
+title: "Code execution with MCP"
+url: "https://www.anthropic.com/engineering/code-execution-with-mcp"
+level: V
+section: "Context engineering & progressive disclosure"
+contributions:
+  - "(Anthropic) — tool definitions as code cut token overhead vs schema dumps."

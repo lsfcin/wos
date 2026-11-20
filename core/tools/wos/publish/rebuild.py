@@ -47,7 +47,17 @@ def leaves(target: pathlib.Path) -> list[str]:
                             text=True, encoding='utf-8', check=True).stdout.split('\n')
     dirs = {pathlib.PurePosixPath(p).parent.as_posix()
             for p in listed if p.endswith('CONTEXT.md')}
-    return sorted(dirs | {'.'})
+    # A TYPE INDEX (SPECS.md over its SPECS-*.md parts) is refreshed only when handed over as a
+    # FILE, never by its directory's sync, so a part gone from the target stayed in its table.
+    parts = {p for p in listed if _is_index(target, pathlib.PurePosixPath(p))}
+    return sorted(dirs | parts | {'.'})
+
+
+def _is_index(target: pathlib.Path, path: pathlib.PurePosixPath) -> bool:
+    if path.suffix != '.md' or path.name == 'CONTEXT.md' or not path.stem.isupper():
+        return False
+    return '-' not in path.stem and '<!-- routing:start -->' in (target / path).read_text(
+        encoding='utf-8', errors='replace')
 
 
 def generators(target: pathlib.Path) -> list[str]:

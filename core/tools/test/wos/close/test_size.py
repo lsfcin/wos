@@ -51,7 +51,7 @@ def _commit(ws, msg='c'):
 
 
 def _run(ws, *args):
-    # BOTH ENDS NAME THE ENCODING (core/tools/test/workspace/test_encoding_ratchet.py). `size` prints `·`; decoding its stdout as
+    # BOTH ENDS NAME THE ENCODING (workspace/ceilings/test_encoding_ceiling.py). `size` prints `·`; decoding its stdout as
     # utf-8 while the child writes the console codepage raises UnicodeDecodeError on byte 0xb7.
     #
     # The write end used to be left to whatever the environment happened to carry, and these five

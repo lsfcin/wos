@@ -1,0 +1,100 @@
+# Usage: core/run tools/web/shoot <file.html> [-o DIR] [--each SELECTOR] [--size WxH] [--scale N] [--wait MS] — render a local HTML page in headless Chromium and save it as PNG; prints the written paths as a JSON array
+#
+# WHY A LOCAL HTTP SERVER AND NOT file://. Pages built by a runtime fetch their siblings: a Claude
+# Design artboard loads ./support.js, then pulls each <dc-import name="Phone"> from Phone.dc.html.
+# Chromium refuses those fetches from file://, so the page renders blank and the PNG looks like a
+# working shot of nothing. The page's own directory is served on a free loopback port instead.
+#
+# WHY THE SIZE IS READ FROM THE PAGE. A Design artboard declares its own frame in data-props
+# ($preview width/height). Using it as the default viewport shoots the board exactly as the canvas
+# shows it; --size overrides, and a page that declares nothing gets 1280x800.
+#
+# A Design canvas renders here once its runtime sits beside the boards: copy
+# artifact-type/dc-runtime.js to project/support.js, then shoot project/<board>.dc.html.
+import argparse, functools, http.server, json, pathlib, re, sys, threading
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import tool_law  # noqa: E402
+
+DEFAULT_SIZE = (1280, 800)
+PREVIEW = re.compile(r'"\$preview"\s*:\s*\{\s*"width"\s*:\s*(\d+)\s*,\s*"height"\s*:\s*(\d+)')
+
+
+class _QuietHandler(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, *args):
+        pass
+
+
+def _serve(root: pathlib.Path) -> http.server.ThreadingHTTPServer:
+    handler = functools.partial(_QuietHandler, directory=str(root))
+    server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
+def _declared_size(page: pathlib.Path) -> tuple[int, int] | None:
+    match = PREVIEW.search(page.read_text(encoding='utf-8', errors='replace'))
+    return (int(match[1]), int(match[2])) if match else None
+
+
+def _parse_size(text: str) -> tuple[int, int]:
+    width, height = text.lower().split('x')
+    return int(width), int(height)
+
+
+def shoot(page: pathlib.Path, out: pathlib.Path, each: str | None, size: tuple[int, int],
+          scale: float, wait_ms: int) -> list[str]:
+    from playwright.sync_api import sync_playwright
+    out.mkdir(parents=True, exist_ok=True)
+    server = _serve(page.parent)
+    written, errors = [], []
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch()
+            tab = browser.new_page(viewport={'width': size[0], 'height': size[1]},
+                                   device_scale_factor=scale)
+            tab.on('pageerror', lambda e: errors.append(str(e)))
+            tab.goto(f'http://127.0.0.1:{server.server_address[1]}/{page.name}', wait_until='networkidle')
+            tab.wait_for_timeout(wait_ms)
+            if each:
+                for i, element in enumerate(tab.query_selector_all(each), 1):
+                    target = out / f'{page.stem}-{i:02d}.png'
+                    element.screenshot(path=str(target))
+                    written.append(str(target))
+            else:
+                target = out / f'{page.stem}.png'
+                tab.screenshot(path=str(target), full_page=True)
+                written.append(str(target))
+            browser.close()
+    finally:
+        server.shutdown()
+    for error in errors:
+        print(f'pageerror: {error[:300]}', file=sys.stderr)
+    return written
+
+
+def main():
+    tool_law.require('web-search')  # before argparse: off means off, including --help
+    p = argparse.ArgumentParser()
+    p.add_argument('page', type=pathlib.Path)
+    p.add_argument('-o', '--out', type=pathlib.Path, default=pathlib.Path('.'))
+    p.add_argument('--each', metavar='SELECTOR', help='one PNG per matching element instead of the whole page')
+    p.add_argument('--size', metavar='WxH', type=_parse_size, help='viewport; default: the page\'s $preview, else 1280x800')
+    p.add_argument('--scale', type=float, default=1, help='device pixel ratio (2 for a retina-sharp shot)')
+    p.add_argument('--wait', type=int, default=1500, metavar='MS', help='settle time after the network goes idle (fonts, runtime)')
+    args = p.parse_args()
+
+    page = args.page.resolve()
+    if not page.is_file():
+        print(json.dumps({'error': 'no such file', 'page': str(page)}), file=sys.stderr)
+        sys.exit(1)
+    size = args.size or _declared_size(page) or DEFAULT_SIZE
+    written = shoot(page, args.out, args.each, size, args.scale, args.wait)
+    if not written:
+        print(json.dumps({'error': 'nothing matched', 'each': args.each}), file=sys.stderr)
+        sys.exit(1)
+    print(json.dumps(written))
+
+
+if __name__ == '__main__':
+    main()

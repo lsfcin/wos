@@ -1,5 +1,6 @@
 # inbox.py — capture plain text/media into brain/INBOX.md ($0, no backend call).
 from __future__ import annotations
+import fcntl
 import pathlib
 import sys
 from datetime import datetime
@@ -16,15 +17,37 @@ INBOX_FILE = WORKSPACE_ROOT / "brain" / "INBOX.md"
 INBOX_MARKER = "<!-- add entries below, newest first -->"
 
 
+class CaptureLost(Exception):
+    """The entry is not in the file after the write. bot.py sends its "guardado" on the line after
+    append_entry returns, so a capture that did not land has to raise rather than return: b7 was
+    eight of those confirmed and none of them there (2026-09-20)."""
+
+
 def append_entry(entry: str) -> None:
     # The switch, at the moment the feature does its one job: writing into the workspace. bot.py
     # carries the same one at start, and the registry names BOTH in `wired`: a switched-off bot
     # must not reach the workspace even if something else starts the process.
     tool_law.require('bot')
-    text = INBOX_FILE.read_text(encoding='utf-8')
-    marker_pos = text.index(INBOX_MARKER) + len(INBOX_MARKER)
-    updated = text[:marker_pos] + f"\n\n{entry}" + text[marker_pos:]
-    INBOX_FILE.write_text(updated, encoding='utf-8', newline='\n')
+    # Locked on the INBOX file itself and written in place, never through a temp file and a
+    # rename: a rename gives the path a new inode, and every waiter is then holding a lock on a
+    # file nobody will write again. The bot runs as a systemd service and the workspace runs
+    # agent sessions against the same path, so the collision this has to survive is between
+    # PROCESSES — an asyncio lock would not have seen it.
+    with open(INBOX_FILE, 'r+', encoding='utf-8', newline='\n') as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        text = handle.read()
+        marker_pos = text.index(INBOX_MARKER) + len(INBOX_MARKER)
+        updated = text[:marker_pos] + f"\n\n{entry}" + text[marker_pos:]
+        handle.seek(0)
+        handle.truncate()
+        handle.write(updated)
+        handle.flush()
+        # Read the file back rather than trusting that write() returning means the bytes are
+        # there, and do it while the lock is still held: outside it, this read can land in the
+        # window where another writer has truncated the file and not yet written, which is a
+        # capture reported lost that was never lost.
+        if entry not in INBOX_FILE.read_text(encoding='utf-8'):
+            raise CaptureLost(f"{INBOX_FILE} does not carry the entry after writing it")
 
 
 def build_entry(body: str, attachment_path: pathlib.Path | None, *, forwarded: bool = False) -> str:

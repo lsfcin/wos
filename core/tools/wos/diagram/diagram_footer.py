@@ -22,7 +22,7 @@ def _scope(scope: dict) -> str:
 def _sources() -> str:
     return ('<p><b>how to change it</b> edit the source, not this file: '
             '<code>core/features.txt</code> for the matrix, a directory\'s '
-            '<code>CONTEXT.md</code> for the spine'
+            '<code>CONTEXT.md</code> for the routing tree'
             '. Regenerated and committed by <code>/roundup</code> at every session close, so a '
             'stale picture is a bug in the close, not a fact of life.</p>')
 

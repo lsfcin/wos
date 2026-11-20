@@ -16,15 +16,11 @@ Tool names are literal. Use only tools visible in the current tool set. See `cor
 
 Review this AI research artifact: $@
 
-Derive a short name from the artifact name (lowercase, hyphens, no filler words, ≤5 words). Use this short name for all
-files
-in this run.
+Derive a short name from the artifact name (lowercase, hyphens, no filler words, ≤5 words). Use this short name for all files in this run.
 
-This is an execution request, not a request to explain or implement the workflow instructions. Carry out the workflow
-with tools and durable files.
+This is an execution request, not a request to explain or implement the workflow instructions. Carry out the workflow with tools and durable files.
 
-Do not ask for confirmation. Briefly summarize the plan to the user and continue immediately unless the user explicitly
-asked to review the plan first.
+Do not ask for confirmation. Briefly summarize the plan to the user and continue immediately unless the user explicitly asked to review the plan first.
 
 Required artifacts:
 - Plan: `outputs/.plans/<name>-review-plan.md`
@@ -47,12 +43,8 @@ Workflow:
    - For arXiv IDs or URLs, fetch the paper/source directly and record the URL.
    - Inspect linked code, datasets, supplemental material, or citations when they are reachable and materially affect
      the review.
-5. Write evidence notes to `outputs/.drafts/<name>-review-evidence.md` before writing the final review. Include
-   quoted/paraphrased claims, observed methods, reported metrics, baseline comparisons, reproducibility facts, and every
-   inspected source path or URL.
-6. Use the `researcher` and `reviewer` subagents only if the `subagent` tool is available and the artifact is large
-   enough to benefit from delegation. If subagents are unavailable or would only add overhead, do the lead-owned review
-   directly.
+5. Write evidence notes to `outputs/.drafts/<name>-review-evidence.md` before writing the final review. Include quoted/paraphrased claims, observed methods, reported metrics, baseline comparisons, reproducibility facts, and every inspected source path or URL.
+6. Use the `researcher` and `reviewer` subagents only if the `subagent` tool is available and the artifact is large enough to benefit from delegation. If subagents are unavailable or would only add overhead, do the lead-owned review directly.
 7. Write exactly one final review artifact to `outputs/<name>-review.md` with:
    - Summary Assessment
    - Strengths
@@ -63,12 +55,7 @@ Workflow:
    - Inline Annotations tied to sections, claims, figures, or tables where possible
    - Recommendation
    - Sources
-8. If the artifact cannot be parsed or critical evidence is unavailable, still write `outputs/<name>-review.md`. Mark
-   the affected sections with `Verification: BLOCKED`, explain exactly what failed, and distinguish blocked checks from
-   actual paper weaknesses.
-9. Write `outputs/<name>-review.provenance.md` (date, artifact identifier, sources inspected vs accepted vs rejected,
-   verification status). Before responding, verify on disk that both `outputs/<name>-review.md` and its provenance
-   sidecar exist. If the review is missing, create it immediately as a blocked review artifact with the failure reason.
+8. If the artifact cannot be parsed or critical evidence is unavailable, still write `outputs/<name>-review.md`. Mark the affected sections with `Verification: BLOCKED`, explain exactly what failed, and distinguish blocked checks from actual paper weaknesses.
+9. Write `outputs/<name>-review.provenance.md` (date, artifact identifier, sources inspected vs accepted vs rejected, verification status). Before responding, verify on disk that both `outputs/<name>-review.md` and its provenance file exist. If the review is missing, create it immediately as a blocked review artifact with the failure reason.
 
-Never end with planning-only chat. Never ask what to do next. Never claim the review is complete unless
-`outputs/<name>-review.md` exists.
+Never end with planning-only chat. Never ask what to do next. Never claim the review is complete unless `outputs/<name>-review.md` exists.

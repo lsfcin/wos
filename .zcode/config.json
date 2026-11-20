@@ -53,6 +53,11 @@
               "type": "command",
               "timeout": 30,
               "command": "sh ${ZCODE_PROJECT_DIR}/core/run hooks/session/context-meter.py"
+            },
+            {
+              "type": "command",
+              "timeout": 30,
+              "command": "sh ${ZCODE_PROJECT_DIR}/core/run hooks/session/downloads.py"
             }
           ]
         }
@@ -78,17 +83,12 @@
             {
               "type": "command",
               "timeout": 30,
-              "command": "sh ${ZCODE_PROJECT_DIR}/core/run hooks/git/branch_marker.py record"
-            },
-            {
-              "type": "command",
-              "timeout": 30,
               "command": "sh ${ZCODE_PROJECT_DIR}/core/run hooks/session/mirror-heal.py"
             },
             {
               "type": "command",
               "timeout": 30,
-              "command": "sh ${ZCODE_PROJECT_DIR}/core/run hooks/session/nudges.py"
+              "command": "sh ${ZCODE_PROJECT_DIR}/core/run hooks/session/reminders.py"
             }
           ]
         }

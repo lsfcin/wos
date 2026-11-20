@@ -7,21 +7,14 @@ Contract for the frontmatter, the `type` disciplines, and the `uses:` compositio
 
 ## Rules that hold for every flow
 
-These were extracted from the craft monolith (2026-07-23) because they were never specific to one
-flow:
+These were extracted from the craft monolith (2026-07-23) because they were never specific to one flow:
 
-- **The artifact is the memory.** A flow's durable output is a file on disk, not the chat. A run
-  that ends chat-only after work started produced nothing. State that survives the session is what
-  lets the next session — or a cheaper model — pick the work up.
-- **Delegate gathering, never synthesis.** Subagents collect; the flow that owns the artifact writes
-  it. A synthesis handed to a subagent comes back as a lossy retelling.
-- **A fresh session reads exactly one file.** When a flow relays work between sessions, each one
-  receives its own step plus a single input file — never conversation history. This is how a flow
-  *saves* tokens instead of spending them.
+- **The artifact is the memory.** A flow's durable output is a file on disk, not the chat. A run that ends chat-only after work started produced nothing. State that survives the session is what lets the next session — or a cheaper model — pick the work up.
+- **Delegate gathering, never synthesis.** Subagents collect; the flow that owns the artifact writes it. A synthesis handed to a subagent comes back as a lossy retelling.
+- **A fresh session reads exactly one file.** When a flow relays work between sessions, each one receives its own step plus a single input file — never conversation history. This is how a flow *saves* tokens instead of spending them.
 - **Size is a signal.** A step whose artifact keeps growing past its cap is a step that is too big.
   Split the work; do not raise the cap.
-- **Loops are bounded.** Returning to an earlier step is legal iteration only with an exit condition
-  and a numeric cap, and only if state changed. See `_template.md` § Execution Loops.
+- **Loops are bounded.** Returning to an earlier step is legal iteration only with an exit condition and a numeric cap, and only if state changed. See `_template.md` § Execution Loops.
 
 <!-- routing:start -->
 ## Routing

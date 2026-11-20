@@ -4,3 +4,4 @@ opencode	.opencode/skills	-
 claude	.claude/skills	.claude/commands
 zcode	.zcode/skills	-
 agents	.agents/skills	-
+codex	.agents/skills	-

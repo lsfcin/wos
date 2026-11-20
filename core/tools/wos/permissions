@@ -37,7 +37,9 @@ CLAUDE = {
                      f'Bash({platform_law.WINDOWS_VENV_BIN}/pytest.exe:*)'],
     'run-any': ['Bash'],
     'delete': ['Bash(rm:*)', 'Bash(git clean:*)'],
-    'push': ['Bash(git push:*)'],
+    # Creating the remote is the first push, not a separate act: `gh repo create --push` was refused
+    # by the auto-mode classifier on 2026-11-11 and Lucas had to type it himself.
+    'push': ['Bash(git push:*)', 'Bash(gh repo create:*)'],
     'secrets': ['Read(./.credentials.json)', 'Read(./**/.env)', 'Read(~/.claude/.credentials.json)',
                 'Read(~/.config/workspace-*/**)'],
 }
@@ -81,6 +83,15 @@ def render_claude(level: str) -> dict:
     for effect in ('allow', 'ask', 'deny'):
         block[effect] = sorted(dict.fromkeys(block[effect]))
     return block
+
+
+def codex_gaps(level: str) -> str:
+    """Represent the native boundary without changing the host's permission settings."""
+    if level not in levels():
+        raise ValueError(level)
+    return ('Codex: permission settings remain controlled by the host. The neutral profile does '
+            'not automatically change its sandbox or approvals; per-action patterns have no '
+            'complete native equivalent.')
 
 
 def _target() -> Path:
@@ -152,6 +163,7 @@ def _listing() -> int:
         print(f'     {spec["summary"]}')
         print(f'     {spec["tradeoff"]}')
     print(f'\nThis machine answered: {active}. Change it with --set <level>.')
+    print(codex_gaps(active))
     return 0
 
 

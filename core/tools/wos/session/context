@@ -12,19 +12,19 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'hooks'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'hooks/session'))
 from session_log import attribute, median, project_name, spread, walk
+from session_turns import paths_for
 from platform_law import WORKSPACE_ROOT as WORKSPACE  # noqa: E402
 
 ROOT = Path.home() / '.claude' / 'projects'
 PROSE_RATE = 3.8  # chars/token for ordinary prose and code — the yardstick, not a measurement
 
 # Injected into the system prompt, invisible to the transcript, paid by every session in the tree.
-# Measured on disk so the memory store's cost is separable from everything else's — 3.1's question.
+# Measured on disk so their cost is separable from everything else's.
 ALWAYS_LOADED = {
 	'CLAUDE.md chain': [Path.home() / '.claude/CLAUDE.md', Path.home() / '.claude/RTK.md',
 	                    WORKSPACE / 'CLAUDE.md', WORKSPACE / 'AGENTS.md'],
-	# The store moved into the workspace 2026-08-15; the harness path is now a symlink to it.
-	'memory index': [WORKSPACE / 'brain/memory/MEMORY.md'],
 }
 
 
@@ -57,14 +57,14 @@ def scan(paths: list, sidechain: bool = False) -> dict:
 	return found
 
 
-def report_start(found: dict) -> None:
+def report_start(found: dict, provider: str = 'claude') -> None:
 	print('1. SESSION START — what the window already holds before the first tool call\n')
 	pooled: dict = defaultdict(list)
 	for start in found['starts']:
 		for name, (_tok, chars) in start.items():
 			pooled[name].append(chars)
 	labelled = {n: median(v) for n, v in pooled.items()}
-	disk = on_disk()
+	disk = on_disk() if provider == 'claude' else {}
 	first = median(found['firsts']) or 1.0
 	residual = first - (sum(labelled.values()) + sum(disk.values())) / PROSE_RATE
 
@@ -136,29 +136,45 @@ def main() -> None:
 	args = sys.argv[1:]
 	project = args[args.index('--project') + 1] if '--project' in args else project_name()
 	top = int(args[args.index('--top') + 1]) if '--top' in args else 14
+	provider = args[args.index('--provider') + 1] if '--provider' in args else 'claude'
+	session = args[args.index('--session') + 1] if '--session' in args else ''
 	directory = ROOT / project
-	if not directory.is_dir():
+	if provider == 'claude' and not directory.is_dir():
 		sys.exit(f'no such project: {directory}')
 
-	main_paths = sorted(directory.glob('*.jsonl'))
-	sub_paths = sorted(directory.glob('*/subagents/*.jsonl'))
+	main_paths = paths_for(project, session, provider)
+	sub_paths = sorted(directory.glob('*/subagents/*.jsonl')) if provider == 'claude' else []
 	found = scan(main_paths)
 	subs = scan(sub_paths, sidechain=True)
 	if not found['walked']:
 		sys.exit(f'{project}: no sessions with usage')
 
 	skipped = len(main_paths) - len(found['walked'])
-	others = sorted(p.name for p in ROOT.iterdir() if p.is_dir() and p.name != project)
+	others = sorted(p.name for p in ROOT.iterdir() if p.is_dir() and p.name != project) if ROOT.is_dir() and provider == 'claude' else []
+	if provider == 'codex':
+		print('Local Codex: recorded per-response input; cumulative usage is not current context.\n'
+		      'Cost is Standard API-equivalent, not a subscription bill. Source shares are estimates.\n'
+		      'Nested shell reads and worker attribution are not fully exposed by this transcript.')
+		if session and main_paths:
+			from transcript import context_limit, last_context
+			print(f'Last recorded input: {last_context(str(main_paths[0])):,}; '
+			      f'runtime-reported limit: {context_limit(str(main_paths[0])):,}.')
 	print(f"{project} · {len(found['walked'])} sessions · {found['turns']:,} turns · "
 	      f"${sum(s['spend'] for s in found['walked']):,.2f}")
 	print(f'scanned {len(main_paths)} transcripts ({skipped} had too few turns to calibrate) '
 	      f"and {len(sub_paths)} subagent transcripts.")
 	print(f"not scanned: {', '.join(others) or 'nothing'} — pass --project to include one.\n")
 
-	report_start(found)
-	report_cascade(found)
+	report_start(found, provider)
+	if provider == 'claude':
+		report_cascade(found)
+	else:
+		print('2. CONTEXT.md CASCADE — nested reads and gate counts are not attributable.\n')
 	report_growth(found, top)
-	report_subagents(subs)
+	if provider == 'claude':
+		report_subagents(subs)
+	else:
+		print('\n4. SUBAGENTS — worker attribution is unavailable in this report.')
 	per_token = median(found['ratios'])
 	print(f'\nmeasured {per_token:.2f} chars/token against a prose rate of {PROSE_RATE} — roughly '
 	      f'{max(0.0, 1 - per_token / PROSE_RATE):.0%} of growth is material the transcript\n'

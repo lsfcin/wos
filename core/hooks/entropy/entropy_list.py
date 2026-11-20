@@ -31,11 +31,23 @@ def retired_hits(files: list, retired: dict, exempt: set) -> list:
     """Every surviving occurrence of a retired token, in content or in a filename."""
     exempt = {path.resolve() for path in exempt}
     # Hyphen and underscore are boundaries, not word characters: a retired token survives just
-    # as much inside `fable-loop-engineering.md` or `entropy_ledger.py` as standing alone, and
-    # that compound form is how an unfinished rename hides at the leaves. `\w` covered the
+    # as much inside `old-name-here.md` or `entropy_oldname.py` as standing alone, and that
+    # compound form is how an unfinished rename hides at the leaves. `\w` covered the
     # hyphen and missed the underscore until 2026-09-14, blinding this to every identifier.
-    patterns = {token: re.compile(rf'(?<![A-Za-z0-9]){re.escape(token)}(?![A-Za-z0-9])')
-                for token in retired}
+    # The examples are invented on purpose: a real dead spelling written here is one this
+    # check cannot fail on, since the module is exempt from itself.
+    #
+    # AN INFLECTION IS THE SAME WORD, and until 2026-09-18 none of them counted: the exact token
+    # alone was matched, so three inflected spellings sat in tracked files while the check
+    # reported zero and the table claimed three finished renames. A rename nobody can see is
+    # unfinished is worse than no rename — the row is what makes it true, so the row has to be
+    # able to fail. A trailing `e` is dropped before suffixing so a token ending in `e`
+    # still reaches its `-ing` form. `[^\W_]` is a Unicode letter or digit: an accented letter
+    # is part of a pt-br word, not a boundary.
+    patterns = {token: re.compile(
+        rf'(?<![^\W_])(?:{re.escape(token)}'
+        rf'|{re.escape(token[:-1] if token.endswith("e") else token)}(?:s|es|d|ed|ing))'
+        rf'(?![^\W_])') for token in retired}
     hits = []
     for path in files:
         if path.resolve() in exempt:
@@ -57,7 +69,7 @@ def retired_hits(files: list, retired: dict, exempt: set) -> list:
 
 
 def item_ids(path: Path) -> set:
-    """Slugs this file claims as items — bracketed, in item position."""
+    """Item ids this file claims — bracketed, in item position."""
     try:
         return set(ITEM_ID.findall(path.read_text(encoding='utf-8')))
     except (OSError, UnicodeDecodeError):
@@ -96,7 +108,7 @@ PLACEHOLDER = '← add'
 
 
 def finished_work_hits(files: list, exempt: set) -> list:
-    """Prose describing work that already landed — the corpse no link-checker can see.
+    """Prose describing work that already landed — the finished work no link-checker can see.
 
     Completion is deletion (core/SCHEMA.md § No archive types): a list's length should
     measure remaining work. AGENTS.md bans strikethrough and SCHEMA bans the ticked item,
@@ -118,7 +130,7 @@ def finished_work_hits(files: list, exempt: set) -> list:
             ('strikethrough', STRIKETHROUGH.search(CODE_SPAN.sub('', text))),
             ('a dated completion report', DATED_REPORT.search(text)),
             ('a SETTLED marker', SETTLED.search(text)),
-            # A tick is a corpse only in a list; elsewhere the glyph is a legend marker,
+            # A tick is finished work only in a list; elsewhere the glyph is a legend marker,
             # which is how core/SCHEMA.md flags a required frontmatter field.
             ('a ticked item', TICKED_ITEM.search(text) if path.name in LIST_FILES else None),
         ):
@@ -137,7 +149,7 @@ def unanswered_placeholders(files: list, exempt: set) -> list:
 
     Split out of finished_work_hits 2026-08-15, which carried the remediation "cut it; git is the
     history". That advice is wrong here and acting on it is worse than ignoring it: the marker is a
-    live request, not a record, and the generator writes it again on the next save. Three scaffolds
+    live request, not a record, and the generator writes it again on the next save. Three generators
     emit the same glyph, and all three are answered at the source.
 
     Counted per file rather than per row, so the number means "files that lie to a reader"

@@ -47,14 +47,24 @@ def download_public_export(presentation_id: str, out_path: pathlib.Path, format:
     return out_path
 
 
+def _poppler(*args: str) -> str:
+    """A PDF is opened raw only inside core/tools/pdf; slides asks that family's leaf, like gmail does."""
+    cmd = [platform_law.interpreter(), str(platform_law.WORKSPACE_ROOT / "core/tools/pdf/poppler"), *args]
+    res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+    if res.returncode != 0:
+        raise RuntimeError(f"core/run tools/pdf/poppler {' '.join(args)} failed: {res.stderr.strip()}")
+    return res.stdout
+
+
+def render_pages(pdf_path: pathlib.Path, prefix: pathlib.Path, pages: list[int] | None = None, dpi: int = 150) -> list[pathlib.Path]:
+    """Each page as `<prefix>-<n>.png`, in page order."""
+    span = ["--pages", ",".join(map(str, pages))] if pages else []
+    out = _poppler("render", str(pdf_path), "--prefix", str(prefix), "--dpi", str(dpi), *span)
+    return [pathlib.Path(line) for line in out.splitlines() if line]
+
+
 def extract_slide_texts(pdf_path: pathlib.Path) -> list[str]:
-    try:
-        res = subprocess.run(["pdftotext", str(pdf_path), "-"], capture_output=True, text=True, encoding="utf-8", check=True)
-    except subprocess.CalledProcessError as err:
-        raise RuntimeError(f"pdftotext failed on {pdf_path}: {err.stderr}") from err
-    except FileNotFoundError as err:
-        raise RuntimeError("pdftotext not found. Ensure poppler-utils is installed.") from err
-    pages = res.stdout.split("\x0c")
+    pages = _poppler("text", str(pdf_path)).split("\x0c")
     if pages and not pages[-1].strip():
         pages.pop()
     return pages
@@ -116,10 +126,9 @@ def render_sample_images(pdf_path: pathlib.Path, slide_numbers: list[int], out_d
     for s in slide_numbers:
         prefix = imgs / f"slide_{s:03d}"
         try:
-            subprocess.run(["pdftoppm", "-png", "-r", str(dpi), "-f", str(s), "-l", str(s), str(pdf_path), str(prefix)], check=True, capture_output=True)
+            matches = render_pages(pdf_path, prefix, [s], dpi)
         except Exception:
             continue
-        matches = list(imgs.glob(f"slide_{s:03d}-*.png"))
         if matches:
             dest = imgs / f"slide_{s:03d}.png"
             if dest.exists(): dest.unlink()

@@ -23,6 +23,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import feature_law  # noqa: E402
+import scoreboard  # noqa: E402
 from hook_input import capability, parse_stdin
 from platform_law import rel  # noqa: E402
 
@@ -125,6 +126,9 @@ def main() -> int:
 	paths = written_paths(str(tool_input.get('command', '')), cwd)
 	if not paths:
 		return 0
+	# This gate never exits 2, so `blocked` is structurally zero for it and the scoreboard could
+	# only say it ran. `found` is what it caught (core/hooks/scoreboard.py).
+	scoreboard.record('heredoc-gate', 'found')
 	names = ', '.join(rel(p, WORKSPACE_ROOT) for p in paths[:3])
 	print(json.dumps({'hookSpecificOutput': {
 		'hookEventName': 'PreToolUse',

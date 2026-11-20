@@ -1,0 +1,8 @@
+# Reference for glitchcatclub-state-file-compaction
+key: glitchcatclub-state-file-compaction
+title: "GlitchCatClub state-file compaction"
+url: "https://www.instagram.com/reel/DdyqnietB8C/"
+level: C
+section: "Context engineering & progressive disclosure"
+contributions:
+  - "padrão de arquivo de estado mantido pelo agente para substituição de histórico sem perda de contexto ou resumos opacos de harness."

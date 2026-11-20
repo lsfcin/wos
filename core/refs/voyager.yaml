@@ -1,0 +1,8 @@
+# Reference for voyager
+key: voyager
+title: "Voyager"
+url: "https://arxiv.org/abs/2305.16291"
+level: A
+section: "Context engineering & progressive disclosure"
+contributions:
+  - "(TMLR 2023) — lifelong skill library persisted outside model weights."

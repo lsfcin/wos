@@ -1,0 +1,130 @@
+# Usage: core/run tools/panel/ask [--out FILE] [--only NAME] PROMPT_FILE|- — ask an outside panel (another vendor's model), falling to the next model when one gives no verdict
+#
+# WHY THIS EXISTS: AGENTS.md puts an outside panel's verdict next to every option Lucas decides,
+# and each session rebuilt the call by hand — the Codex binary is off PATH inside the ChatGPT
+# app, agy needs its model before the prompt, and a spent quota meant trying the next one by
+# hand (2026-11-04: Codex out until 16:31, Gemini Argon out for 73 h, Flash answered; three
+# manual tries before the first verdict). The call table lives in core/agents/SPECS.md; this
+# tool is that table made executable, in Lucas's order: GPT first, it spends no Claude quota.
+#
+# WHY ONE LEAF FOR SEVERAL PROVIDERS: the family rule puts the vendor at the file, but a panel's
+# value is the fallback across vendors, so the chain itself is the leaf.
+#
+# WHY READ-ONLY: a panel comments, it never edits. Codex runs `-s read-only`; agy runs headless
+# with no tools. The spawner writes files from the answer, never the worker.
+#
+# WHY EVERY MISS FALLS THROUGH, NOT ONLY A SPENT QUOTA: either way that model gave no verdict, and
+# the next model's verdict is worth more than a stop. Each miss is printed with its reason, so a
+# broken call is never mistaken for a spent quota.
+import argparse
+import datetime
+import os
+import pathlib
+import shutil
+import subprocess
+import sys
+import tempfile
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import tool_law  # noqa: E402
+
+tool_law.require('panel')
+
+WORKSPACE = pathlib.Path(__file__).resolve().parents[3]
+TIMEOUT = 900
+QUOTA_MARKS = ('usage limit', 'resource_exhausted', 'quota reached', 'quota exceeded', 'agy_error')
+CODEX_PLACES = ('/usr/lib/chatgpt/resources/codex',)
+AGY_PLACES = (str(pathlib.Path.home() / '.local/bin/agy'),)
+
+
+def find(name: str, env: str, places: tuple[str, ...]) -> str | None:
+    """$ENV, then PATH, then the place the vendor's app installs it."""
+    for cand in (os.environ.get(env), shutil.which(name), *places):
+        if cand and os.access(cand, os.X_OK):
+            return cand
+    return None
+
+
+def _run(cmd: list[str]) -> tuple[int, str]:
+    """stdin closed: without it `codex exec` waits on stdin forever."""
+    try:
+        done = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                              encoding='utf-8', errors='replace', timeout=TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return 124, f'timed out after {TIMEOUT} s'
+    return done.returncode, (done.stdout or '') + (done.stderr or '')
+
+
+def codex(prompt: str) -> tuple[int, str]:
+    exe = find('codex', 'CODEX', CODEX_PLACES)
+    if not exe:
+        return 127, 'codex not found ($CODEX, PATH, ChatGPT app resources)'
+    with tempfile.TemporaryDirectory() as tmp:
+        out = pathlib.Path(tmp) / 'answer.md'
+        code, log = _run([exe, 'exec', '-s', 'read-only', '-m', 'gpt-6.1-sol', '-C', str(WORKSPACE),
+                          '--ephemeral', '-o', str(out), prompt])
+        answer = out.read_text(encoding='utf-8') if out.exists() else ''
+        return (0, answer) if code == 0 and answer.strip() else (code or 1, log)
+
+
+def agy(model: str):
+    def call(prompt: str) -> tuple[int, str]:
+        exe = find('agy', 'AGY', AGY_PLACES)
+        if not exe:
+            return 127, 'agy not found ($AGY, PATH, ~/.local/bin)'
+        return _run([exe, '--disable-slash-commands', '--model', model, '-p', prompt])
+    return call
+
+
+CHAIN = (
+    ('codex', 'gpt-6.1-sol', codex),
+    ('argon', 'gemini-4-argon-high', agy('gemini-4-argon-high')),
+    ('flash', 'gemini-3.8-flash-high', agy('gemini-3.8-flash-high')),
+)
+
+
+def failed(code: int, text: str) -> str | None:
+    """Why this answer is no verdict, or None when it is one. agy prints a spent quota and may exit 0."""
+    low = text.lower()
+    if any(m in low for m in QUOTA_MARKS):
+        line = next((l for l in text.splitlines() if any(m in l.lower() for m in QUOTA_MARKS)), '')
+        return 'quota: ' + line.strip()[:160]
+    if code != 0:
+        return f'exit {code}: ' + text.strip()[-160:]
+    if not text.strip():
+        return 'empty answer'
+    return None
+
+
+def ask(prompt: str, chain=CHAIN) -> tuple[str, str, list[str]]:
+    """The first verdict down the chain: (who, answer, misses). SystemExit when none answered."""
+    misses = []
+    for name, model, call in chain:
+        code, text = call(prompt)
+        why = failed(code, text)
+        if why is None:
+            return f'{name} {model}', text.strip() + '\n', misses
+        misses.append(f'{name}: {why}')
+    raise SystemExit('panel: no model answered\n  ' + '\n  '.join(misses))
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(description='Ask an outside panel; the next model when one gives no verdict.')
+    p.add_argument('prompt', help='prompt file, or - for stdin')
+    p.add_argument('--out', help='write the answer here, headed by who answered and when')
+    p.add_argument('--only', choices=[c[0] for c in CHAIN], help='ask this model alone')
+    a = p.parse_args()
+    prompt = sys.stdin.read() if a.prompt == '-' else pathlib.Path(a.prompt).read_text(encoding='utf-8')
+    who, answer, misses = ask(prompt, tuple(c for c in CHAIN if not a.only or c[0] == a.only))
+    for m in misses:
+        print(f'panel: skipped {m}', file=sys.stderr)
+    text = f"<!-- panel: {who} · {datetime.datetime.now():%Y-%m-%d %H:%M} -->\n{answer}"
+    if a.out:
+        pathlib.Path(a.out).write_text(text, encoding='utf-8', newline='\n')
+        print(f'panel: {who} answered → {a.out}', file=sys.stderr)
+    else:
+        sys.stdout.write(text)
+
+
+if __name__ == '__main__':
+    main()

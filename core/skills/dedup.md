@@ -1,6 +1,7 @@
 ---
 name: dedup
-description: Semantic duplication audit for a code project, defaulting to the one in the working directory: near-duplicate logic that the verbatim-clone gate misses.
+description: >
+  Semantic duplication audit for a code project, defaulting to the one in the working directory: near-duplicate logic that the verbatim-clone gate misses.
 ---
 
 # Dedup skill
@@ -12,8 +13,7 @@ Arguments: $ARGUMENTS
 ## Why this exists
 
 The pre-commit jscpd gate blocks verbatim/near-verbatim clones. Agents rarely paste —
-they REGENERATE similar logic with new names. Token-based tools miss that. This audit
-finds semantic duplicates on a cadence (run at roundup or weekly).
+they REGENERATE similar logic with new names. Token-based tools miss that. This audit finds semantic duplicates on a cadence (run at roundup or weekly).
 
 ## Protocol
 
@@ -32,6 +32,5 @@ finds semantic duplicates on a cadence (run at roundup or weekly).
      shared core could be factored later.
    - **DIVERGED COPY** — started equal, drifted → the dangerous one; decide the canonical
      behavior FIRST, then unify. Check git log of both files for the fork point.
-4. Fix DUPLICATEs directly (respect facade + 200-line gates). For risky unifications,
-   file a ROADMAP item instead of a blind refactor.
+4. Fix DUPLICATEs directly (respect facade + 200-line gates). For risky unifications, file a ROADMAP item instead of a blind refactor.
 5. Report: pairs found / fixed / deferred, with file:line references.

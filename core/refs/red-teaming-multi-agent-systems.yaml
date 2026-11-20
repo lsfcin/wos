@@ -1,0 +1,8 @@
+# Reference for red-teaming-multi-agent-systems
+key: red-teaming-multi-agent-systems
+title: "Red-Teaming Multi-Agent Systems"
+url: "https://arxiv.org/abs/2502.14847"
+level: A
+section: "Agent memory & security"
+contributions:
+  - "(ACL 2025) — communication trust boundaries in multi-agent setups."

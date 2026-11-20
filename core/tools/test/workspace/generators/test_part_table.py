@@ -15,11 +15,11 @@ from conftest import WORKSPACE_ROOT  # the depth lives in one file, not nine
 from part_table import build_part_rows, index_for, part_facts, parts_of  # noqa: E402
 
 ALPHA = """# Alpha
-> Level 0 checks and the ratchet that makes the count fall.
+> Level 0 checks and the ceiling that makes the count fall.
 > priority: essential
 
 1. 🔴 do the thing.
-2. 🟢 `[ratchet]` do the other thing.
+2. 🟢 `[second-item]` do the other thing.
 """
 
 BETA = """# Beta
@@ -64,9 +64,9 @@ def test_a_sentence_about_the_marker_is_not_a_marked_item(tmp_path) -> None:
 
 
 def test_an_item_id_survives_the_marker_in_front_of_it(tmp_path) -> None:
-    """`2. 🟢 [ratchet]` — the emoji sits between the number and the id, and ate it once."""
+    """`2. 🟢 [second-item]` — the emoji sits between the number and the id, and ate it once."""
     _cut(tmp_path, **{'ROADMAP-alpha.md': ALPHA})
-    assert '`ratchet`' in part_facts(tmp_path / 'ROADMAP-alpha.md')['items']
+    assert '`second-item`' in part_facts(tmp_path / 'ROADMAP-alpha.md')['items']
 
 
 def test_declared_fields_come_from_the_header_lines(tmp_path) -> None:

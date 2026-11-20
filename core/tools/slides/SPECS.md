@@ -3,68 +3,62 @@
 
 ## Slidev is gone (2026-08-14)
 
-This family used to be a Slidev CLI plus a Google-Slides→Slidev port pipeline (`slides_port`,
-`slides_shapes`, `slides_style`, `slides_text`). Lucas retired it once remote editing into the
-live deck was confirmed working: the reason to port decks out was that the source of truth could
-not be edited from here, and it can. **Resurrecting a local presentation format needs that reason
-to come back first** — what survived is `slides_geom.py`, the transform algebra below.
+This family used to be a Slidev CLI plus a Google-Slides→Slidev port pipeline (`slides_port`, `slides_shapes`, `slides_style`, `slides_text`). Lucas retired it once remote editing into the live deck was confirmed working: the reason to port decks out was that the source of truth could not be edited from here, and it can. **Resurrecting a local presentation format needs that reason to come back first** — what survived is `slides_geom.py`, the transform algebra below.
 
 ## Auth
 
-Two grants: `slides` (`presentations.readonly`) and `slides-write` (`presentations`), the same
-split as [`../files/`](../files/CONTEXT.md). A read prefers the write token when the alias has
-one — the edit consent already contains the read consent, so demanding a second browser trip
-would buy no safety and just create two tokens that can die independently.
+Two grants: `slides` (`presentations.readonly`) and `slides-write` (`presentations`), the same split as [`../files/`](../files/CONTEXT.md). A read prefers the write token when the alias has one — the edit consent already contains the read consent, so demanding a second browser trip would buy no safety and just create two tokens that can die independently.
 
-**The two grants live in two directories, and the write one is easy to miss.** A read token is
-`~/.config/workspace-slides/<alias>.token.json`; a write token is
-`~/.config/workspace-slides-**write**/<alias>.token.json` — the grant name *is* the directory
-suffix, via `gauth.config_dir(kind)`. Checking the read directory to see whether a write grant
-landed answers **no** forever, no matter how many times the consent succeeds. That failure ran four
-times in one session on 2026-08-17, while `gslides auth` printed the real path on its own last line
-each time. **Read the tool's output, not a directory you inferred the name of.**
+**The two grants live in two directories, and the write one is easy to miss.** A read token is `~/.config/workspace-slides/<alias>.token.json`; a write token is `~/.config/workspace-slides-**write**/<alias>.token.json` — the grant name *is* the directory suffix, via `gauth.config_dir(kind)`. Checking the read directory to see whether a write grant landed answers **no** forever, no matter how many times the consent succeeds. That failure ran four times in one session on 2026-08-17, while `gslides auth` printed the real path on its own last line each time. **Read the tool's output, not a directory you inferred the name of.**
 
 ## Geometry
 
-- **Slide dimensions: `9144000 × 5143500` EMU** (standard 16:9). `slides_geom.py` reports every
-  position and size as a fraction of these, and the write path takes the same fraction back.
-- **A stored `size` is a base size, not the rendered one.** The rendered box is `size × scale`
-  from the transform. An ordinary API-created text box comes back at `scaleY ≈ 0.26`.
+- **Slide dimensions: `9144000 × 5143500` EMU** (standard 16:9). `slides_geom.py` reports every position and size as a fraction of these, and the write path takes the same fraction back.
+- **A stored `size` is a base size, not the rendered one.** The rendered box is `size × scale` from the transform. An ordinary API-created text box comes back at `scaleY ≈ 0.26`.
 - **Rotation lives in the matrix, not in a field**: `atan2(shearY, scaleX)`.
-- **`scaleX` of exactly `0.0` is meaningful** — it is what a quarter turn stores. Coalescing it
-  with `or 1.0` reports those elements as 45°, which is the bug the geometry tests now pin.
-- **Group members carry transforms relative to their group**, so a member's absolute position is
-  `compose_transforms(group, member)`.
+- **`scaleX` of exactly `0.0` is meaningful** — it is what a quarter turn stores. Coalescing it with `or 1.0` reports those elements as 45°, which is the bug the geometry tests now pin.
+- **Group members carry transforms relative to their group**, so a member's absolute position is `compose_transforms(group, member)`.
 
 ## Ghosts
 
-Slides keeps hidden animation states as **zero-scaled copies** of real elements, and their
-stored `size` is normal — so a size check cannot find them, only a scale check can. The old port
-used `eff_scale < 0.4` on either axis. **That threshold was wrong outside ported decks**: real
-elements routinely sit below it (see above), so it silently ate live content. Anything filtering
-ghosts needs near-zero on *both* axes, and `read` does not filter at all — hiding a real element
-is worse than showing a hidden one.
+Slides keeps hidden animation states as **zero-scaled copies** of real elements, and their stored `size` is normal — so a size check cannot find them, only a scale check can. The old port used `eff_scale < 0.4` on either axis. **That threshold was wrong outside ported decks**: real elements routinely sit below it (see above), so it silently ate live content. Anything filtering ghosts needs near-zero on *both* axes, and `read` does not filter at all — hiding a real element is worse than showing a hidden one.
 
 ## Colors and fills
 
-- `shapeBackgroundFill.propertyState = "INHERIT"` means "use the theme default", and it means
-  two different things by context: on master elements it is decoration that should stay
-  invisible; on a slide element with no text and no outline it is a visible accent box relying
-  on the theme color.
-- Lines with no explicit `solidFill.color` have **no color**, not black. Defaulting them to black
-  renders invisible connector lines as spurious diagonals.
+- `shapeBackgroundFill.propertyState = "INHERIT"` means "use the theme default", and it means two different things by context: on master elements it is decoration that should stay invisible; on a slide element with no text and no outline it is a visible accent box relying on the theme color.
+- Lines with no explicit `solidFill.color` have **no color**, not black. Defaulting them to black renders invisible connector lines as spurious diagonals.
 - `CENTERED_TITLE` placeholders do not store paragraph alignment — it is inherited from the theme.
+
+## Rendering
+
+- **`getThumbnail` is an "expensive read"** with a per-minute quota: a 20-slide deck hits 429. `preview` exports one PDF through Drive and renders it locally.
+- **Drive refuses exports over ~10 MB** ("too large to be exported"); a link-shared deck still has the public `/export/pdf`, which `preview` falls back to; a private one falls to `getThumbnail` per slide, waiting out each 429.
 
 ## Writing
 
-- **Object ids must be at least 5 characters.** A shorter one fails the whole batch with
-  `Invalid requests[N]: The object ID (x) length should not be less than 5`.
-- **`batchUpdate` is atomic and ordered**: requests apply in sequence, and one rejection rolls
-  back the batch. Create-then-modify in a single call is safe.
-- **`duplicateObject` takes an `objectIds` map**, so a copy's children get ids you chose instead
-  of generated ones — this is what makes a generated frame sequence addressable.
-- **Duplicates are inserted directly after their source**, so duplicating one slide N times
-  leaves the copies in reverse order. `updateSlidesPosition` in the same batch fixes it.
-- **Per-frame motion is the two facts above, chained**: `duplicateObject` +
-  `updatePageElementTransform` in one `batchUpdate` authors position/velocity/acceleration
-  sampled into frames, and it survives PDF export (confirmed 2026-08-14).
+- **Object ids must be at least 5 characters.** A shorter one fails the whole batch with `Invalid requests[N]: The object ID (x) length should not be less than 5`.
+- **`batchUpdate` is atomic and ordered**: requests apply in sequence, and one rejection rolls back the batch. Create-then-modify in a single call is safe.
+- **`duplicateObject` takes an `objectIds` map**, so a copy's children get ids you chose instead of generated ones — this is what makes a generated frame sequence addressable.
+- **Duplicates are inserted directly after their source**, so duplicating one slide N times leaves the copies in reverse order. `updateSlidesPosition` in the same batch fixes it.
+- **Per-frame motion is the two facts above, chained**: `duplicateObject` + `updatePageElementTransform` in one `batchUpdate` authors position/velocity/acceleration sampled into frames, and it survives PDF export (confirmed 2026-08-14).
+- **A layout cannot be created, duplicated, or swapped on an existing slide** (`Duplicating a layout is not allowed`; `layoutObjectId` is read-only), but its elements are edited by id and slides inherit position and style live — so a template is a deck you copy, and a new look is an edit to its master/layouts. `isSkipped` is writable (confirmed 2026-09-24). **New layouts and masters therefore come in as a .pptx** (`pptx template` → `gdrive put --slides`): Drive's conversion keeps every master (named), every layout (named), each master's own theme colours, and shape fills and text colours as `themeColor` slots rather than RGB — so one layout set, repeated under one master per section colour, recolours by theme (confirmed 2026-09-26). `normAutofit` arrives as `TEXT_AUTOFIT`, hence the generator writes `noAutofit`.
+- **Transitions and animations also come in only as a .pptx**: the API and Apps Script cannot set either, but Drive's conversion keeps `p14:flip`, `p14:prism` (cube), `p14:gallery`, `p:push` (left/right), `p:fade`, dissolve (`fade thruBlk`, where unsupported ones like `p:zoom` land), their `p14:dur`, and object animations (appear/disappear, fade, fly, zoom, spin, "after previous" chains, alpha fills); Morph and PowerPoint Zoom are dropped whole. After import, `duplicateObject` and text rewrites keep a slide's transition and every animation. Transforms never scale text: a shape's scale resizes its box and the text re-wraps (confirmed 2026-09-27; generator in `outputs/.drafts/taste-img/motion_showcase.py`).
+- **Restyle a placeholder before shrinking it**: shrinking first makes Slides write a local `fontSize` into every inheriting slide to fit the old text, which cuts inheritance; `updateTextStyle` with the field listed and no value restores it.
+- **YouTube video insertion (`createVideo`)**: embeds a YouTube video directly onto a slide. Note on playback constraints (learned 2026-09-23): Google Slides does not allow locking audio track, closed captions, or subtitles language via API; subtitle translation (⚙ → legendas → traduzir) or dubbing is strictly client-side at runtime by the user playing the video.
+
+## PowerPoint and Canva (tested 2026-09-28 and 2026-10-03; the home is being decided: `core/ROADMAP.md` § Canva leaf)
+- **PowerPoint online plays what `pptx` writes**: `p159:morph`, `animScale` (Grow/Shrink), `animMotion` straight and Bézier paths that stay at their end point, and `withEffect` groups on one click. The Transparency emphasis needs BOTH a held `style.opacity` set and `animEffect filter="image" prLst="opacity: x"`: the set alone is ignored and flickers back. Effects sharing a click need equal `dur`, or the move and the scale visibly desync.
+- **Online has Atkinson Hyperlegible Next in 400 and 700 only** (Office's PDF, 2026-09-29): ExtraBold, SemiBold and Light fall to Calibri or regular without a word.
+- **Also plays online** (spike 2026-09-29, `outputs/.drafts/rodada7/spike.py`): `accel`/`decel` easing, `repeatCount="indefinite"` until the next click (spin a polygon: a flat circle hides it), a trigger on a shape (one-way so far), a native link to a slide, `advTm` auto-advance, text alpha grown in by Morph, and a hole-veil scaled 24× by Morph through `xfrm` alone (hole × zoom past the half-diagonal, 7.6 in, or corners show; its edge rasterises and looks pixelated).
+- **Does not**: the "last slide viewed" action (it advances instead; 'back' is a link to the named slide), a generated Slide Zoom (a plain jump that then scrambles navigation), Morph after a link jump (a cut), an in-slide dim followed by Morph (the Morph starts from the static slide: it flashes back to 100%), an arrowhead through a Morph resize (drawn distorted, then swapped for the final one), an entrance on a Morph's target slide, on click or After Previous (the Morph draws the shape, the entrance hides it, it returns: a blink). Wipe's soft edge reads cheap.
+- **Online refuses to edit a slide past 200 items** and chokes the show well before; `pptx lint` holds a per-slide budget of items and path points. A connector that appears unpaired, or gains a `flip`, desyncs from the shape it belongs to. Microsoft's Morph notes: a `!!` name pairs only with the same `!!` name and type, edit points must match in count and winding, and a shape with more than one hole does not morph geometrically — whether a many-subpath freeform still scales by `xfrm` is open (bench b2).
+- **Morph pairs points only between copies.** Changing position, size, rotation or alpha works on frames built separately; changing the POINTS of a freeform or `custGeom` does not (freeforms fade, arcs shatter into triangles) unless the next frame is a duplicate of the previous with the same point structure. Morph by character failed between two separately built text boxes. Build a frame by copying the one before it and editing, the way a person does in PowerPoint. What a copy preserves, and a generator must too: the `custGeom` path stays byte-identical, `w`/`h` included, and only `xfrm` changes; a path rewritten to the new size, or one of zero width, loses its pair.
+- **What weighs online** (bench `outputs/.drafts/rodada7/bench.py`, Lucas's machine): up to 250 plain shapes, 10k path points, groups, alpha and 20 hidden slides all play smoothly; a slide past 200 items only loses editing. A shape swapped for another representation between far and near (fused → vector, SVG → vector) vanishes and reappears: keep one representation across the Morph. A group does not carry its children through a Morph (a circle inside squashes and vanishes); an arrow travels whole (motion only, not its look) as a fixed unit line turned by `xfrm`, present in every frame. Bench 2 (`bench.py --r2`, 2026-09-30): **the cost is the transition, not the frame** — a zoomed frame at rest is cheap; 40 shapes zoomed 15× load the CPU while Morphing, and at 30× the Morph never finishes (loading, then no advance). A hole-veil zoomed 24× over few shapes plays the same scaled, redrawn or absent (redrawn as the screen rectangle, the square turns oblong mid-zoom). Per shape: rect < ellipse < glyph ● < 16-gon, the last two with brief loading; stroke or fill: no difference. A many-subpath fused vector peaks the GPU and loads; one SVG or PNG peaks near 65%, but blurs near unless rendered at its largest on-screen size. Text through a big Morph zoom blurs until it lands. **Weight is per deck**: a deck heavy elsewhere runs the fan resting on its cover.
+- **A deck open in PowerPoint online is locked**: overwriting it answers `423 resourceLocked`, so an agent edit is a new upload or waits for the tab to close.
+- **No Canva surface sets motion; an agent inherits it.** REST (`@canva/cli`: `canva api …`), the MCP endpoint and the Apps SDK's Design Editing API set no animation or transition (docs to 2026-10-01). Its .pptx import keeps layout, notes, alpha and Anton, but maps Atkinson Hyperlegible Next to the original, collapses every transition (push, flip, prism, gallery, Morph) to dissolve, and drops object animations.
+- **Canva's Match & Move ("Combinar") pairs by identity, not by name** (bench `bench_canva.py`, 2026-10-02): an element pairs with its copy from a page duplicated inside Canva. Elements imported on separate pages pair only when nothing but position or colour changed (a ball moved: yes; grown and turned: no), so `design-imports` frames do not animate a zoom. Between copies it animates position, uniform scale, rotation, colour and alpha; a text box scaled by its corner (font growing with it) animates too. It does not animate a change of aspect ratio, a font or font size set in the text panel, or new points (circle → star: no workaround). A colour change does not tween: moved and recoloured at once, the old element fades out and a new one fades in. An imported **SVG** picture pairs across separately imported pages by its file (grown, turned, a whole 40-cell field zoomed 15×: all pair); an imported PNG does not, nor 40 copies of one file, nor a shape scaled alone. A page copied by REST `merges` (`insert_pages` from the same design) keeps identity like a copy made by hand (k9). Element edits reach a design only through the MCP endpoint (`mcp.canva.com/mcp`: `position_element`, `resize_element` with `preserve_aspect_ratio`; no rotation, transparency or shape colour), which registers clients dynamically (`/register`, PKCE, refresh) — a plain HTTP client works, no agent needed. The import turns a shape into a group and a group into one freeform; its PDF is one page per page. A shrinking group left thin ghost lines at its old place on Lucas's GPU.
+- **Match & Move travels with a copied page** (spikes 2026-10-03, `outputs/.drafts/canva-poder/`): REST `merges` — into a new design or `modify_existing_design` inserting pages of the same design — carries a page's transition and its elements' identity; order and repetition are free, copies of copies pair (3 generations). Canva's own .pptx export writes Match & Move as `<p:fade/>`. So one page where Lucas set Match & Move once is a seed the agent copies forever.
+- **The agent's arm is the MCP endpoint over plain HTTP** (token by PKCE after one consent; 49 tools): `start-editing-transaction` → `perform-editing-operations` (needs `page_index`) → `commit-editing-transaction`. The transaction lists only text (`richtexts`) and images/video (`fills`): native shapes are invisible to it, and it creates no text. On a seed copy, moving or resizing a text or an image animates; an SVG uploaded by REST `assets create-upload` and placed by `insert_fill` pairs on the next copy; deleting it and re-inserting the SAME asset with `rotation`/`opacity` animates turn and fade too (it pairs by file). Narrowing a text box (`resize_element` width) animated. On a text box from a .pptx import it answered ok and did not rewrap (2026-10-30, sem1 deck): break the line with `find_and_replace_text` and a `\n` instead. `format_text` takes `font_size` in page pixels (10 pt = 20 px on a 1920-wide page) and `link`, which is how a footer becomes clickable.
+- **The Apps SDK app is the only arm that makes native shapes** (docs, `@canva/design` 2.13, 2026-10-04): inside `openDesign` (1-minute session, one page loaded) it reads and edits rect, shape, text, group and embed — position, size, rotation, transparency, path fills — and inserts shapes (1–30 SVG paths, 2 KB, 6 colours, no `Q`), whose colour Lucas can still edit. **Lines and connectors are `unsupported`**: no surface creates, reads or moves them. It runs only in an iframe in the editor's side panel; its `connect-src` allows `https:` and `wss:`, not `http:`. Draft app `workspace-bridge` (`AAHOGECDWGU`, `outputs/.drafts/canva-poder/workspace-bridge/`) relays commands from the agent.
+- **Plans** (Canva's help tool, 2026-10-04): Match & Move is Free and Pro. The AI connector — the MCP endpoint, today our only element-edit arm without the editor — is "Education and Enterprise", not Free or Pro, though it answers this account on its Pro trial: access can end without notice.
+- **The motion oracle**: REST `exports` as MP4 renders transitions; `outputs/.drafts/canva-poder/oracle.py <design>` says, per page change and per region, cut / dissolve / MOTION. A dissolve may still be a Match & Move that found no pair. 500 exports per day.

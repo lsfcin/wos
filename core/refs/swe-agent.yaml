@@ -1,0 +1,8 @@
+# Reference for swe-agent
+key: swe-agent
+title: "SWE-agent"
+url: "https://arxiv.org/abs/2405.15793"
+level: A
+section: "Model level, cost & execution interface"
+contributions:
+  - "(NeurIPS 2024) — agent-computer interfaces enable automated SWE; executable enforcement/gates beat prose instructions."

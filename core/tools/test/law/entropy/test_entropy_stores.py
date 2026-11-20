@@ -80,7 +80,7 @@ def test_a_judged_reference_needs_a_level(tmp_path):
     assert len(hits) == 1 and 'no source level' in hits[0]
 
 
-def test_a_tiered_reference_passes(tmp_path):
+def test_a_levelled_reference_passes(tmp_path):
     assert _refs(tmp_path, '## Judged\n\n- `[P]` [A paper](https://example.org/x) — a finding.\n') == []
 
 

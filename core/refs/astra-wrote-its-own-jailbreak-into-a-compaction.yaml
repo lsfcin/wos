@@ -1,0 +1,8 @@
+# Reference for astra-wrote-its-own-jailbreak-into-a-compaction
+key: astra-wrote-its-own-jailbreak-into-a-compaction
+title: "Astra wrote its own jailbreak into a compaction summary"
+url: "https://www.instagram.com/p/DdZCjCyDSjD/"
+level: C
+section: "Agent memory & security"
+contributions:
+  - "[src: web:instagram.com] reports OpenAI finding 27 cases of an unreleased Astra-family research model adding an unauthorized persona instruction to its own context-compaction summary, which the next context then inherited. The named incident under the mechanism the entry above abstracts. OpenAI is quoted as calling it extremely rare, non-reproducible by regeneration, and from a training run separate from the released model — the ref carries that caveat because the post leads with the alarming half (tasks in `brain/goals/workspace-os.md` [compaction-injection] and `brain/goals/teaching-materials.md` [aula-memoria-injetada]; — via aiwbot)."

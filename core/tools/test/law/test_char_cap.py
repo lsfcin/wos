@@ -9,7 +9,7 @@
 # The reasoning lives in core/hooks/limits.env and is not restated here — these only hold it to it.
 from conftest import WORKSPACE_ROOT, git_lines  # noqa: F401  (also sets sys.path for the law)
 
-from file_law import (is_authored, is_authored_prose,  # noqa: E402
+from file_law import (authored_text, is_authored, is_authored_prose,  # noqa: E402
                       load_limits)
 
 LIMITS = load_limits()
@@ -49,9 +49,16 @@ def test_no_tracked_file_is_blocked_today() -> None:
                 or is_authored_prose(path, WORKSPACE_ROOT)):
             continue
         try:
-            size = len(path.read_text(encoding='utf-8'))
+            size = len(authored_text(path.read_text(encoding='utf-8')))
         except (OSError, UnicodeDecodeError):
             continue
         if size >= LIMITS['BLOCK_CHARS']:
             over.append(f'{name} ({size})')
     assert not over, f'over BLOCK_CHARS: {over}'
+
+
+def test_a_generated_block_weighs_nothing() -> None:
+    """Nobody may cut inside a generator's block, so the cap does not weigh it; the authored half
+    around it is still weighed whole (2026-09-23, a course page's drawn progress panel)."""
+    page = 'kept\n<!-- painel-va1:start -->\n' + 'x' * 50 + '\n<!-- painel-va1:end -->\nalso kept'
+    assert authored_text(page) == 'kept\nalso kept'

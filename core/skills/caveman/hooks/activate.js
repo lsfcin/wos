@@ -4,7 +4,7 @@
 // Runs on every session start:
 //   1. Writes flag file at $CLAUDE_CONFIG_DIR/.caveman-active (statusline reads this)
 //   2. Emits caveman ruleset as hidden SessionStart context
-//   3. Detects missing statusline config and emits setup nudge
+//   3. Detects missing statusline config and emits setup reminder
 
 const fs = require('fs');
 const path = require('path');
@@ -137,7 +137,7 @@ if (skillContent) {
     'Code/commits/PRs: write normal. "stop caveman" or "normal mode": revert. Level persist until changed or session end.';
 }
 
-// 3. Detect missing statusline config — nudge Claude to help set it up
+// 3. Detect missing statusline config — remind Claude to help set it up
 try {
   let hasStatusline = false;
   if (fs.existsSync(settingsPath)) {

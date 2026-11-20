@@ -159,7 +159,7 @@ def test_a_broken_gate_takes_only_itself(tmp_path):
 	done = with_table(table, 'b20260905-broken')
 	assert done.returncode == 1, 'a broken gate must never block the call it only observes'
 	assert 'boom' in done.stderr
-	assert 'reached' in done.stdout, 'the chain stopped at the corpse'
+	assert 'reached' in done.stdout, 'the chain stopped at the dead gate'
 
 
 def test_an_informing_gate_that_blocks_is_refused(tmp_path):

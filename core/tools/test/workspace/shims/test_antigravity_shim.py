@@ -114,3 +114,40 @@ def test_pre_invocation_returns_dict():
         "invocationNum": 2,
     })
     assert isinstance(res, dict)
+
+
+def test_pre_tool_find_by_name_unseen_subtree_blocked():
+    sid = str(uuid.uuid4())
+    target = WORKSPACE_ROOT / "core/hooks/brain"
+    res = _run_shim("PreToolUse", {
+        "conversationId": sid,
+        "toolCall": {"name": "find_by_name", "args": {"SearchDirectory": str(target), "Pattern": "*"}},
+    })
+    assert res.get("decision") == "deny"
+    assert "CONTEXT GATE" in res.get("reason", "")
+
+
+def test_agents_hooks_json_schema_valid():
+    hooks_file = WORKSPACE_ROOT / ".agents/hooks.json"
+    assert hooks_file.exists()
+    data = json.loads(hooks_file.read_text(encoding="utf-8"))
+    assert "workspace-policy" in data
+    policy = data["workspace-policy"]
+
+    for event in ("PreToolUse", "PostToolUse"):
+        if event in policy:
+            assert isinstance(policy[event], list)
+            for item in policy[event]:
+                assert "matcher" in item, f"{event} item missing matcher"
+                assert "hooks" in item, f"{event} item missing hooks list"
+                for h in item["hooks"]:
+                    assert "command" in h, f"{event} handler missing command"
+
+    for event in ("PreInvocation", "PostInvocation", "Stop"):
+        if event in policy:
+            assert isinstance(policy[event], list)
+            for item in policy[event]:
+                assert "command" in item, f"{event} flat handler must specify command"
+                assert "hooks" not in item, f"{event} must not nest hooks list"
+                assert "matcher" not in item, f"{event} must not specify matcher"
+

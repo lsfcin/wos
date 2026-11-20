@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-# PreToolUse, capability write — a memory is written when Lucas asks for one, never on the agent's
-# own initiative.
+# PreToolUse, capability write — this workspace keeps no memory store, so a harness writing one is
+# refused and handed the file that owns the fact.
 #
-# WHY. `brain/memory/MEMORY.md` is folded into the system prompt of EVERY session, including the
-# nine in ten that have nothing to do with any line in it, so a memory is the most expensive place
-# in this workspace to put a fact — measured at its own row in `core/run tools/wos/session/context`.
-# Harnesses write there unprompted and the store only grows: the index reached twenty entries, five
-# of which restated a law that already held elsewhere or a reference the project already carried
-# (cut 2026-09-15, with `brain/USER.md`, which had zero reads in 88 sessions).
+# WHY. A harness memory index is folded into the system prompt of EVERY session, including the nine
+# in ten it has nothing to do with, and harnesses write to it unprompted. Lucas ruled 2026-09-15 that
+# the store goes, with `brain/USER.md`: AGENTS.md, the CONTEXT.md chain, core/ and brain/ carry what
+# an agent needs; each rule the store carried now lives with its owner.
 #
-# WHAT IT IS NOT. Not a claim that the store is worthless — it is a claim that WRITING to it is a
-# decision, and a decision belongs to Lucas. The refusal names the durable file that owns the fact,
-# because a gate that only says no gets the same text written again a turn later.
+# The harness path `~/.claude/projects/<name>/memory` stays a symlink onto `brain/memory/`, so a
+# write arrives here spelled either way and resolving makes the two one target. Without the
+# symlink the write would land outside the workspace, where nothing sees it.
+#
+# The refusal offers no switch: offered, it became the path — an agent passed the question to
+# Lucas instead of routing the fact (2026-09-24). The refusal names the owner instead, because a
+# gate that only says no gets the same text written again a turn later.
 import sys
 from pathlib import Path
 
@@ -29,22 +31,18 @@ file_path, _data = target()
 if not file_path:
     sys.exit(0)
 
-# The harness path is a symlink onto this one, so a write arrives spelled either way and resolving
-# is what makes the two the same target. `brain/memory/CONTEXT.md` explains the symlink.
 try:
     written = platform_law.rel(Path(file_path).resolve(), WORKSPACE_ROOT)
 except OSError:
     sys.exit(0)
 
 if written.startswith('brain/memory/'):
-    block(f"⛔ MEMORY GATE — {written} is written when Lucas asks for a memory, not otherwise.",
-          "   Every line under brain/memory/ is loaded into every session, including the ones it",
-          "   has nothing to do with. Put the fact where its readers already are:",
+    block(f"⛔ MEMORY GATE — {written}: this workspace keeps no memory store.",
+          "   Put the fact where its readers already are:",
           "     a rule the agent must obey      -> core/norms/, or the SPECS.md that owns it",
           "     something untrue about the repo -> ISSUES.md",
           "     work still to do                -> ROADMAP.md",
           "     what a folder holds or routes   -> that folder's CONTEXT.md",
-          "   If Lucas asked for a memory, switch memory-gate off in core/profile.txt for the",
-          "   write and back on after — the switch is the record that he asked.")
+          "   Pick the destination yourself and write it there. Do not ask Lucas about memory.")
 
 sys.exit(0)

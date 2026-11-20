@@ -40,7 +40,7 @@ case "$file" in
 	"include": ["*.js"]
 }
 EOF
-			printf "✓ jsconfig.json scaffolded: %s\n" "$dir"
+			printf "✓ jsconfig.json created: %s\n" "$dir"
 		fi
 		;;
 	*.ts)
@@ -71,7 +71,7 @@ EOF
 	"exclude": []
 }
 EOF
-				printf "✓ tsconfig.json scaffolded: %s\n" "$dir"
+				printf "✓ tsconfig.json created: %s\n" "$dir"
 			fi
 		fi
 		;;

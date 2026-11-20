@@ -24,6 +24,10 @@ HOOKS = CORE / 'hooks'
 # reading each shim, because the conventions genuinely differ -- opencode interpolates
 # `${HOOKS}/`, Copilot passes a relative string to gate() or joins onto a HOOKS Path.
 SHIMS = {
+    'codex': (
+        [HOOKS / 'codex/policy.py'],
+        re.compile(r'[\"\']((?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+\.(?:py|sh))[\"\']'),
+    ),
     'opencode': (
         [WORKSPACE_ROOT / '.opencode/plugins/workspace-policy.js',
          WORKSPACE_ROOT / '.opencode/wp-helpers.js'],
@@ -73,7 +77,7 @@ SHIMS = {
 # both delegate to a shim, so neither config names a gate — what has to be true of them is that
 # they spawn through the launcher and that the adapter they name is on disk. Neither file was read
 # by anything until 2026-09-06, which is how .github/hooks/workspace-policy.json carried three
-# `python3` registrations for weeks past a ratchet that core/hooks/SPECS.md names as their enforcer
+# `python3` registrations for weeks past a ceiling that core/hooks/SPECS.md names as their enforcer
 # (b20260905). The same self-indictment as the `.claude/settings.json` note above, one shim over.
 REGISTRATIONS = {
     '.github/hooks/workspace-policy.json': 'copilot',
@@ -170,3 +174,29 @@ def test_the_launcher_every_shim_goes_through_is_there():
     every gate at once while each individual path above still resolved."""
     launcher = CORE / 'run'
     assert launcher.exists(), f'the shim launcher is gone -- {launcher}'
+
+
+def test_codex_registration_resolves_the_workspace_from_subdirectories():
+    import json
+    config = json.loads((WORKSPACE_ROOT / '.codex/hooks.json').read_text(encoding='utf-8'))
+    for groups in config['hooks'].values():
+        for group in groups:
+            assert 'matcher' not in group
+            for hook in group['hooks']:
+                assert 'wos_hook_root' in hook['command']
+                assert 'hooks/codex/policy.py' in hook['command']
+
+def test_codex_registration_reaches_the_workspace_above_a_nested_repository(tmp_path):
+    import json
+    import subprocess
+    run = tmp_path / 'core/run'
+    run.parent.mkdir()
+    run.write_text('printf "%s" "$1"', encoding='utf-8', newline='\n')
+    nested = tmp_path / 'code/project/deep'
+    nested.mkdir(parents=True)
+    (nested.parent / '.git').mkdir()
+    config = json.loads((WORKSPACE_ROOT / '.codex/hooks.json').read_text(encoding='utf-8'))
+    command = config['hooks']['PreToolUse'][0]['hooks'][0]['command']
+    done = subprocess.run(['sh', '-c', command], cwd=nested, capture_output=True, text=True, encoding='utf-8')
+    assert done.returncode == 0, done.stderr
+    assert done.stdout == 'hooks/codex/policy.py'

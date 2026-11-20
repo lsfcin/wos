@@ -31,7 +31,7 @@ def git(root, *args):
 # (Lucas, 2026-09-11, when the size target they inflated was rejected). What is left is the part a
 # stranger cloning this repo would get.
 SCOPES = {'repo': ('core/', 'brain/')}
-EXCLUDED = {'repo': ('brain/goals/', 'brain/memory/', 'brain/drafts/', 'brain/attachments/')}
+EXCLUDED = {'repo': ('brain/goals/', 'brain/drafts/', 'brain/attachments/')}
 
 
 def in_scope(rel, scope):
@@ -45,28 +45,46 @@ def in_scope(rel, scope):
 
 
 def authored_md(root, scope=''):
-    """Tracked .md paths that a human wrote — the only ones a size number may claim."""
+    """Tracked .md paths that a human wrote — the only ones a size number may claim.
+
+    A GENERATED FILE IS NOT SKIPPED HERE SINCE 2026-09-21; it is weighed and comes out at zero.
+    Skipping dropped every ISSUES.md out of the corpus AND the weight, because `generated.txt`
+    declares the whole file generated — right for the authoring rules, wrong for a measurement, and
+    it hid the fifth most-served file in the workspace from its own ranking. What the two questions
+    share is file_law, which now answers both: the rule with is_generated_artifact, the number with
+    authored_line_count.
+    """
     out = []
     for rel in git(root, 'ls-files', '--', '*.md').splitlines():
         p = root / rel
-        if file_law.is_vendored(p, root) or file_law.is_generated_artifact(p, root):
+        if file_law.is_vendored(p, root) or not in_scope(rel, scope):
             continue
-        if not in_scope(rel, scope):
-            continue
-        out.append(rel)
+        if authored_lines(p, root):
+            out.append(rel)
     return out
+
+
+def authored_lines(path, root):
+    """Lines of this document a person wrote.
+
+    Three cases, and the middle one is the bug this exists for. A file `generated.txt` does NOT
+    name is authored whole, blocks and all, exactly as before — a CONTEXT.md's routing table has
+    always counted. A file it DOES name is a tool's output and counts zero. Between them sits the
+    half-authored kind, which `generated.txt` names for the authoring rules and which really does
+    carry a person's prose outside its blocks: every ISSUES.md. That half is counted now.
+    """
+    try:
+        text = path.read_text(encoding='utf-8', errors='replace')
+    except OSError:
+        return 0
+    if not file_law.is_generated_artifact(path, root):
+        return len(text.splitlines())
+    return file_law.authored_line_count(text) if file_law.generated_spans(text) else 0
 
 
 def corpus(root, scope=''):
     files = authored_md(root, scope)
-    lines = 0
-    for rel in files:
-        p = root / rel
-        try:
-            lines += p.read_text(encoding='utf-8', errors='replace').count('\n')
-        except OSError:
-            continue
-    return len(files), lines
+    return len(files), sum(authored_lines(root / rel, root) for rel in files)
 
 
 def base_commit(root, session_id):
@@ -86,6 +104,14 @@ def base_commit(root, session_id):
     return ''
 
 
+def _authored_at(root, commit, rel):
+    """The authored line count one commit ago, for a file `generated.txt` names — the same three
+    cases as authored_lines, read out of git instead of off disk. Empty when the file did not exist
+    then, which reads as a whole-file addition: the right answer for one this session created."""
+    text = git(root, 'show', f'{commit}:{rel}')
+    return file_law.authored_line_count(text) if file_law.generated_spans(text) else 0
+
+
 def delta(root, base, scope=''):
     """+/- authored .md lines between base and HEAD, and which directories moved.
 
@@ -103,10 +129,15 @@ def delta(root, base, scope=''):
             continue
         a, d, rel = int(parts[0]), int(parts[1]), parts[2]
         p = root / rel
-        if file_law.is_vendored(p, root) or file_law.is_generated_artifact(p, root):
+        if file_law.is_vendored(p, root) or not in_scope(rel, scope):
             continue
-        if not in_scope(rel, scope):
-            continue
+        # `git numstat` counts every line, and a generated block churns at every close without
+        # anybody writing a word. So a file `generated.txt` names is re-counted from its AUTHORED
+        # halves at the two ends — a wholly generated one nets zero and drops out by itself, which
+        # is what the skip used to buy. An authored file keeps numstat: exact, and one blob cheaper.
+        if file_law.is_generated_artifact(p, root):
+            net = authored_lines(p, root) - _authored_at(root, base, rel)
+            a, d = max(net, 0), max(-net, 0)
         added += a
         removed += d
         top = rel.rsplit('/', 1)[0] if '/' in rel else '.'

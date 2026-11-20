@@ -1,12 +1,9 @@
 # skills
 > Agent skills — provider-agnostic workflows invoked as slash commands or by instruction.
 
-`core/skills/<name>.md` is the only place to edit a skill — the `.opencode/skills/`,
-`.claude/skills/`, `.zcode/skills/` and `.claude/commands/` mirrors are generated copies that git
-does not track.
+`core/skills/<name>.md` is the only place to edit a skill — the `.opencode/skills/`, `.claude/skills/`, `.zcode/skills/` and `.claude/commands/` mirrors are generated copies that git does not track.
 
-How to create or edit a skill, the sync commands, the case-sensitivity hazard, what's excluded from
-mirroring, and the folder-shaped global-skill pattern (`caveman/`): [`SPECS.md`](SPECS.md).
+How to create or edit a skill, the sync commands, the case-sensitivity hazard, what's excluded from mirroring, and the folder-shaped global-skill pattern (`caveman/`): [`SPECS.md`](SPECS.md).
 
 <!-- routing:start -->
 ## Routing
@@ -15,6 +12,7 @@ mirroring, and the folder-shaped global-skill pattern (`caveman/`): [`SPECS.md`]
 |--------------|-------------|
 | [`caveman/`](caveman/CONTEXT.md) | Ultra-compressed communication mode — vendored suite: router skill, mode subfiles, hooks, scripts. |
 | [`prepare/`](prepare/CONTEXT.md) | Prepare a raw prompt for an agent: optimize, contextualize, and recommend level/effort settings. |
+| [`slides/`](slides/CONTEXT.md) | The /slides tree: craft subskills, three second-level branches, the provider leaf and one yaml per ref. |
 
 | File | Description |
 |------|-------------|
@@ -29,12 +27,12 @@ mirroring, and the folder-shaped global-skill pattern (`caveman/`): [`SPECS.md`]
 | [`drive.md`](drive.md) | List, search, and download files from Google Drive across all configured accounts (personal, cin, ufrpe). |
 | [`gforms.md`](gforms.md) | Google Forms as versioned specs: create, edit and read answers across all configured accounts — a form written as JSON, applied in one call. |
 | [`handoff.md`](handoff.md) | Emit a copy-pasteable resume prompt for the next session. For the full session-close ritual use /roundup, which calls this. |
-| [`inbox.md`](inbox.md) | Triage brain/INBOX.md — route each entry to a goal, task, reference, project doc, writing draft, or delete. Cross-domain front door: reaches into code ROADMAP/ISSUES and domain refs/, not just brain/. |
+| [`inbox.md`](inbox.md) | Triage brain/INBOX.md in bounded thematic batches; route entries and reorganize whole destination roadmaps and reference indexes while preserving their meaning and evidence. |
 | [`install.md`](install.md) | Install this workspace on the machine you are running on: check every step in SETUP.md, report what is missing, and execute it. Takes one feature short name, or nothing for everything. |
 | [`mail.md`](mail.md) | Triage Gmail across all configured accounts — classify, confirm routes, write to brain/INBOX.md. |
 | [`prepare.md`](prepare.md) | Turn a raw task into an optimized agent prompt: interviews for intent, classifies the task, recommends model and effort. |
 | [`publish.md`](publish.md) | Rebuild the public repo from this workspace and push it — what crosses, what the target regenerates, and the target's own suite as the gate. One way: nothing is ever edited on the far side. |
 | [`research.md`](research.md) | Execute a research workflow from the workspace Core research system. |
 | [`roundup.md`](roundup.md) | Full session-close ritual: drain the lists, route session knowledge to durable files, then verify and hand off. Use at session end. |
-| [`slides.md`](slides.md) | Read and edit Google Slides decks in place across all configured accounts — deck as navigable text, edits through batchUpdate. |
+| [`slides.md`](slides.md) | Make slide decks that look and teach well — lectures, talks, conference/defense, pitch — router. Loads the craft subskills, and the provider leaf (gslides) to read and edit decks. |
 <!-- routing:end -->

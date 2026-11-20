@@ -36,7 +36,9 @@ def harnesses() -> tuple:
         if not line.strip() or line.lstrip().startswith('#'):
             continue
         row = line.split('\t')
-        mirrors.append(WORKSPACE / row[1])
+        target = WORKSPACE / row[1]
+        if target not in mirrors:
+            mirrors.append(target)
         if len(row) > 2 and row[2] not in ('', '-'):
             commands.append(WORKSPACE / row[2])
     return mirrors, commands[0]

@@ -1,0 +1,8 @@
+# Reference for agenteval
+key: agenteval
+title: "agenteval"
+url: "https://github.com/lukasmetzler/agenteval"
+level: C
+section: "Tooling, visualization & evaluation"
+contributions:
+  - "· [instrlint](https://github.com/jed1978/instrlint) — instruction and harness evaluation tools."

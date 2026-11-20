@@ -1,0 +1,8 @@
+# Reference for hotclip
+key: hotclip
+title: "HotClip"
+url: "https://github.com/xixihhhh/hotclip"
+level: C
+section: "Context engineering & progressive disclosure"
+contributions:
+  - "[src: web:instagram.com via gittrend.io] fatiador open-source (AGPL-3.0) e local de vídeos/aulas para shorts verticais 9:16 com legendas dinâmicas, ASR local (Qwen3-ASR/Whisper) e pontuação de momentos — assessment task tracked in core/ROADMAP.md e brain/goals/teaching-materials.md [eval-hotclip]"

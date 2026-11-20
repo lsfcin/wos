@@ -1,8 +1,7 @@
 # mail
 > Read a mailbox and triage it. Provider leaf: `gmail`. Auth: [`../auth/gauth.py`](../auth/gauth.py).
 
-Fetch caches to `~/.config/workspace-gmail/fetch_cache.json`, so `triage` re-runs without
-re-fetching. `attachments` writes through the shared `attachments_util.py` at the tools root —
+Fetch caches to `~/.config/workspace-gmail/fetch_cache.json`, so `triage` re-runs without re-fetching. `attachments` writes through the shared `attachments_util.py` at the tools root —
 the one module `video/` also imports, which is why it stays there and not here.
 
 <!-- routing:start -->

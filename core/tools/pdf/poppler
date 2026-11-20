@@ -1,0 +1,31 @@
+# Usage: core/run tools/pdf/poppler text <pdf> | render <pdf> --prefix <path> [--pages 3,5] [--dpi 150] — a PDF's raw pages for another tool: the text layer split by form feed, or each page as a PNG. An agent reads the twin instead.
+import argparse
+import sys
+from pathlib import Path
+
+_HERE = Path(__file__).resolve().parent
+sys.path[:0] = [str(_HERE), str(_HERE.parent), str(_HERE.parents[1] / 'hooks')]
+import tool_law  # noqa: E402
+
+tool_law.require('pdf')
+import pdf_meta  # noqa: E402
+
+ap = argparse.ArgumentParser(prog='core/run tools/pdf/poppler')
+sub = ap.add_subparsers(dest='cmd', required=True)
+sub.add_parser('text', help='the text layer, pages separated by a form feed').add_argument('pdf', type=Path)
+render = sub.add_parser('render', help='each page as <prefix>-<n>.png; prints the files in page order')
+render.add_argument('pdf', type=Path)
+render.add_argument('--prefix', type=Path, required=True)
+render.add_argument('--pages', type=lambda s: [int(n) for n in s.split(',')], default=None)
+render.add_argument('--dpi', type=int, default=150)
+args = ap.parse_args()
+
+if not args.pdf.is_file():
+    sys.exit(f'no such PDF: {args.pdf}')
+if args.cmd == 'text':
+    sys.stdout.write('\f'.join(pdf_meta.page_texts(args.pdf)))
+    sys.exit(0)
+args.prefix.parent.mkdir(parents=True, exist_ok=True)
+pngs = pdf_meta.render(args.pdf, args.prefix, args.pages, args.dpi)
+print('\n'.join(map(str, pngs)))
+sys.exit(0 if pngs else f'poppler rendered no page of {args.pdf}')

@@ -22,7 +22,7 @@ from pathlib import Path
 # the characters it weighs, against a document cap no CONTEXT.md comes near. This can grow without
 # restructuring the table into something else. Checked before changing it, not assumed.
 DESC_LIMIT = 360
-SCAFFOLD_BLURB = '← add description'
+PLACEHOLDER_BLURB = '← add description'
 LINK_RE = re.compile(r'\[([^\]]*)\]\(([^)]+)\)')
 # `> priority: essential`, `> goal: ...`, `> spec: none`, `> governs: ...`, `> blocked-by: ...`.
 # A single lowercase word before a colon is a FIELD and never prose; a real sentence that happens
@@ -59,7 +59,7 @@ def md_blurb(path: Path) -> str:
             break
         parts.append(re.sub(r'^>\s*', '', stripped).strip())
     blurb = ' '.join(p for p in parts if p).strip()
-    return '' if blurb == SCAFFOLD_BLURB else blurb
+    return '' if blurb == PLACEHOLDER_BLURB else blurb
 
 
 def comment_paragraph(lines: list, start: int) -> str:

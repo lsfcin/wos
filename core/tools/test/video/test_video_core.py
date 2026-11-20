@@ -197,3 +197,29 @@ def test_mixed_instagram_carousel_gathers_images():
     assert "slide 2 text" in out["text"]
     assert "slide 3 text" in out["text"]
 
+
+def test_long_video_guard_holds_frame_extraction():
+    fm = FakeMedia(spoken="podcast talk", screen="screen text", caption="visual desc")
+    meta = {"ok": True, "title": "Long Video", "uploader": "U", "duration": 300,
+            "description": "", "subtitles": [], "auto_captions": []}
+    out = vc.assemble("https://youtube.com/watch?v=long", level="full",
+                      _metadata=lambda u: meta, _media=fm)
+    assert out["ok"]
+    assert fm.calls == ["dl_audio"]  # audio/speech runs, but dl_video is held
+    assert out.get("held_long_video") is True
+    assert "5m00s" in out.get("long_video_reason", "")
+    assert "podcast talk" in out["text"]
+
+
+def test_long_video_with_force_runs_full():
+    fm = FakeMedia(spoken="podcast talk", screen="screen text", caption="visual desc")
+    meta = {"ok": True, "title": "Long Video", "uploader": "U", "duration": 300,
+            "description": "", "subtitles": [], "auto_captions": []}
+    out = vc.assemble("https://youtube.com/watch?v=long", level="full", force=True,
+                      _metadata=lambda u: meta, _media=fm)
+    assert out["ok"]
+    assert fm.calls == ["dl_audio", "dl_video"]  # full video downloaded and processed
+    assert out.get("held_long_video") is not True
+    assert "screen text" in out["text"]
+    assert "visual desc" in out["text"]
+
