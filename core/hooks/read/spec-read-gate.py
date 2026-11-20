@@ -3,7 +3,7 @@
 # SPEC.md header is `status: locked`) requires that SPEC.md be Read this session before editing the
 # module's files. See code/ROADMAP-spec-drive.md.
 #
-# Ratchet coverage: creating a new file in a code/ module with no spec prints a non-blocking nudge.
+# Gradual coverage: creating a new file in a code/ module with no spec prints a non-blocking reminder.
 # Session-dedup via the context-tracker marker.
 import re
 import sys
@@ -15,7 +15,7 @@ from hook_input import capability, load_seen, parse_stdin
 from platform_law import WORKSPACE_ROOT  # noqa: E402
 
 CODE_ROOT = WORKSPACE_ROOT / 'code'
-EXEMPT_NAMES = {'CONTEXT.md', 'AGENTS.md', 'CLAUDE.md', 'MEMORY.md', 'README.md'}
+EXEMPT_NAMES = {'CONTEXT.md', 'AGENTS.md', 'CLAUDE.md', 'README.md'}
 SKIP_PARTS = {'.git', 'node_modules', 'dist', '.codegraph', '__pycache__', '.vscode'}
 SPEC_LINE_RE = re.compile(r'^>\s*spec:\s*(\S.*?)\s*$', re.MULTILINE)
 STATUS_RE = re.compile(r'^status:\s*(\w+)', re.MULTILINE)
@@ -56,8 +56,8 @@ def block(module_dir: Path, spec_path: Path) -> int:
 	return 2
 
 
-def nudge() -> None:
-	print('SPEC NUDGE - this code/ module has no SPECS.md.', file=sys.stderr)
+def remind() -> None:
+	print('SPEC REMINDER - this code/ module has no SPECS.md.', file=sys.stderr)
 	print('   Author one (code/_templates/SPECS-module.md) and add `> spec: SPECS.md` to its', file=sys.stderr)
 	print('   CONTEXT.md to spec-lock it. Non-blocking — coverage grows as modules are touched.', file=sys.stderr)
 
@@ -83,7 +83,7 @@ def main() -> int:
 			found = find_spec_module(target)
 			if found is None:
 				if not target.exists():
-					nudge()  # a write to a path that is not there yet is a file being created
+					remind()  # a write to a path that is not there yet is a file being created
 			else:
 				module_dir, spec_path, status = found
 				if status == 'optout':

@@ -1,4 +1,4 @@
-# gdrive — Google Drive read+write CLI for workspace OS — commands: auth, recent, list, search, download, mkdir, put, copy, perms, share, rm, sync
+# gdrive — Google Drive read+write CLI for workspace OS — commands: auth, recent, list, search, download, mkdir, put, copy, rename, perms, share, rm, sync
 import sys, pathlib, argparse
 
 _HERE = pathlib.Path(__file__).resolve().parent
@@ -67,11 +67,14 @@ def cmd_mkdir(account: str, name: str, parent_id: str) -> None:
     fid = drive_core.find_or_create_folder(svc, name, parent_id)
     print(f"Folder '{name}' ({alias})  id:{fid}")
 
-def cmd_put(account: str, path: str, parent_id: str, as_gdoc: bool, name: str) -> None:
+CONVERT = {"gdoc": (drive_core.GDOC_MIME, "Google Doc"), "slides": (drive_core.GSLIDES_MIME, "Google Slides"),
+           "sheet": (drive_core.GSHEET_MIME, "Google Sheet")}
+
+def cmd_put(account: str, path: str, parent_id: str, convert: str, name: str) -> None:
     alias = gauth.resolve_alias(account)
     svc = drive_core.get_service(alias, write=True)
-    res = drive_core.upload_local(svc, path, parent_id, as_gdoc=as_gdoc, name=name)
-    kind = "Google Doc" if as_gdoc else "file"
+    mime, kind = CONVERT.get(convert, (None, "file"))
+    res = drive_core.upload_local(svc, path, parent_id, convert_to=mime, name=name)
     print(f"Uploaded {kind} '{res['name']}' ({alias})  id:{res['id']}\n  {res.get('webViewLink', '')}")
 
 def cmd_copy(account: str, file_id: str, name: str, parent_id: str) -> None:
@@ -79,6 +82,11 @@ def cmd_copy(account: str, file_id: str, name: str, parent_id: str) -> None:
     svc = drive_core.get_service(alias, write=True)
     res = drive_core.copy_file(svc, file_id, name, parent_id)
     print(f"Copied to '{name}' ({alias})  id:{res['id']}\n  {res.get('webViewLink', '')}")
+
+def cmd_rename(account: str, file_id: str, name: str) -> None:
+    alias = gauth.resolve_alias(account)
+    res = drive_core.rename_file(drive_core.get_service(alias, write=True), file_id, name)
+    print(f"Renamed to '{res['name']}' ({alias})  id:{res['id']}")
 
 def cmd_perms(account: str, file_id: str) -> None:
     alias = gauth.resolve_alias(account)
@@ -137,35 +145,41 @@ def main():
     ps.add_argument("--account", default="all")
     ps.add_argument("query")
     pd = sub.add_parser("download")
-    pd.add_argument("--account", required=True)
+    pd.add_argument("--account", default=None, help="default: the home account (personal)")
     pd.add_argument("--as", dest="export_as", default=None, help="export format override for Google-native files (e.g. docx)")
     pd.add_argument("file_id")
     pm = sub.add_parser("mkdir")
-    pm.add_argument("--account", required=True)
+    pm.add_argument("--account", default=None, help="default: the home account (personal)")
     pm.add_argument("--parent", default="root")
     pm.add_argument("name")
     pp = sub.add_parser("put")
-    pp.add_argument("--account", required=True)
+    pp.add_argument("--account", default=None, help="default: the home account (personal)")
     pp.add_argument("--parent", default="root")
-    pp.add_argument("--gdoc", action="store_true", help="convert to Google Doc on upload")
+    pp.add_argument("--gdoc", dest="convert", action="store_const", const="gdoc", help="convert to Google Doc on upload")
+    pp.add_argument("--slides", dest="convert", action="store_const", const="slides", help="convert to Google Slides on upload (.pptx masters and layouts kept)")
+    pp.add_argument("--sheet", dest="convert", action="store_const", const="sheet", help="convert to Google Sheet on upload (.csv; =formulas stay live)")
     pp.add_argument("--name", default=None, help="override the uploaded file name")
     pp.add_argument("path")
     pc = sub.add_parser("copy")
-    pc.add_argument("--account", required=True)
+    pc.add_argument("--account", default=None, help="default: the home account (personal)")
     pc.add_argument("--parent", default="root")
     pc.add_argument("--name", required=True, help="name the copy carries")
     pc.add_argument("file_id")
+    pn = sub.add_parser("rename")
+    pn.add_argument("--account", default=None, help="default: the home account (personal)")
+    pn.add_argument("file_id")
+    pn.add_argument("name", help="new name; the id and every link to it stay the same")
     pe = sub.add_parser("perms")
-    pe.add_argument("--account", required=True)
+    pe.add_argument("--account", default=None, help="default: the home account (personal)")
     pe.add_argument("file_id")
     psh = sub.add_parser("share")
-    psh.add_argument("--account", required=True)
+    psh.add_argument("--account", default=None, help="default: the home account (personal)")
     psh.add_argument("--role", default="writer", choices=["reader", "commenter", "writer"])
     psh.add_argument("--short-name", default="", help="also mint a short link for the shared file")
     psh.add_argument("file_id")
-    psh.add_argument("email")
+    psh.add_argument("email", help="a Google account, or the word `anyone` for anyone-with-the-link")
     prm = sub.add_parser("rm")
-    prm.add_argument("--account", required=True)
+    prm.add_argument("--account", default=None, help="default: the home account (personal)")
     prm.add_argument("file_ids", nargs="+", help="moved to the bin, recoverable for 30 days")
     psy = sub.add_parser("sync")
     psy.add_argument("--account", default=None, help="override account alias (default: from drive_sync.json)")
@@ -178,8 +192,9 @@ def main():
     elif args.cmd == "search":   cmd_search(args.account, args.query)
     elif args.cmd == "download": cmd_download(args.account, args.file_id, args.export_as)
     elif args.cmd == "mkdir":    cmd_mkdir(args.account, args.name, args.parent)
-    elif args.cmd == "put":      cmd_put(args.account, args.path, args.parent, args.gdoc, args.name)
+    elif args.cmd == "put":      cmd_put(args.account, args.path, args.parent, args.convert, args.name)
     elif args.cmd == "copy":     cmd_copy(args.account, args.file_id, args.name, args.parent)
+    elif args.cmd == "rename":   cmd_rename(args.account, args.file_id, args.name)
     elif args.cmd == "perms":    cmd_perms(args.account, args.file_id)
     elif args.cmd == "share":    cmd_share(args.account, args.file_id, args.email, args.role, args.short_name)
     elif args.cmd == "rm":       cmd_rm(args.account, args.file_ids)

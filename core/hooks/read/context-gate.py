@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # PreToolUse: Read|Edit|Write|Grep|NotebookEdit — force-read the CONTEXT.md chain of the
-# target's subtree before any other file access. Session-deduped via marker file
-# (/tmp/claude_ctx_seen_<session_id>.txt, written by context-tracker.py). See code/ROADMAP-verify.md W1.
+# target's subtree before any other file access. Session-deduped via the marker store
+# hook_input.store names, written by context-tracker.py. See code/ROADMAP-verify.md W1.
 import sys
 from pathlib import Path
 

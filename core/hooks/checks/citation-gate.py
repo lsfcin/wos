@@ -9,12 +9,12 @@
 # INDUCED; this is the ENFORCED half.
 #
 # It lives here rather than in entropy/ because the crowding gate said so: entropy/ was already
-# at eight code files and the ratchet refused a ninth. That was the right refusal — the check
+# at eight code files and the ceiling refused a ninth. That was the right refusal — the check
 # belongs beside type-gate.py, which is the other Level 0 vocabulary gate, and being here made
 # it a commit-time BLOCK instead of one more line in a report nobody is obliged to read.
 #
-# Not a ratchet, unlike type-gate.py: the corpus was swept to zero on 2026-08-16, so every
-# staged file is checked rather than only the ones a commit adds. A ratchet is what you use
+# Not a ceiling, unlike type-gate.py: the corpus was swept to zero on 2026-08-16, so every
+# staged file is checked rather than only the ones a commit adds. A ceiling is what you use
 # when you inherit violations, and there are none left to inherit.
 import re
 import subprocess

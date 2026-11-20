@@ -1,0 +1,8 @@
+# Reference for agentic-context-engineering-ace
+key: agentic-context-engineering-ace
+title: "Agentic Context Engineering (ACE)"
+url: "https://arxiv.org/abs/2510.04618"
+level: P
+section: "Context engineering & progressive disclosure"
+contributions:
+  - "(Stanford/SambaNova, 2026-03) — contexts as evolving playbooks updated by incremental deltas."

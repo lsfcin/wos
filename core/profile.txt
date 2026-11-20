@@ -8,7 +8,7 @@
 # gitignored core/profile.local.txt overrides any row for one clone, and that is where
 # `core/tools/wos/features --on|--off <name>` writes. This file keeps the shared answer.
 #
-# WHY IT IS A SEPARATE FILE: the registry ships as scaffold — it is what makes a subset of this
+# WHY IT IS A SEPARATE FILE: the registry ships as structure — it is what makes a subset of this
 # workspace installable — while these answers are Lucas's. That is also why the base stayed
 # versioned when the per-machine half moved out: a gitignored answers file has no diff to review.
 #
@@ -35,12 +35,16 @@ kind	key	value
 setting	lang	en
 setting	permissions	open
 setting	links-base	https://lucassf.pages.dev
+setting	pr-watch	lsfcin/docs-ufrpe
+setting	github-owner	lsfcin
 toggle	context-chain	on
 toggle	interface-first-reads	on
+toggle	pdf-twin-reads	on
 toggle	interface-stubs	on
 toggle	routing-tables	on
 toggle	agent-context-brief	on
 toggle	subtree-read-tracking	on
+toggle	read-matrix	on
 toggle	line-limit	on
 toggle	crowding-limit	on
 toggle	context-head-budget	on
@@ -57,7 +61,8 @@ toggle	heredoc-gate	on
 toggle	verify-suite	on
 toggle	verify-contract	on
 toggle	project-contract	on
-toggle	gitflow-gate	on
+toggle	branch-lock	on
+toggle	handoff-gate	on
 toggle	gitlink-gate	on
 toggle	gitignore-self-heal	on
 toggle	auto-push	on
@@ -67,17 +72,22 @@ toggle	opencode-plugin	on
 toggle	antigravity-hooks	on
 toggle	brain-dashboard	on
 toggle	brain-attention	on
-toggle	inbox-nudge	on
-toggle	compass-nudge	on
-toggle	publish-nudge	on
+toggle	inbox-reminder	on
+toggle	compass-reminder	on
+toggle	publish-reminder	on
+toggle	disk-reminder	on
+toggle	pr-reminder	on
 toggle	bot	on
 toggle	notify	off
 toggle	context-meter	on
 toggle	statusline	on
+toggle	downloads	on
 toggle	precompact-wipe	on
 toggle	entropy-dashboard	on
 toggle	hook-scoreboard	on
 toggle	diagram	on
+toggle	reflow	on
+toggle	disk	on
 toggle	size	on
 toggle	rtk-compaction	on
 toggle	web-search	on
@@ -89,6 +99,9 @@ toggle	notes-notion	on
 toggle	link-shortener	on
 toggle	links	on
 toggle	video-text	on
+toggle	phone	on
+toggle	panel	on
+toggle	pdf	on
 toggle	wazip	on
 toggle	asset-inspect	on
 toggle	latex	on

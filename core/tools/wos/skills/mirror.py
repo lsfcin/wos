@@ -64,38 +64,47 @@ def list_commands(src: Path) -> list:
     return [name for name in list_skills(src) if is_command(name, src)]
 
 
-# A MIRROR IS A COPY, AND THE CHECK ASKS ABOUT ITS CONTENT.
-#
-# These were symlinks, and `ln -s` under Git Bash silently COPIES unless MSYS=winsymlinks:
-# nativestrict, which needs Developer Mode. So the writer produced files, the checker demanded
-# links, and every mirror reported `MISSING link` — the skills stage of the pre-commit pipeline
-# then refused every commit that touched a skill. It is the only gate in the workspace that can
-# refuse a commit for a reason the commit did not cause. Worse, git had already materialised the
-# tracked mirrors as ordinary files holding their target's PATH TEXT, eleven characters where a
-# skill body belonged, so the library was dark in this clone while every file was present and every
-# link check that could run said nothing.
-#
-# Copying removes the per-OS axis instead of adding an arm for it — the port's own thesis, and
-# ISSUES.md B8's decision. What a symlink bought was freshness, and freshness is now a regeneration
-# at the moments that change a skill, not a property of the file kind.
-#
-# BYTES, NOT TEXT, on both the write and the compare. The sources are CRLF in a Windows clone and
-# LF in a POSIX one; a text-mode copy would rewrite line endings and make every mirror read as
-# stale exactly once per machine, on a difference no reader of a skill can see.
+def payload(src: Path, name: str, destination: Path) -> dict:
+    """A flat router and its source-relative dependency tree; links target canonical files."""
+    sources = {Path('SKILL.md'): src / f'{name}.md'}
+    tree = src / name
+    if tree.is_dir():
+        for path in sorted(tree.rglob('*')):
+            if path.is_file() and not any(part.startswith(('.', '_')) for part in path.relative_to(tree).parts):
+                sources[Path(name) / path.relative_to(tree)] = path
+    return {relative: (render_command(source, source.parent, (destination / relative).parent).encode('utf-8')
+                       if source.suffix == '.md' else source.read_bytes())
+            for relative, source in sources.items()}
+
+
 def sync_mirror(mirror: Path, src: Path, names: list) -> None:
     for name in names:
-        (mirror / name).mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(src / f'{name}.md', mirror / name / 'SKILL.md')
+        destination = mirror / name
+        expected = payload(src, name, destination)
+        for path in destination.rglob('*'):
+            if path.is_file() and path.relative_to(destination) not in expected:
+                path.unlink()
+        for relative, body in expected.items():
+            path = destination / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if not path.is_file() or path.read_bytes() != body:
+                path.write_bytes(body)
 
 
 def check_mirror(mirror: Path, src: Path, names: list) -> list:
     problems = []
     for name in names:
-        copy, source = mirror / name / 'SKILL.md', src / f'{name}.md'
-        if not copy.is_file():
-            problems.append(f'MISSING mirror: {copy}')
-        elif copy.read_bytes() != source.read_bytes():
-            problems.append(f'STALE mirror: {copy} (differs from {source})')
+        destination = mirror / name
+        expected = payload(src, name, destination)
+        for relative, body in expected.items():
+            path = destination / relative
+            if not path.is_file():
+                problems.append(f'MISSING mirror: {path}')
+            elif path.read_bytes() != body:
+                problems.append(f'STALE mirror: {path}')
+        for path in destination.rglob('*'):
+            if path.is_file() and path.relative_to(destination) not in expected:
+                problems.append(f'ORPHAN mirror file: {path}')
     return problems
 
 
@@ -105,24 +114,7 @@ PROTECTED_OR_LINK = re.compile(r'(```.*?```|`[^`\n]+`)|\]\(([^)\s]+)\)', re.DOTA
 
 
 def render_command(source: Path, src_dir: Path, dst_dir: Path) -> str:
-    """A command file is the skill body relocated to a different directory depth, so a straight
-    copy leaves every relative link pointing at nothing: `../flows/x.md` in core/skills/ means
-    core/flows/x.md, but from .claude/commands/ it resolves to .claude/flows/x.md. All 6 relative
-    links across the mirrors were dead this way (found 2026-07-30). Rewrite them against the source
-    dir on the way out; the staleness check compares the same rendered form, or every file reads as
-    stale.
-
-    newline='' on the read, and on every write of this text: the rewrite is about link targets, and
-    a function that also silently normalised line endings would make the whole corpus look stale
-    the first time it ran on either machine.
-
-    as_posix() ON THE RESULT, AND THIS IS THE BUG THE PORT CAME FOR (found 2026-09-01). A markdown
-    link separator is `/` everywhere; `os.path.relpath` returns the OS-native one. So on a Windows
-    clone this function published `](..\\..\\core\\skills\\roundup.md)` -- 16 dead links across 5
-    command files, which is the SAME failure this function exists to fix, reintroduced by the
-    operating system underneath it. It read as fixed because the machine that authored the fix
-    spells the separator the way markdown wants.
-    """
+    """Rebase Markdown links against their canonical source, preserving code and line endings."""
     def rewrite(match: re.Match) -> str:
         if match.group(1):
             return match.group(0)

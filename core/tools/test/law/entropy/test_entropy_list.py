@@ -7,7 +7,7 @@
 import sys
 from pathlib import Path
 
-from conftest import WORKSPACE_ROOT, needs  # the depth lives in one file, not nine
+from conftest import WORKSPACE_ROOT  # the depth lives in one file, not nine
 # sys.path for the enforcement layer is set once, by conftest.py — a second copy
 # here would go stale the next time core/hooks is split.
 import entropy_corpus  # noqa: E402
@@ -102,27 +102,14 @@ def test_every_wiki_link_in_the_workspace_resolves():
     hits = entropy_list.wiki_link_hits(
         entropy_list.tracked_files(WORKSPACE_ROOT),
         entropy_list.goal_vocabulary(WORKSPACE_ROOT / 'brain/goals'),
-        entropy_corpus.wiki_exempt_paths(WORKSPACE_ROOT))
+        entropy_corpus.enforcement_paths(WORKSPACE_ROOT))
     assert hits == [], '\n'.join(hits)
 
 
-def test_memory_links_are_exempt_but_its_retired_tokens_are_not():
-    """brain/memory's `[[name]]` names a memory, not a goal, and may dangle by design.
-
-    Only that check is relaxed. Retired tokens stay enforced there, which is not hypothetical: the
-    day the store moved into the workspace it was still telling sessions to write to KNOWN-ISSUES.md.
-    """
-    needs('brain/memory')
-    exempt = entropy_corpus.wiki_exempt_paths(WORKSPACE_ROOT)
-    memory = {p.resolve() for p in (WORKSPACE_ROOT / 'brain/memory').rglob('*.md')}
-    assert memory and memory <= exempt
-    assert not memory & entropy_corpus.enforcement_paths(WORKSPACE_ROOT)
-
-
-# --- finished work: the corpse no link-checker can see ----------------------------
+# --- finished work: the one thing no link-checker can see -------------------------
 # Completion is deletion (core/SCHEMA.md § No archive types): a list's length should
-# measure remaining work. Corpus-wide ratchet: test/workspace/. These cover the boundaries,
-# where the design is — a tick is a corpse only in a list, a date alone is not a report.
+# measure remaining work. Corpus-wide cap: test/workspace/. These cover the boundaries,
+# where the design is — a tick is finished work only in a list, a date alone is not a report.
 
 
 def _doc(tmp_path, name, body):
@@ -131,24 +118,24 @@ def _doc(tmp_path, name, body):
     return doc
 
 
-def test_strikethrough_is_a_corpse(tmp_path):
+def test_strikethrough_is_finished_work(tmp_path):
     doc = _doc(tmp_path, 'NOTES.md', 'the plan ~~ship it Friday~~ is replaced\n')
     hits = entropy_list.finished_work_hits([doc], set())
     assert len(hits) == 1 and 'strikethrough' in hits[0]
 
 
-def test_a_dated_completion_report_is_a_corpse(tmp_path):
+def test_a_dated_completion_report_is_finished_work(tmp_path):
     doc = _doc(tmp_path, 'NOTES.md', 'The file law shipped 2026-07-31 after five tries.\n')
     assert 'dated completion report' in entropy_list.finished_work_hits([doc], set())[0]
 
 
-def test_a_date_without_a_completion_verb_is_not_a_corpse(tmp_path):
+def test_a_date_without_a_completion_verb_is_not_finished_work(tmp_path):
     """This workspace cites decisions by date. Only a *report* is history."""
     doc = _doc(tmp_path, 'NOTES.md', 'Decided 2026-07-30 by Lucas: types are closed.\n')
     assert entropy_list.finished_work_hits([doc], set()) == []
 
 
-def test_a_tick_is_a_corpse_only_in_a_list(tmp_path):
+def test_a_tick_is_finished_work_only_in_a_list(tmp_path):
     roadmap = _doc(tmp_path, 'ROADMAP.md', 'intro\n\nbody\n- [x] done\n')
     hit = entropy_list.finished_work_hits([roadmap], set())[0]
     assert 'ticked item' in hit

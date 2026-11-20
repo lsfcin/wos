@@ -25,6 +25,7 @@ sys.path.insert(0, str(HOOKS))
 sys.path.insert(0, str(HOOKS / 'entropy'))
 import feature_law  # noqa: E402
 import schema_law  # noqa: E402
+import scoreboard  # noqa: E402
 from entropy_corpus import enforcement_paths  # noqa: E402
 from entropy_list import retired_hits  # noqa: E402
 from hook_input import capability, parse_stdin  # noqa: E402
@@ -50,6 +51,10 @@ def main() -> int:
     hits = retired_hits([target], schema_law.load_retired(), enforcement_paths(WORKSPACE_ROOT))
     if not hits:
         return 0
+    # An informing gate never exits 2, so dispatch.py has no exit code to attribute and `blocked`
+    # is structurally zero for it. This is the honest yield: the gate RAN 1088 times by 2026-09-23
+    # and nobody could say whether it had ever advised anything (core/hooks/scoreboard.py).
+    scoreboard.record('retired-tokens', 'found')
     print(json.dumps({'hookSpecificOutput': {
         'hookEventName': 'PostToolUse',
         'additionalContext': '⚠ RETIRED TOKEN — this rename was finished; the spelling was not.\n'

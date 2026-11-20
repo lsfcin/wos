@@ -48,7 +48,7 @@ def carried(paths: list) -> list:
 
     The table is generated from disk but SHIPS in git, so a row for an ignored path describes a
     tree the reader does not have. Ten had accumulated by 2026-09-01, and one of them
-    (`academy/reviews/…/outputs/CONTEXT.md`) was a scaffold this generator wrote itself, inside a
+    (`academy/reviews/…/outputs/CONTEXT.md`) was a placeholder this generator wrote itself, inside a
     directory git is told to ignore — the row and the file it pointed at were both its own work.
 
     Asked of the paths about to become rows, never inside `is_scanned`: that question is shared
@@ -86,11 +86,11 @@ def subdir_scan(directory: Path, rs: str, re_end: str) -> tuple:
                         if p.is_dir() and not p.name.startswith('.'))
         if has_ctx or len(files) >= SPLIT_THRESHOLD or is_branch:
             if not has_ctx:
-                scaffold = sub / 'CONTEXT.md'
-                scaffold.write_text(
+                placeholder = sub / 'CONTEXT.md'
+                placeholder.write_text(
                     f'# {sub.name}\n> ← add description\n\n{rs}\n## Routing\n\n{re_end}\n',
                     encoding='utf-8', newline='\n')
-                print(f'  created scaffold: {scaffold}')
+                print(f'  created placeholder: {placeholder}')
             link_list.append(sub)
         else:
             for f in files: fold_list.append((f, f'{sub.name}/{f.name}'))

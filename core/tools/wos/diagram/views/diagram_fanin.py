@@ -56,7 +56,7 @@ def render_graph(points: list, dangling: list) -> str:
 
     Node count stays inside what node-link drawings are good for: four hubs, one collapsed tail and
     one loose end, against Ghoniem's ~20-node ceiling (core/refs/REFS.md § Tooling).
-    The 107-node routing spine is far past it, which is why that one reads as wallpaper and this
+    The 107-node routing tree is far past it, which is why that one reads as wallpaper and this
     one does not.
     """
     hubs, tail = _split(points)

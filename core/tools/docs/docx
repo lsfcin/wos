@@ -1,0 +1,58 @@
+# Usage: core/run tools/docs/docx <fill|read|text> [args] — fill a labelled .docx form table from JSON keeping its formatting, read one back to JSON, or print body text with list numbers
+import argparse, json, pathlib, sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import docx_template
+
+
+def load_labels(path: str) -> list:
+    """Labels file: a JSON list of [prefix, key, mode] triples, mode in inline | block | cell."""
+    labels = [tuple(item) for item in json.loads(pathlib.Path(path).read_text(encoding="utf-8"))]
+    bad = [lab for lab in labels if len(lab) != 3 or lab[2] not in docx_template.MODES]
+    if bad:
+        raise SystemExit(f"bad label(s) in {path}: {bad} — each is [prefix, key, mode], mode in {docx_template.MODES}")
+    return labels
+
+
+def cmd_fill(args) -> None:
+    fields = json.loads(pathlib.Path(args.fields).read_text(encoding="utf-8"))
+    missing = docx_template.fill(args.template, load_labels(args.labels), fields, args.out, args.font)
+    print(f"saved: {args.out}")
+    if missing:
+        print(f"NOT PLACED (no cell carries their label): {missing}")
+        sys.exit(1)
+
+
+def cmd_read(args) -> None:
+    for path in args.paths:
+        fields = docx_template.read(path, load_labels(args.labels), args.name)
+        print(json.dumps({"path": path, "fields": fields}, ensure_ascii=False, indent=2))
+
+
+def cmd_text(args) -> None:
+    for path in args.paths:
+        print(f"── {path} ──")
+        print("\n".join(docx_template.paragraphs(path)))
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(prog="docx")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    pf = sub.add_parser("fill", help="template table + fields JSON → a new .docx")
+    pf.add_argument("--template", required=True)
+    pf.add_argument("--labels", required=True, help="JSON [[prefix, key, mode], ...]")
+    pf.add_argument("--fields", required=True, help="JSON {key: value}; newlines split paragraphs")
+    pf.add_argument("--out", required=True)
+    pf.add_argument("--font", default="", help="force this font on every run of the table")
+    pr = sub.add_parser("read", help="the fields of one or more filled .docx, as JSON")
+    pr.add_argument("--labels", required=True)
+    pr.add_argument("--name", default="", help="pick the table whose top cell contains this text")
+    pr.add_argument("paths", nargs="+")
+    pt = sub.add_parser("text", help="body paragraphs with their list numbers rendered")
+    pt.add_argument("paths", nargs="+")
+    args = ap.parse_args()
+    {"fill": cmd_fill, "read": cmd_read, "text": cmd_text}[args.cmd](args)
+
+
+if __name__ == "__main__":
+    main()

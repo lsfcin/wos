@@ -183,7 +183,7 @@ def validate_agents(workspace: Path) -> list:
     orchestrator (level-only). _template excluded like skills."""
     problems = []
     for path in sorted((workspace / 'core' / 'agents').glob('*.md')):
-        if path.stem in ('CONTEXT', '_template'):
+        if path.stem in ('CONTEXT', 'SPECS', '_template'):
             continue
         block = frontmatter(path)
         if block is None:

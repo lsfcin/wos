@@ -92,23 +92,14 @@ def test_sync_file_item_routes_slide_previews(tmp_path, monkeypatch):
     preview_calls = []
     class FakeSlidesCore:
         @staticmethod
-        def get_presentation(alias, fid):
-            preview_calls.append(("get_presentation", alias, fid))
-            return {"slides": [{"objectId": "s1"}, {"objectId": "s2"}]}
-
-        @staticmethod
-        def get_thumbnail_url(alias, fid, sid):
-            preview_calls.append(("get_thumbnail", fid, sid))
-            return f"https://thumb.test/{fid}/{sid}"
+        def previews(alias, fid, out_dir):
+            preview_calls.append((alias, fid, out_dir))
+            out_dir.mkdir(parents=True)
 
     import sys
     monkeypatch.setitem(sys.modules, "slides_core", FakeSlidesCore)
 
-    url_retrieved = []
-    import urllib.request
-    monkeypatch.setattr(urllib.request, "urlretrieve", lambda url, dest: url_retrieved.append((url, str(dest))))
-
     ret = drive_sync.sync_file_item("personal", slide_item, tmp_path, generate_previews=True)
     assert ret is None
-    assert len(url_retrieved) == 2
+    assert preview_calls == [("personal", "deck1", tmp_path / "_material/previews/Aula1")]
     assert (tmp_path / "_material/previews/Aula1").is_dir()

@@ -1,14 +1,11 @@
 # T0 the feature registry's honesty half (core/SPECS.md § AD-14): a row claiming a switch must
 # really have one, and throwing the switch must move the observable.
 #
-# WHY THIS IS A FILE OF ITS OWN. test_features.py answers "is the declaration complete and in its
-# closed sets" — a question about data. These answer "does the declaration correspond to anything
-# that runs" — a question about behaviour, and the one that costs the first ablation run its whole
-# signal when it goes unasked. A row claiming to be wired while nothing reads the switch would make
-# the ablation report "no effect" for a feature that was never disabled.
+# test_features.py checks declarations; these runtime checks verify that each switch acts.
 import functools
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -90,8 +87,10 @@ def test_a_row_claiming_to_be_wired_really_is():
                 continue
             if not path.exists():
                 broken.append(f"{row['name']}: {target} does not exist")
-            elif target not in GROUP_PUBLISHERS and row['name'] not in path.read_text(encoding='utf-8'):
-                broken.append(f"{row['name']}: {target} never mentions the name")
+            elif target not in GROUP_PUBLISHERS and not names_itself(
+                    path.read_text(encoding='utf-8'), row['name'], target):
+                broken.append(f"{row['name']}: {target} never names itself in code — a mention in "
+                              f"prose or a comment is not a switch")
     assert not broken, (
         'these rows claim to be switchable and are not:\n  ' + '\n  '.join(broken))
 
@@ -121,13 +120,7 @@ def test_the_ablation_switch_turns_one_feature_off(monkeypatch):
 
 
 def _asks_the_law(hook: str, tmp_path) -> set:
-    """Slugs the hook really asks about — recorded from a run, not read off the source.
-
-    A sitecustomize wraps `feature_law.is_enabled` before the hook's own code loads, so the
-    hook's law consultation lands in the log. The payload has to carry a command AND a
-    file_path: several gates return early on an empty one and never reach their own switch,
-    which reads identically to a gate that has no switch at all.
-    """
+    """Observe law consultations with a startup shim and a complete command/file payload."""
     shim, log = tmp_path / 'shim', tmp_path / 'law.txt'
     shim.mkdir(parents=True)
     log.touch()
@@ -145,9 +138,11 @@ def _asks_the_law(hook: str, tmp_path) -> set:
                           'cwd': str(WORKSPACE_ROOT),
                           'tool_input': {'command': 'ls', 'file_path': '/tmp/check.py',
                                          'content': '# check\n'}})
+    env = {key: value for key, value in os.environ.items()
+           if key not in ('CLAUDE_TOOL_INPUT', 'CLAUDE_TOOL_NAME')}
     subprocess.run([interpreter(), str(WORKSPACE_ROOT / hook)], input=payload, text=True,
                    capture_output=True, timeout=60,
-                   env={**os.environ, 'PYTHONPATH': str(shim), 'LAW_CHECK': str(log)}, encoding='utf-8')
+                   env={**env, 'PYTHONPATH': str(shim), 'LAW_CHECK': str(log)}, encoding='utf-8')
     return set(log.read_text(encoding='utf-8').split())
 
 
@@ -156,6 +151,31 @@ def _strip_comments(body: str, target: str) -> str:
     marker = '//' if target.endswith('.js') else '#'
     return '\n'.join(line for line in body.splitlines()
                      if not line.lstrip().startswith(marker))
+
+
+def test_law_check_uses_its_payload_despite_inherited_hook_input(tmp_path, monkeypatch):
+    monkeypatch.setenv('CLAUDE_TOOL_INPUT', json.dumps({'tool_name': 'Read', 'tool_input': {}}))
+    monkeypatch.setenv('CLAUDE_TOOL_NAME', 'Read')
+    monkeypatch.setenv('RTK_COMPACT_DIR', str(tmp_path))
+    assert 'rtk-compaction' in _asks_the_law(
+        'core/hooks/compact/bash-compact-rewrite.py', tmp_path / 'check')
+
+
+def names_itself(body: str, name: str, target: str) -> bool:
+    """Does this wiring point really name the feature it claims, in CODE rather than in prose?
+
+    `row['name'] in body` over RAW text was the witness until 2026-09-21 — the same weakness that
+    let `symmetry` pass on the word *asymmetry* in a comment, and which proved nothing at all for
+    `bot`, whose name is in every other line of the file it is wired to.
+
+    Two shapes, because the registry has exactly two and both are the name as an ARGUMENT:
+    69 of the 71 non-group points spell it quoted, inside `require('<name>')` or
+    `is_enabled('<name>')`; the other two are shell fragments passing it to the `--enabled` CLI arm,
+    which is the same law reached the way a harness without Python reaches it.
+    """
+    code = _strip_comments(body, target)
+    quoted = re.search(rf'''["']{re.escape(name)}["']''', code)
+    return bool(quoted or re.search(rf'--enabled\s+{re.escape(name)}\b', code))
 
 
 def test_the_wired_gates_actually_consult_the_law(tmp_path):

@@ -1,0 +1,8 @@
+# Reference for effective-context-engineering
+key: effective-context-engineering
+title: "Effective context engineering"
+url: "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents"
+level: V
+section: "Context engineering & progressive disclosure"
+contributions:
+  - "(Anthropic, 2025-09) — attention budget, context rot, JIT retrieval via file paths, compaction."

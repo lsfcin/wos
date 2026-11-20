@@ -6,7 +6,7 @@ _ROOT = pathlib.Path(__file__).resolve().parents[2]
 _VENV_GDL = _ROOT / ".venv" / "bin" / "gallery-dl"
 GALLERYDL = str(_VENV_GDL) if _VENV_GDL.exists() else (shutil.which("gallery-dl") or "gallery-dl")
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
-MAX_IMAGES = 10
+MAX_IMAGES = 20
 
 
 def _run(args, runner=None):

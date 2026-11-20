@@ -23,7 +23,7 @@
 # Claude Code and ZCode hook in this workspace was spelled that way, so on a Windows clone the
 # enforcement layer had never once fired while the config read as correct.
 #
-# WHY THIS IS NOT THE PER-OS FORK THE RATCHET FORBIDS. There is one file here, not a pair, and it
+# WHY THIS IS NOT THE PER-OS FORK THE CEILING FORBIDS. There is one file here, not a pair, and it
 # asks the filesystem which venv layout is present rather than asking which operating system this
 # is. The platform question itself is still answered in exactly one module, platform_law.py, and no
 # .ps1/.bat sibling sits beside a .sh. The list below is ordered, not branched: the first candidate
@@ -37,7 +37,7 @@ set -e
 PYTHONIOENCODING=utf-8
 export PYTHONIOENCODING
 
-root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+root=$(CDPATH= cd -P -- "$(dirname -- "$0")/.." && pwd -P)
 target=$1
 [ -n "$target" ] || { echo "core/run: names nothing to run" >&2; exit 1; }
 shift

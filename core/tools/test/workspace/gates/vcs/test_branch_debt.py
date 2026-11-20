@@ -70,7 +70,7 @@ def test_a_repo_with_no_remote_is_silent(repo):
 
 
 def test_a_repo_with_no_remote_holds_work_nowhere_else(repo):
-	"""The push policy's own sentence, as a number — code/SPECS-git.md § Push policy."""
+	"""The push policy's own sentence, as a number — core/hooks/git/SPECS.md § Push policy."""
 	signal, = unpushed_work(repo)
 	assert 'no remote' in signal, signal
 

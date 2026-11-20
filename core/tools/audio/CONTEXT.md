@@ -1,10 +1,7 @@
 # audio
 > Speech to text. Backend leaf: `faster-whisper large-v3-turbo`, local, no network.
 
-The wrapper is domain-free on purpose: `run` takes the conditioning prompt as an argument, so
-the vocabulary lives with whoever owns it — aiwbot primes for workspace jargon, `code/obra`
-primes for construction and cartório terms. A bare word list ANYWHERE in that prompt suppresses
-punctuation; write it as writing someone could have said.
+The wrapper is domain-free on purpose: `run` takes the conditioning prompt as an argument, so the vocabulary lives with whoever owns it — aiwbot primes for workspace jargon, `code/obra` primes for construction and cartório terms. A bare word list ANYWHERE in that prompt suppresses punctuation; write it as writing someone could have said.
 
 <!-- routing:start -->
 ## Routing

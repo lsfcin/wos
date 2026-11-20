@@ -1,0 +1,8 @@
+# Reference for descript-e-alternativas-open-source-audapolis-cu
+key: descript-e-alternativas-open-source-audapolis-cu
+title: "Descript (e alternativas open-source: Audapolis, CutScript)"
+url: "https://www.descript.com/"
+level: C
+section: "Model level, cost & execution interface"
+contributions:
+  - "[src: web:descript.com] Edição de áudio e vídeo por manipulação direta de texto/transcrição; software fechado, mas serviu de base para alternativas open-source no GitHub (Audapolis, CutScript) usando Whisper para edição de fala por texto."

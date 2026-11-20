@@ -1,0 +1,8 @@
+# Reference for sillytavern
+key: sillytavern
+title: "SillyTavern"
+url: "https://sillytavern.app/"
+level: C
+section: "Model level, cost & execution interface"
+contributions:
+  - "interface frontend local para personas, agentes e gerenciamento de contexto LLM."

@@ -1,23 +1,11 @@
 # hooks
 > The enforcement layer: git hooks, agent lifecycle hooks, and the Level 0 checks they run.
 
-Wired globally via `core.hooksPath` ([`SETUP-clone.md`](../../SETUP-clone.md) § Git hook), so
-`pre-commit` fires in **every** repo under this workspace, and by absolute path from
-`.claude/settings.json` for the agent-side gates.
+Wired globally via `core.hooksPath` ([`SETUP-clone.md`](../../SETUP-clone.md) § Git hook), so `pre-commit` fires in **every** repo under this workspace, and by absolute path from `.claude/settings.json` for the agent-side gates.
 
-**The law lives in this root, not in any checker.** Each law module below reads its answer out of a
-data file rather than holding one, and **a checker that restates any of them is the drift the
-checkers exist to catch** — the incidents behind that rule are in [`SPECS.md`](SPECS.md), and why a
-gate skipping `feature_law` is a finding is [`core/SPECS.md`](../SPECS.md) § AD-14. When a
-switched-on feature fires is answered in [`trigger/`](trigger/CONTEXT.md).
+**The law lives in this root, not in any checker.** Each law module below reads its answer out of a data file rather than holding one, and **a checker that restates any of them is the drift the checkers exist to catch** — the incidents behind that rule are in [`SPECS.md`](SPECS.md), and why a gate skipping `feature_law` is a finding is [`core/SPECS.md`](../SPECS.md) § AD-14. When a switched-on feature fires is answered in [`trigger/`](trigger/CONTEXT.md).
 
-**Shape.** Only the law modules, the stdin parser and the three entrypoints whose names git and
-`.claude/settings.json` dictate stay at the root; everything else is a subdirectory with one
-responsibility. Two axes before you route. `gates/`, `generators/` and `postedit/` hold fragments
-`source`d by `pre-commit` / `post-edit.sh` and share its shell state; every other directory holds
-standalone programs run by path. A gate exits non-zero and stops the commit or the edit; a
-generator writes an artifact and stages it. `entropy/` does neither — it reports into
-[`ISSUES.md`](../../ISSUES.md), so read that report instead of re-scanning the tree.
+**Shape.** Only the law modules, the stdin parser and the three entrypoints whose names git and `.claude/settings.json` dictate stay at the root; everything else is a subdirectory with one responsibility. Two axes before you route. `gates/`, `generators/` and `postedit/` hold fragments `source`d by `pre-commit` / `post-edit.sh` and share its shell state; every other directory holds standalone programs run by path. A gate exits non-zero and stops the commit or the edit; a generator writes an artifact and stages it. `entropy/` does neither — it reports into [`ISSUES.md`](../../ISSUES.md), so read that report instead of re-scanning the tree.
 
 Gate behavior, the agent-shim contract, and how a module reaches the root law:
 [`SPECS.md`](SPECS.md). Why the `code/` gates exist:
@@ -31,6 +19,7 @@ Gate behavior, the agent-shim contract, and how a module reaches the root law:
 | [`antigravity/`](antigravity/CONTEXT.md) | Provider shim: translates Antigravity lifecycle events to canonical WOS gates. |
 | [`brain/`](brain/CONTEXT.md) | brain/ attention stats and the GOALS.md dashboard. |
 | [`checks/`](checks/CONTEXT.md) | Standalone blocking checks the commit and edit hooks run. |
+| [`codex/`](codex/CONTEXT.md) | Translate Codex lifecycle events and patches into the canonical workspace hook protocol. |
 | [`commit/`](commit/CONTEXT.md) | The git pre-commit and post-commit pipeline: what runs on every commit, in what order, and the one place a commit is refused. |
 | [`compact/`](compact/CONTEXT.md) | Shrink tool output before it reaches the context — the input-side twin of caveman. |
 | [`copilot/`](copilot/CONTEXT.md) | Provider shim: translates Copilot hook payloads onto the canonical gates. |
@@ -40,8 +29,8 @@ Gate behavior, the agent-shim contract, and how a module reaches the root law:
 | [`postedit/`](postedit/CONTEXT.md) | Sourced post-edit stages: regenerate interfaces, remind, sync, lint. |
 | [`read/`](read/CONTEXT.md) | Who must read what before touching a folder — and who gets handed it instead. |
 | [`routing/`](routing/CONTEXT.md) | The CONTEXT.md routing-table generator, and the delimited-block writer every generator shares. |
-| [`session/`](session/CONTEXT.md) | Session lifecycle: start, prune, precompact wipe, and the SessionStart nudges. |
-| [`stubgen/`](stubgen/CONTEXT.md) | Interface stubs and paper scaffolding, generated on save and on commit. |
+| [`session/`](session/CONTEXT.md) | Session lifecycle: start, prune, precompact wipe, and the SessionStart reminders. |
+| [`stubgen/`](stubgen/CONTEXT.md) | Interface stubs and paper templates, generated on save and on commit. |
 | [`trigger/`](trigger/CONTEXT.md) | When a feature fires, read from the registrations rather than from where its file sits. |
 
 | File | Interface | API | Description |
@@ -50,7 +39,7 @@ Gate behavior, the agent-shim contract, and how a module reaches the root law:
 | [`described.txt`](described.txt) | — | — | Files DESCRIBED HERE because they cannot describe themselves. One "<path><TAB><description>" per line, path relative to the workspace root. Read by core/hooks/routing/workspace_meta.py. |
 | [`dispatch.py`](dispatch.py) | [`dispatch.pyi`](dispatch.pyi) | `table_path`, `load_table`, `run_gate`, `emit`, `collect` | PreToolUse, PostToolUse: one process for every gate — read stdin once, ask the moment and the capability once, run what they select. |
 | [`extensionless.txt`](extensionless.txt) | — | — | Files allowed to have no extension because something OUTSIDE this workspace dictates the name — enforced by test_every_extensionless_tracked_file_is_explained. |
-| [`feature_law.py`](feature_law.py) | [`feature_law.pyi`](feature_law.pyi) | `load_registry`, `names`, `load_profile`, `is_enabled`, `setting` | What is switched ON: which features are live. The registry is core/features.txt, the answers are core/profile.txt, and neither is restated here. |
+| [`feature_law.py`](feature_law.py) | [`feature_law.pyi`](feature_law.pyi) | `load_registry`, `names`, `load_profile`, `needs`, `is_enabled` | What is switched ON: which features are live. The registry is core/features.txt, the answers are core/profile.txt, and neither is restated here. |
 | [`file_law.py`](file_law.py) | [`file_law.pyi`](file_law.pyi) | `is_tool_entrypoint`, `is_code_file`, `load_limits`, `allowed_extensionless`, `is_vendored` | What a file IS, and which rules apply to it. The numeric-law sibling of schema_law.py: that module parses core/SCHEMA.md, this one owns the file-shape law every size, crowding and line-count check reads. |
 | [`gates.txt`](gates.txt) | — | — | Every lifecycle gate, the moment and the capability that select it. Read by core/hooks/dispatch.py (which runs them) and by core/hooks/trigger/trigger_law.py (which reports when they fire). |
 | [`generated.txt`](generated.txt) | — | — | Files this workspace GENERATES, each entry naming its generator. Exempt from every authoring rule; what the exemption covers and why it is safe: core/hooks/SPECS.md § Generated artifacts. |

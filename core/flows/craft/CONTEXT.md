@@ -1,8 +1,7 @@
 # Craft Flows
 > The engineering cluster owned by the `craft` skill — build work in file-relayed loops. Invoked as `/craft`.
 
-Entry point: the `craft` skill ([`core/skills/craft.md`](../../skills/craft.md)) — it loads the
-shared discipline before any file here is read directly.
+Entry point: the `craft` skill ([`core/skills/craft.md`](../../skills/craft.md)) — it loads the shared discipline before any file here is read directly.
 
 Why `craft.md` stays one file instead of splitting further: [`SPECS.md`](SPECS.md).
 

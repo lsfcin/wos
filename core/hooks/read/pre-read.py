@@ -41,14 +41,14 @@ def codegraph_root(target: Path) -> Path | None:
 	return None
 
 
-def nudge(session_id: str, target: Path, state: str, iface: Path | None) -> None:
+def remind(session_id: str, target: Path, state: str, iface: Path | None) -> None:
 	"""What a read that is going THROUGH still has to say. Never reached on the blocking branch.
 
 	The codegraph suggestion used to sit at the foot of the shell script, reachable on exactly one
 	path — a source whose stub was stale — because every other state returned before it. Its own
 	comment says "one-time per project per session", which describes a hook that fires for the
 	PROJECT, so it fires on every read this gate allows. It is not emitted on the blocking branch:
-	the harness shows stderr there and a nudge that marked itself said on a turn nobody saw it is
+	the harness shows stderr there and a reminder that marked itself said on a turn nobody saw it is
 	the same defect one layer down.
 	"""
 	if state == 'absent' and not announced(session_id, 'nostub', str(target)):
@@ -67,7 +67,7 @@ def nudge(session_id: str, target: Path, state: str, iface: Path | None) -> None
 		      '   Reading source directly — save the file to regenerate the interface.')
 
 	root = codegraph_root(target)
-	if root is not None and not announced(session_id, 'cg_nudged', str(root)):
+	if root is not None and not announced(session_id, 'cg_reminded', str(root)):
 		print('💡 codegraph indexed — explore before reading source:\n'
 		      f'   codegraph explore "<question>" {root}\n'
 		      f'   codegraph query "<symbol>" {root}')
@@ -98,7 +98,7 @@ def main() -> int:
 	# Both are `none`, and silence is correct for both.
 	state, iface = interface_state(target)
 	if state != 'current' or str(iface) in load_iface_seen(session_id):
-		nudge(session_id, target, state, iface)
+		remind(session_id, target, state, iface)
 		return 0
 
 	# NAME THE WHOLE SET, NOT THIS GATE'S SLICE. context-gate.py fires on the same Read, also exits 2,

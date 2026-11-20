@@ -1,5 +1,5 @@
 # [Project Name]
-> Project scaffolding templates — CONTEXT.md, README.md, SPECS.md, ROADMAP.md skeletons
+> Project templates — CONTEXT.md, README.md, SPECS.md, ROADMAP.md skeletons
 > goal: none
 > spec: none
 <!-- goal: [name](../../brain/goals/<name>.md) — required on line 3 by pre-commit 1c, or 'none'.

@@ -108,15 +108,74 @@ def move(object_id: str, x: float, y: float) -> dict:
     }}
 
 
-def get_thumbnail_url(alias: str, presentation_id: str, page_object_id: str,
-                      size: str = "LARGE") -> str:
-    """Fetch the temporary URL for a slide thumbnail (PNG) via the Slides API."""
-    svc = get_service(alias)
-    res = svc.presentations().pages().getThumbnail(
-        presentationId=presentation_id,
-        pageObjectId=page_object_id,
-        thumbnailProperties_mimeType="PNG",
-        thumbnailProperties_thumbnailSize=size,
-    ).execute()
-    return res.get("contentUrl", "")
+def previews(alias: str, presentation_id: str, out_dir: pathlib.Path, dpi: int = 100) -> list:
+    """Every slide as `slide_NN_<objectId>.png`: one Drive PDF export, rendered locally.
+
+    Not the Slides thumbnail endpoint: that one is an 'expensive read' with a per-minute
+    quota, so a 20+ slide deck gets a 429 halfway. The export is one call for any size.
+    """
+    import tempfile, shutil
+    sys.path.insert(0, str(_HERE.parent / 'files'))
+    import deck_sample, drive_core
+    ids = [s["objectId"] for s in get_presentation(alias, presentation_id).get("slides", [])]
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            pdf = drive_core.download_file(alias, presentation_id, pathlib.Path(tmp))
+        except Exception as err:  # Drive refuses exports over ~10 MB; a link-shared deck still has the public one
+            if "too large" not in str(err):
+                raise
+            try:
+                pdf = deck_sample.download_public_export(presentation_id, pathlib.Path(tmp) / "deck.pdf")
+            except RuntimeError:  # over 10 MB and not link-shared: one thumbnail per slide, slow but sure
+                return _thumbnails(alias, presentation_id, ids, out_dir)
+        pages = deck_sample.render_pages(pdf, pathlib.Path(tmp) / "p", dpi=dpi)
+        paths, width = [], max(2, len(str(len(ids))))  # names sort in slide order past 99
+        for idx, (sid, page) in enumerate(zip(ids, pages), 1):
+            dest = out_dir / f"slide_{idx:0{width}d}_{sid}.png"
+            shutil.move(page, dest)  # not Path.replace: /tmp and out_dir are often different filesystems
+            paths.append(dest)
+    return paths
+
+
+def _thumbnails(alias: str, presentation_id: str, ids: list, out_dir: pathlib.Path) -> list:
+    """The last resort of `previews`: the thumbnail endpoint, waiting out its per-minute quota on 429."""
+    import time, urllib.request
+    from googleapiclient.errors import HttpError
+    svc, paths, width = get_service(alias), [], max(2, len(str(len(ids))))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for idx, sid in enumerate(ids, 1):
+        for wait in (0, 15, 30, 60, 60):
+            time.sleep(wait)
+            try:
+                t = svc.presentations().pages().getThumbnail(
+                    presentationId=presentation_id, pageObjectId=sid,
+                    thumbnailProperties_thumbnailSize="MEDIUM").execute()
+                break
+            except HttpError as err:
+                if err.resp.status != 429:
+                    raise
+        else:
+            raise RuntimeError(f"thumbnail quota never recovered at slide {idx}")
+        dest = out_dir / f"slide_{idx:0{width}d}_{sid}.png"
+        urllib.request.urlretrieve(t["contentUrl"], dest)
+        paths.append(dest)
+    return paths
+
+
+def contact_sheets(paths: list, out_dir: pathlib.Path, cols: int = 5, rows: int = 4) -> list:
+    """20 numbered slides per image: a whole deck seen in a handful of reads, by a person or an agent."""
+    from PIL import Image, ImageDraw
+    w, h, per, sheets = 400, 225, cols * rows, []
+    for k in range(0, len(paths), per):
+        sheet = Image.new("RGB", (cols * w, rows * h), "white")
+        draw = ImageDraw.Draw(sheet)
+        for j, p in enumerate(paths[k:k + per]):
+            x, y = (j % cols) * w, (j // cols) * h
+            sheet.paste(Image.open(p).convert("RGB").resize((w - 6, h - 6)), (x + 3, y + 3))
+            draw.rectangle([x + 3, y + 3, x + 36, y + 21], fill="black")
+            draw.text((x + 6, y + 6), str(k + j + 1), fill="yellow")
+        sheets.append(out_dir / f"sheet_{k // per + 1:02d}.png")
+        sheet.save(sheets[-1])
+    return sheets
 

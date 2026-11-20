@@ -121,3 +121,10 @@ def test_the_map_is_not_sold_as_the_cost_answer():
 def test_both_switches_exist_and_are_reachable(flag):
 	"""AD-14: a row claiming a switch must really have one."""
 	assert f"'{flag}'" in TOOL.read_text(encoding='utf-8')
+
+
+def test_codex_uses_workspace_definitions_without_a_native_catalog():
+    module = _tool()
+    assert set(module.CODEX) == {row['level'] for row in module.declared().values()}
+    assert 'codex' not in module.HARNESSES
+    assert not (WORKSPACE_ROOT / '.codex/agents').exists()

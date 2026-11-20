@@ -8,11 +8,21 @@
 # every kept rule is a guess wearing a rule's coat. The ablation answers "what does the workspace
 # cost without X"; this answers the cheaper question first — "does X ever fire at all".
 #
-# TWO SIGNALS, TWO CALL SITES, AND THEY ARE DIFFERENT QUESTIONS. `fired` is recorded in
+# THREE SIGNALS, THREE CALL SITES, AND THEY ARE DIFFERENT QUESTIONS. `fired` is recorded in
 # feature_law.is_enabled(), which is the one function every switched feature passes through, so one
 # call site covers all six groups. `blocked` is recorded in dispatch.py, which is the only place
 # that sees a gate's exit code. A feature can fire thousands of times and block nothing — that gap
 # is the whole finding, and collapsing the two into one count would hide it.
+#
+# `found` is the third, added 2026-09-23, and it exists because the second one cannot answer for an
+# INFORMING gate. Such a gate may never exit 2, so `blocked` is structurally zero and the scoreboard
+# read `1088 fired, -` for retired-tokens: it counted that the gate RAN, never that it had anything
+# to say. A gate that computes findings records `found` itself, at the moment it has them — the same
+# shape as the other two, the fact written where it happens.
+#
+# A NORM RECORDS NO `found`, and that is not an omission. A norm is written into AGENTS.md and
+# obeyed; it has no detector, so there is nothing for it to have found. Its `fired` count is a
+# count of sessions, and reading it as anything else is the mistake this note exists to prevent.
 #
 # APPEND-ONLY, AND AGGREGATED ON READ. A counter file would be read-modify-write, which races
 # between parallel sessions and silently loses rows — the failure this instrument exists to avoid.
@@ -74,7 +84,7 @@ def record(name: str, event: str) -> None:
 
 
 def tally(store: Path = None) -> dict:
-	"""{feature: {'fired': n, 'blocked': n}}, and the first date seen, added up from the rows."""
+	"""{feature: {'fired': n, 'blocked': n, 'found': n}}, and the first date seen, from the rows."""
 	counts: dict = {}
 	target = store or path()
 	if not target.exists():
@@ -84,7 +94,7 @@ def tally(store: Path = None) -> dict:
 		if len(parts) != 3:
 			continue
 		day, name, event = parts
-		seen = counts.setdefault(name, {'fired': 0, 'blocked': 0, 'since': day})
+		seen = counts.setdefault(name, {'fired': 0, 'blocked': 0, 'found': 0, 'since': day})
 		seen['since'] = min(seen['since'], day)
 		if event in seen:
 			seen[event] += 1

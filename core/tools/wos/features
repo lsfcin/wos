@@ -65,7 +65,7 @@ def _listing(rows: list) -> int:
 
 
 def _findings() -> int:
-    """A capability that cannot be switched off is entangled with the scaffold rather than sitting
+    """A capability that cannot be switched off is entangled with the workspace rather than sitting
     on it, so it is invisible to an ablation. The count is the number that has to come down."""
     rows = law.findings()
     for r in rows:
@@ -99,11 +99,17 @@ def _check() -> int:
 def _scoreboard() -> int:
     """What each feature really did, against what it claims to be.
 
-    THE TWO COLUMNS ARE THE POINT, and a row where they disagree is the finding: a feature that
-    fired ten thousand times and blocked nothing is either enforcing something nobody violates or
-    enforcing nothing at all, and the registry cannot tell those apart. `-` under blocked means the
-    feature is not a blocking gate and was never expected to; `0` means it is one and never fired
-    in anger. Read them differently.
+    THE COLUMNS BESIDE `fired` ARE THE POINT, and a row where they disagree with it is the finding:
+    a feature that fired ten thousand times and caught nothing is either enforcing something nobody
+    violates or enforcing nothing at all, and the registry cannot tell those apart.
+
+    WHICH COLUMN A ROW IS JUDGED BY IS ITS ENFORCEMENT. A `blocks` feature answers in `blocked`; an
+    `advises` or `warns` gate answers in `found`, because it may never exit 2 and its `blocked` is
+    structurally zero — the gap that let retired-tokens read `1088 fired, -` for a month. A `-`
+    means that question was never asked of this row; `0` means it was, and the answer was never.
+
+    A NORM ANSWERS IN NEITHER. It is written into AGENTS.md and obeyed, so it has no detector and
+    its `fired` is a count of sessions. Nothing here can say whether it worked.
     """
     counts = board.tally()
     if not counts:
@@ -112,12 +118,14 @@ def _scoreboard() -> int:
         return 0
     registry = {r['name']: r for r in law.load_registry()}
     print(f'since {board.started()} · {len(counts)} feature(s) have fired\n')
-    print(f"  {'feature':<26} {'fired':>8} {'blocked':>8}  enforcement")
+    print(f"  {'feature':<26} {'fired':>8} {'blocked':>8} {'found':>7}  enforcement")
     for name, seen in sorted(counts.items(), key=lambda kv: -kv[1]['fired']):
         row = registry.get(name, {})
-        pushes = row.get('enforcement', '?') == 'blocks'
-        blocked = str(seen['blocked']) if pushes else '-'
-        print(f"  {name:<26} {seen['fired']:>8} {blocked:>8}  {row.get('enforcement', '?')}")
+        enforcement = row.get('enforcement', '?')
+        blocked = str(seen['blocked']) if enforcement == 'blocks' else '-'
+        detects = enforcement in ('advises', 'warns') and row.get('group') != 'norms'
+        found = str(seen.get('found', 0)) if detects else '-'
+        print(f"  {name:<26} {seen['fired']:>8} {blocked:>8} {found:>7}  {enforcement}")
     silent = sorted(set(registry) - set(counts))
     if silent:
         print(f'\n{len(silent)} declared feature(s) have never fired here:')

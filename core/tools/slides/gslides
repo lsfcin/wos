@@ -1,4 +1,4 @@
-# Usage: core/tools/slides/gslides <cmd> [args] — Google Slides CLI: auth, list, read, new, add, text, apply, preview, export, sample
+# Usage: core/tools/slides/gslides <cmd> [args] — Google Slides CLI: auth, list, read, stats, lint, new, add, text, apply, preview, export, sample
 import sys, json, pathlib, argparse
 
 _HERE = pathlib.Path(__file__).resolve().parent
@@ -6,7 +6,7 @@ _HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
 sys.path.insert(0, str(_HERE.parent))
 sys.path.insert(0, str(_HERE.parent / 'auth'))
-import slides_core, slides_outline, deck_sample, gauth, gcli, short_name as short_name_tool
+import slides_core, slides_outline, slides_style, deck_sample, gauth, gcli, short_name as short_name_tool
 
 
 def cmd_auth(alias: str, write: bool, reauth: bool) -> None:
@@ -29,6 +29,25 @@ def cmd_read(account: str, presentation_id: str, as_json: bool, verbose: bool) -
     pres = slides_core.get_presentation(alias, presentation_id)
     print(json.dumps(pres, ensure_ascii=False, indent=2) if as_json
           else slides_outline.outline(pres, verbose=verbose))
+
+
+def cmd_stats(account: str, presentation_id: str) -> None:
+    """The deck's style in numbers, and which slides are which archetype."""
+    st = slides_style.stats(slides_core.get_presentation(gauth.resolve_alias(account), presentation_id))
+    top = lambda c, k=6: ", ".join(f"{round(a, 1) if isinstance(a, float) else a}:{round(100 * b / (sum(c.values()) or 1))}%" for a, b in c.most_common(k))
+    w = st["words"]
+    print(f"{st['slides']} slides · words/slide median {w[len(w) // 2]}, max {w[-1]}")
+    print(f"fonts  {top(st['fonts'])}\nsizes  {top(st['sizes'], 8)}\ncolors {top(st['colors'])}")
+    for kind, ns in sorted(st["types"].items(), key=lambda kv: -len(kv[1])):
+        print(f"  {kind:<11}{len(ns):>4}  {' '.join(map(str, ns[:12]))}{' …' if len(ns) > 12 else ''}")
+
+
+def cmd_lint(account: str, presentation_id: str, min_pt: float) -> None:
+    """What a projector will not forgive — one line per problem, with the ids an edit needs."""
+    found = slides_style.lint(slides_core.get_presentation(gauth.resolve_alias(account), presentation_id), min_pt)
+    for n, oid, problem in found:
+        print(f"  {n:>3}  {oid:<24} {problem}")
+    print(f"{len(found)} problem(s)")
 
 
 def cmd_new(account: str, title: str, short_name: str) -> None:
@@ -69,23 +88,13 @@ def cmd_apply(account: str, presentation_id: str, path: str) -> None:
     print(f"  {slides_core.url(presentation_id)}")
 
 
-def cmd_preview(account: str, presentation_id: str, out_dir: str) -> None:
-    """Download PNG thumbnails for every slide to empower visual inspection."""
-    import urllib.request
+def cmd_preview(account: str, presentation_id: str, out_dir: str, dpi: int, sheet: bool) -> None:
+    """Every slide as a PNG, for visual inspection; `--sheet` adds 20-per-image contact sheets."""
     alias = gauth.resolve_alias(account)
-    deck = slides_core.get_presentation(alias, presentation_id)
-    slides = deck.get("slides", [])
     target = pathlib.Path(out_dir) if out_dir else pathlib.Path.cwd() / f"previews_{presentation_id}"
-    target.mkdir(parents=True, exist_ok=True)
-    print(f"Generating previews for {len(slides)} slides into {target}...")
-    for idx, s in enumerate(slides, 1):
-        sid = s["objectId"]
-        url = slides_core.get_thumbnail_url(alias, presentation_id, sid)
-        if url:
-            dest = target / f"slide_{idx:02d}_{sid}.png"
-            urllib.request.urlretrieve(url, dest)
-            print(f"  [{idx:02d}/{len(slides):02d}] {dest.name}")
-    print(f"Done. Saved to: {target}")
+    paths = slides_core.previews(alias, presentation_id, target, dpi)
+    sheets = slides_core.contact_sheets(paths, target) if sheet else []
+    print(f"{len(paths)} slides{f', {len(sheets)} sheets' if sheets else ''} → {target}")
 
 
 def cmd_export(target: str, fmt: str, out_path: str) -> None:
@@ -120,23 +129,32 @@ def main():
     pl.add_argument("--name", default="", help="filter by name substring")
 
     pr = sub.add_parser("read")
-    pr.add_argument("--account", required=True)
+    pr.add_argument("--account", default=None, help="default: the home account (personal)")
     pr.add_argument("--json", dest="as_json", action="store_true", help="raw API JSON instead of the outline")
     pr.add_argument("--verbose", action="store_true", help="include elements that carry no text")
     pr.add_argument("presentation_id")
 
+    pst = sub.add_parser("stats", help="style in numbers and the archetype of every slide")
+    pst.add_argument("--account", default=None, help="default: the home account (personal)")
+    pst.add_argument("presentation_id")
+
+    pli = sub.add_parser("lint", help="small text, off the slide, over the template, off the footer line")
+    pli.add_argument("--account", default=None, help="default: the home account (personal)")
+    pli.add_argument("--min-pt", type=float, default=14, help="smallest text a room can read (default 14)")
+    pli.add_argument("presentation_id")
+
     pn = sub.add_parser("new")
-    pn.add_argument("--account", required=True)
+    pn.add_argument("--account", default=None, help="default: the home account (personal)")
     pn.add_argument("--short-name", default="", help="also mint a short link for the new deck")
     pn.add_argument("title")
 
     pad = sub.add_parser("add")
-    pad.add_argument("--account", required=True)
+    pad.add_argument("--account", default=None, help="default: the home account (personal)")
     pad.add_argument("--layout", default="BLANK")
     pad.add_argument("presentation_id")
 
     pt = sub.add_parser("text")
-    pt.add_argument("--account", required=True)
+    pt.add_argument("--account", default=None, help="default: the home account (personal)")
     pt.add_argument("--slide", required=True, dest="slide_id")
     pt.add_argument("--x", type=float, default=0.1)
     pt.add_argument("--y", type=float, default=0.1)
@@ -146,13 +164,15 @@ def main():
     pt.add_argument("text")
 
     pap = sub.add_parser("apply")
-    pap.add_argument("--account", required=True)
+    pap.add_argument("--account", default=None, help="default: the home account (personal)")
     pap.add_argument("presentation_id")
     pap.add_argument("requests_json", help="file holding a JSON array of Slides API requests")
 
     ppr = sub.add_parser("preview")
-    ppr.add_argument("--account", required=True)
+    ppr.add_argument("--account", default=None, help="default: the home account (personal)")
     ppr.add_argument("--out", dest="out_dir", default="", help="destination directory for PNGs")
+    ppr.add_argument("--dpi", type=int, default=100, help="render resolution (100 = 1000px wide)")
+    ppr.add_argument("--sheet", action="store_true", help="also write numbered contact sheets, 20 slides each")
     ppr.add_argument("presentation_id")
 
     pex = sub.add_parser("export", help="download presentation as PDF or PPTX without requiring OAuth")
@@ -170,12 +190,14 @@ def main():
     if   args.cmd == "auth":    cmd_auth(args.alias, args.write, args.reauth)
     elif args.cmd == "list":    cmd_list(args.account, args.name)
     elif args.cmd == "read":    cmd_read(args.account, args.presentation_id, args.as_json, args.verbose)
+    elif args.cmd == "stats":   cmd_stats(args.account, args.presentation_id)
+    elif args.cmd == "lint":    cmd_lint(args.account, args.presentation_id, args.min_pt)
     elif args.cmd == "new":     cmd_new(args.account, args.title, args.short_name)
     elif args.cmd == "add":     cmd_add(args.account, args.presentation_id, args.layout)
     elif args.cmd == "text":    cmd_text(args.account, args.presentation_id, args.slide_id,
                                          args.text, args.x, args.y, args.w, args.h)
     elif args.cmd == "apply":   cmd_apply(args.account, args.presentation_id, args.requests_json)
-    elif args.cmd == "preview": cmd_preview(args.account, args.presentation_id, args.out_dir)
+    elif args.cmd == "preview": cmd_preview(args.account, args.presentation_id, args.out_dir, args.dpi, args.sheet)
     elif args.cmd == "export":  cmd_export(args.target, args.format, args.out_path)
     elif args.cmd == "sample":  cmd_sample(args.target, args.out_dir, args.dpi, args.max_samples)
     else:                       p.print_help()

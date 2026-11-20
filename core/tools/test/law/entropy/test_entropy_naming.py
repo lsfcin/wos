@@ -1,6 +1,6 @@
 # T0 naming and placement (Level 0, law in core/SCHEMA.md). Zero-token, runs in verify-fast.
 #
-# The whole-tree test is a RATCHET, not a green light: it asserts the live violations are
+# The whole-tree test is a CEILING, not a green light: it asserts the live violations are
 # a subset of a named baseline, so a new one fails the build while the three inherited
 # ones stay visible with the item that will remove them. Shrinking the baseline is the
 # only edit this test should ever get.
@@ -42,7 +42,7 @@ def test_no_new_naming_violation():
 
 
 def test_baseline_is_not_stale():
-    """A baselined path that stopped violating must leave the baseline, or the ratchet
+    """A baselined path that stopped violating must leave the baseline, or the ceiling
     silently stops protecting whatever reuses that name."""
     live = _live_violations()
     unused = sorted(k for k in BASELINE if not any(k in f for f in live))
@@ -88,7 +88,7 @@ def test_uppercase_directory_is_flagged(tmp_path):
     assert 'not lowercase' in entropy_naming.check_dirs(target, tmp_path)
 
 
-def test_scaffolding_directory_is_allowed(tmp_path):
+def test_a_template_directory_is_allowed(tmp_path):
     target = tmp_path / '_templates' / 'notes.md'
     assert entropy_naming.check_dirs(target, tmp_path) is None
 
@@ -105,6 +105,7 @@ def test_readme_needs_a_repo_root(tmp_path):
     scopes = {'README.md': 'repo-root'}
     assert entropy_naming.check_placement(tmp_path / 'README.md', scopes, tmp_path)
     (tmp_path / '.git').mkdir()
+    (tmp_path / '.git' / 'HEAD').write_text('ref: refs/heads/main\n', encoding='utf-8', newline='\n')
     assert entropy_naming.check_placement(tmp_path / 'README.md', scopes, tmp_path) is None
 
 

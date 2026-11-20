@@ -5,8 +5,7 @@
 > feature: rtk-compaction, caveman
 > enforced-by: core/tools/test/workspace/test_setup_executable.py
 
-The five-part contract: [`SETUP.md`](SETUP.md). Both features are optional and cost only tokens when
-skipped. Read the ⚠ blocks first — each names a command that undoes a step in this file.
+The five-part contract: [`SETUP.md`](SETUP.md). Both features are optional and cost only tokens when skipped. Read the ⚠ blocks first — each names a command that undoes a step in this file.
 
 <!-- steps:start -->
 
@@ -135,7 +134,7 @@ installer**: it replaces the links with copies and re-forks both installs. Needs
 
 **Install** — the links, then the config every agent reads:
 ```bash
-core/run tools/wos/sync-global-skills        # links ~/.agents/skills/caveman + ~/.claude/hooks/caveman-*
+core/run tools/wos/sync-global-skills        # links ~/workspace + ~/.agents/skills/caveman + ~/.claude/hooks/caveman-*
 mkdir -p ~/.config/caveman && echo '{"defaultMode": "full"}' > ~/.config/caveman/config.json
 ```
 ```powershell

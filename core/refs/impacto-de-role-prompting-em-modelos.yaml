@@ -1,0 +1,8 @@
+# Reference for impacto-de-role-prompting-em-modelos
+key: impacto-de-role-prompting-em-modelos
+title: "Impacto de Role Prompting em Modelos"
+url: "https://youtu.be/a0_B2C9jsYY"
+level: P
+section: "Model level, cost & execution interface"
+contributions:
+  - "estudo sobre ativação de regiões distintas da rede através de papéis explícitos; avaliar consistência de \"role\" no WOS."

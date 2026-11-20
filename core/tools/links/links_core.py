@@ -23,7 +23,7 @@ def base() -> str:
 
     A `pages.dev` name is globally unique across every Cloudflare account, so the one this
     workspace gets is whatever was still free the day the project was made — `lsf` was taken,
-    which is a fact about a stranger's account and cannot live in scaffold code.
+    which is a fact about a stranger's account and cannot live in shared code.
     """
     return feature_law.setting('links-base', 'https://example.pages.dev')
 

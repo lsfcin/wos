@@ -20,6 +20,12 @@ RATES = {
 	'claude-haiku-4-5-20251001': (1.0, 5.0),
 }
 
+# Standard API-equivalent rates, verified 2026-10-06 at developers.openai.com/api/docs/pricing.
+# These are comparison prices, never a ChatGPT subscription bill or an inferred price mode.
+NATIVE_RATES = {'gpt-6.1-sol': (2.0, 0.10, 2.50, 10.0),
+                'gpt-6-astra': (10.0, 1.0, 12.50, 50.0),
+                'gpt-6-luna': (0.10, 0.01, 0.125, 0.50)}
+
 
 # The billed components, cheapest-to-read order. `output` is the only one the agent authors
 # directly; the rest are what re-reading it costs, which is why the split is worth printing.
@@ -31,7 +37,7 @@ UNPRICED = 'unpriced'
 
 
 def priced(model: str) -> bool:
-	return model in RATES
+	return model in RATES or model in NATIVE_RATES
 
 
 def turn_components(model: str, usage: dict) -> dict:
@@ -39,6 +45,14 @@ def turn_components(model: str, usage: dict) -> dict:
 
 	An unpriced model yields zeros rather than a guess: see the RATES header.
 	"""
+	if model in NATIVE_RATES:
+		rate_in, rate_cache, rate_write, rate_out = NATIVE_RATES[model]
+		context = sum(usage.get(k, 0) for k in ('input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens'))
+		long = context > 272_000
+		return {'input': usage.get('input_tokens', 0) * rate_in * (2 if long else 1) / 1e6,
+		        'cache_read': usage.get('cache_read_input_tokens', 0) * rate_cache * (2 if long else 1) / 1e6,
+		        'write_5m': usage.get('cache_creation_input_tokens', 0) * rate_write * (2 if long else 1) / 1e6,
+		        'write_1h': 0.0, 'output': usage.get('output_tokens', 0) * rate_out * (1.5 if long else 1) / 1e6}
 	rate_in, rate_out = RATES.get(model, (0.0, 0.0))
 	made = usage.get('cache_creation') or {}
 	write_1h = made.get('ephemeral_1h_input_tokens', 0)

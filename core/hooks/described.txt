@@ -14,12 +14,21 @@
 # Same shape as extensionless.txt, vendored.txt and generated.txt beside it: the law is the data
 # file, never the checker.
 .agents/hooks.json	Antigravity lifecycle hook registrations — the canonical WOS gates each event routes to.
+.codex/hooks.json	Codex lifecycle hook registrations — each event routes through core/hooks/codex/policy.py to the canonical WOS gates.
 .github/hooks/workspace-policy.json	Copilot lifecycle hook registrations — SessionStart, PreToolUse and PostToolUse, each spawning its shim through core/run.
 .zcode/config.json	ZCode hook registrations — one PreToolUse entry into core/hooks/dispatch.py, plus the tracker, session and compaction hooks.
 core/skills/caveman/hooks/jsconfig.json	Type-checking settings for the caveman hooks — tells tsc these are CommonJS Node scripts, so the generated .d.ts stubs are correct.
-academy/teaching/ai4good/2026-2-rotina-e-setup.json	O questionário de rotina e setup da turma 2026.2, escrito como spec e aplicado por gforms new.
-academy/teaching/ai4good/drive_sync.json	Estado do sync desta pasta com o Drive, escrito por core/tools/files/drive_sync.py — não é um formulário.
-academy/teaching/tecnologias-na-educacao/2026-2-rotina-e-setup.json	O questionário de rotina e setup da turma 2026.2, escrito como spec e aplicado por gforms new.
-academy/teaching/tecnologias-na-educacao/tecnologias.json	A árvore de tecnologias da disciplina, lida por build_tecnologias.py — não é um formulário.
 code/aiwbot/tests/fixtures/claude_pong.json	One recorded `claude -p --output-format json` answer — the fixture the boundary's parser tests read.
 core/tools/test/video/fixtures/ytdlp_dump.json	One recorded `yt-dlp -J` answer — what the video tool's metadata read parses, without the network.
+coordenacao-lc/novo-ppc-bcc/ementas/sigaa-labels.json	Rótulos do MODELO EMENTA SIGAA como [prefixo, chave, modo] — a única definição que port.py e core/run tools/docs/docx leem.
+coordenacao-lc/novo-ppc-bcc/ementas/autorais.json	Ementas redigidas do zero, sem fonte prévia (os dois Projetos Integradores da LC): campos SIGAA por disciplina, que build.py preenche no modelo.
+1322/app/plantel.json	Cartas do 1322: pessoa, lado (13/22), ato público com fonte e data, minibio, fotos de frente e costas.
+1322/app/fotos-escolhidas.json	Fotos do 1322 por pessoa e face, com autor, licença e página de origem — gerado por app/ferramentas/fotos_do_ranking.py.
+1322/app/jsconfig.json	Diz ao editor que app.js do 1322 é JavaScript ES2020, sem checagem de tipos.
+1322/matriz/pedidos-lucas.json	Fotos que Lucas pediu a dedo para a matriz do 1322, por pessoa e face — entrada de matriz/acrescenta.py.
+test/fixtures/usual_daily.json	Cases for "your usual" that the Dart test and the Kotlin JUnit test both run, so the two implementations stay equal.
+test/fixtures/thermometer.json	Cases for the thermometer that the Dart test and the Kotlin JUnit test both run: window sums, the open session, the hour turn and bucket keys.
+test/fixtures/peak_hour.json	Cases for the peak hour that the Dart test and the Kotlin JUnit test both run: too few days, today left out, ties and a flat day.
+classes/techedu/2026-2-teste-prototipos.json	O questionário de teste de protótipos da turma 2026.2, uma resposta por protótipo testado, aplicado por gforms new.
+site/jsconfig.json	Diz ao editor que o viewer.js do docs-ufrpe é JavaScript de navegador, sem checagem de tipos.
+classes/ai4good/2026-2-banca-demonstracao.json	O formulário da banca da demonstração de 02/12, uma resposta por visita: a demo de 1 a 5 e quatro blocos do pitch de 1 a 3, aplicado por gforms new.

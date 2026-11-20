@@ -1,0 +1,8 @@
+# Reference for evaluating-agents-md
+key: evaluating-agents-md
+title: "Evaluating AGENTS.md"
+url: "https://arxiv.org/abs/2602.11988"
+level: P
+section: "Context engineering & progressive disclosure"
+contributions:
+  - "(Gloaguen et al., ETH Zurich, 2026-02) — generated context files cost >20% inference without raising success."

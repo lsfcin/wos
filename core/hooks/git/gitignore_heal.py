@@ -5,7 +5,7 @@
 # denylist-first pattern -- `<domain>/*` plus explicit `!<domain>/<dir>/` allow lines -- so a
 # brand-new domain subdir is silently untracked until someone remembers to add its line. That
 # already bit core/refs/. A subdir with a CONTEXT.md is structural by construction (the existing
-# "this is workspace scaffold" signal): add its allow line and stage it, no human action. A subdir
+# "this is workspace structure" signal): add its allow line and stage it, no human action. A subdir
 # with no CONTEXT.md stays ignored, correctly project-internal. A subdir in
 # gitignore-exceptions.txt is a deliberate, reviewed exception.
 import re
@@ -15,7 +15,8 @@ from pathlib import Path
 _HOOKS = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(_HOOKS), str(_HOOKS / 'commit')]
 import feature_law  # noqa: E402
-from pre_commit import Blocked, git  # noqa: E402
+from platform_law import is_repo  # noqa: E402
+from pre_commit import Blocked, git, stage  # noqa: E402
 
 DOMAIN = re.compile(r'^([a-zA-Z0-9_-]+)/\*$', re.MULTILINE)
 
@@ -97,14 +98,14 @@ def _add_missing_lines(root, ignore) -> list:
             # killed. An allow line would track nothing and leave a permanent `?? <dir>` in every
             # git status -- what the first version of this hook did to 13 code/ projects. Routing
             # reads their CONTEXT.md off-disk instead. Corrected 2026-07-29.
-            if (directory / '.git').exists() or not (directory / 'CONTEXT.md').is_file():
+            if is_repo(directory) or not (directory / 'CONTEXT.md').is_file():
                 continue
             name = f'{domain}/{directory.name}'
             if name in excepted or f'!{name}/' in allowed:
                 continue
             with ignore.open('a', encoding='utf-8', newline='\n') as handle:
                 handle.write(f'!{name}/\n')
-            git('add', str(ignore), cwd=root)
+            stage(root, ignore, named_only=True)
             healed.append(name)
     return healed
 

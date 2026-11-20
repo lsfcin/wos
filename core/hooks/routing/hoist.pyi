@@ -2,7 +2,7 @@ from _typeshed import Incomplete
 from pathlib import Path
 
 DESC_LIMIT: int
-SCAFFOLD_BLURB: str
+PLACEHOLDER_BLURB: str
 LINK_RE: Incomplete
 FIELD_RE: Incomplete
 

@@ -36,7 +36,7 @@ def test_unknown_alias_says_where_to_look_rather_than_guessing(accounts):
 def test_recovery_names_the_command_and_the_account(accounts):
     """The two things the message exists to carry. Four accounts make the address load-bearing."""
     text = gauth.recovery_text("personal", "drive", pathlib.Path("/tmp/t.json"))
-    assert "core/tools/files/gdrive auth personal --reauth" in text
+    assert "core/run tools/files/gdrive auth personal --reauth" in text
     assert "lsf.cin@gmail.com" in text
 
 
@@ -125,8 +125,11 @@ def test_every_google_cli_routes_its_entrypoint_through_run(tmp_path):
 
 
 def test_every_reauth_command_names_a_tool_that_exists():
-    """The recovery message is only runnable while its path is real. Renames rot it silently."""
+    """The recovery message is only runnable while its path is real, and only through core/run:
+    the tools carry no shebang, so a bare path dies in the shell. Renames rot it silently."""
     workspace_root = TOOLS_ROOT.parents[1]
     for service, template in gauth._REAUTH_CMD.items():
-        tool = workspace_root / template.format(alias="personal").split()[0]
+        runner, rel = template.format(alias="personal").split()[:2]
+        assert runner == "core/run", f"recovery for '{service}' skips core/run: {template}"
+        tool = workspace_root / "core" / rel
         assert tool.is_file(), f"recovery for '{service}' points at a missing tool: {tool}"

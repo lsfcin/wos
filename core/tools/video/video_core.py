@@ -113,13 +113,15 @@ def _bundle(url, meta, parts, methods, ok, save, base):
     return b
 
 
-def assemble(url, level="auto", save=False, base=None,
+def assemble(url, level="auto", save=False, base=None, force=False,
              _metadata=None, _captions=None, _media=None, _images=None):
     """Escalate L0->L1->L2->L3->L4, stopping once text is found (auto); explicit
     levels force a layer. Returns a text bundle."""
     meta = (_metadata or metadata)(url)
     ok = bool(meta.get("ok"))
     parts, methods = [], []
+    dur = meta.get("duration")
+    long_video = ok and dur is not None and dur > 180
 
     # yt-dlp reads video only; an image post reads as a failure.
     # A mixed carousel (video slide 1 + images) reads ok from yt-dlp, but misses later slides.
@@ -161,19 +163,30 @@ def assemble(url, level="auto", save=False, base=None,
             methods.append("speech")
 
     video = None
-    if ok and (level in ("ocr", "visual", "full") or (level == "auto" and not _join(parts))):
+    if ok and not (long_video and not force) and (
+            level in ("ocr", "visual", "full") or (level == "auto" and not _join(parts))):
         video = media().download_video(url)
 
-    if ok and (level in ("ocr", "full") or (level == "auto" and not _join(parts))):
+    if ok and not (long_video and not force) and (
+            level in ("ocr", "full") or (level == "auto" and not _join(parts))):
         screen = media().ocr_frames(video) if video else ""
         if screen:
             parts.append(screen)
             methods.append("ocr")
 
-    if ok and (level in ("visual", "full") or (level == "auto" and not _join(parts))):
+    if ok and not (long_video and not force) and (
+            level in ("visual", "full") or (level == "auto" and not _join(parts))):
         caption = media().caption_frames(video) if video else ""
         if caption:
             parts.append(caption)
             methods.append("visual")
 
-    return _bundle(url, meta, parts, methods, ok, save, base)
+    b = _bundle(url, meta, parts, methods, ok, save, base)
+    if long_video and not force and level in ("ocr", "visual", "full"):
+        b["held_long_video"] = True
+        mins, secs = divmod(int(dur), 60)
+        b["long_video_reason"] = (
+            f"Video duration is {mins}m{secs:02d}s (> 3 min). "
+            f"Full frame OCR/VLM visual extraction held for confirmation."
+        )
+    return b

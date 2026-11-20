@@ -1,19 +1,14 @@
 #!/usr/bin/env python3
 # SessionStart — delete session marker stores older than 2 days. See code/ROADMAP-verify.md W1.
 #
-# PORTED OUT OF SHELL 2026-09-02. The bash spelled `/tmp` and reached it with `find`, while every
-# writer of these stores asks platform_law.session_state — `tempfile.gettempdir()`, which is `%TEMP%`
-# on Windows. Whether those are the same directory there depends on Git Bash mounting `/tmp` at
-# `%TEMP%`, which platform_law's own docstring asserts and NOTHING in this workspace can check: the
-# claim is about a mount on the other clone, and neither machine can test the other. A second
-# spelling of a path that another module owns is the defect regardless of which way the coin lands —
-# asked of that module now, so the question stops existing.
+# THIS HOOK IS NOW LOAD-BEARING, not hygiene. The stores moved out of the temp directory into the
+# repository on 2026-09-22, because a session outlives a reboot and a temp directory does not. The
+# operating system used to empty them; nothing does now but this. If it stops running, the stores
+# accumulate under core/state/ forever — which is the cost that buys a marker surviving the night.
 #
-# WHAT WAS ACTUALLY MEASURED, here, on Linux, where the two paths certainly agree: the kind list was
-# stale. `ctx_meter` and `agent_ctx` stores from August 27–28 were still in /tmp on 2026-09-02
-# because no glob named them, so this hook has been leaking two of its eight kinds regardless of
-# operating system. That is the real defect the port carries a fix for, and it is a smaller and
-# duller one than the paragraph above.
+# A SECOND SPELLING OF A PATH ANOTHER MODULE OWNS is the defect this was ported to remove, and it
+# outranks any question about which directory is which: the store's name is asked of hook_input, and
+# where state lives is asked of platform_law. Neither is restated here.
 #
 # THE KIND LIST IS HAND-MAINTAINED, and that is a known cost. There is no registry of marker kinds —
 # each hook names its own — so a new kind leaks until someone adds it here. The alternative, globbing
@@ -28,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from platform_law import session_state  # noqa: E402
 
 MAX_AGE_SECONDS = 2 * 24 * 60 * 60
-KINDS = ('ctx_seen', 'iface_seen', 'facades', 'cg_nudged', 'nostub', 'branch', 'ctx_meter',
+KINDS = ('ctx_seen', 'iface_seen', 'facades', 'cg_reminded', 'nostub', 'branch', 'ctx_meter',
          'agent_ctx')
 
 

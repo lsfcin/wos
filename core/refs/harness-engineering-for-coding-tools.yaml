@@ -1,0 +1,8 @@
+# Reference for harness-engineering-for-coding-tools
+key: harness-engineering-for-coding-tools
+title: "Harness Engineering for Coding Tools"
+url: "https://arxiv.org/abs/2602.14690"
+level: A
+section: "Model level, cost & execution interface"
+contributions:
+  - "(AIware 2026) — empirical survey across 2,853 repos showing executable hooks are rare and high-leverage."

@@ -55,7 +55,13 @@ def crowding_signals(files: list, root: Path, limit: int = None) -> list:
         if count <= warn:
             continue
         rel = _rel(directory, root)
-        level = 'over the BLOCK_FILES cap' if count > block else 'over the WARN_FILES signal'
-        signals.append(f'{rel} — {count} code files in one directory, {level}; split by '
+        # EACH SIGNAL SAYS WHAT HAPPENED, not which number was crossed — the rule
+        # core/hooks/checks/line_counts.py earned on 2026-09-15 and this check never got. Naming
+        # only the threshold it crossed is what let 11 files in core/hooks/session/ read as a
+        # refusal to Lucas AND to the agent on 2026-09-17, while limits.env stopped nothing until
+        # 15. A WARN is a WARN everywhere (Lucas, 2026-09-21), so it says where refusal starts.
+        verdict = (f'REFUSED — over the cap of {block}' if count > block else
+                   f'NOT REFUSED — this is the warning at {warn}. Nothing stops until {block}')
+        signals.append(f'{rel} — {count} code files in one directory. {verdict}; split by '
                        f'responsibility if the split removes more table than the hop adds')
     return sorted(signals)

@@ -2,7 +2,7 @@
 #
 # b20260902-a-section-citation-survives-the-section-moving-away regression. core/SPECS.md requires
 # a section be cited BY NAME because a number ages silently — and the named form ages silently too,
-# in the one operation this workspace has now blessed. Sharding SETUP.md moved 17 of its 21 steps
+# in the one operation this workspace has now blessed. Cutting SETUP.md into parts moved 17 of its 21 steps
 # into siblings; nine tracked files went on citing `SETUP.md § <step>`, and the suite was green
 # throughout, because test_pointer_integrity.py resolves the `](path)` half and a link whose FILE
 # exists and whose SECTION does not reads as healthy. They were found by grep, by hand.
@@ -18,7 +18,7 @@
 # test_pointer_integrity.py instead, which is the honest boundary — that check resolves the `](path)`
 # half of a pointer and this one resolves the `§` half, and pre-commit runs both.
 #
-# NOT A RATCHET. The corpus was swept to zero when this landed, so every tracked .md is checked
+# NOT A CEILING. The corpus was swept to zero when this landed, so every tracked .md is checked
 # rather than only what a commit adds.
 import re
 import subprocess
@@ -30,7 +30,7 @@ from conftest import WORKSPACE_ROOT
 CITATION = re.compile(r'(?:\[[^\]]*\]\(([^)\s]+\.md)\)|`([^`\s]+\.md)`|(?<![\w/])([\w./-]+\.md))'
                       r'[`\s]*§\s*(.*)')
 # A heading, or a bold label at the head of a line. This corpus names sub-rules in bold —
-# `**Push policy**` in code/SPECS-git.md is cited from the always-loaded AGENTS.md — and promoting
+# `**Push policy**` in core/hooks/git/SPECS.md is cited from core/hooks/entropy/dashboard/entropy_report.py — and promoting
 # every one of them to a heading would grow the .md corpus to satisfy a checker, which is backwards.
 NAMES = re.compile(r'^#{2,6}\s+(.*)$|^\s*(?:[-*]\s*)?\*\*(.+?)\*\*', re.MULTILINE)
 # Where the name stops and the sentence carrying it resumes: `—` and `(` open an aside, the rest
@@ -137,7 +137,7 @@ def test_a_citation_of_a_section_that_moved_away_is_a_finding(tmp_path):
 
 
 def test_a_bold_label_counts_as_a_section(tmp_path):
-    """code/SPECS-git.md names its sub-rules in bold and AGENTS.md cites one of them."""
+    """core/hooks/git/SPECS.md names its sub-rules in bold, and the entropy report cites one."""
     assert _fixture(tmp_path, '## Git Flow\n\n**Push policy** (moved here).\n',
                     'the push policy: [`SPECS.md`](SPECS.md) § Push policy.\n') == []
 

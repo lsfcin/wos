@@ -1,5 +1,5 @@
-# chat_transcribe.py — batch speech-to-text over an extracted chat export; one .txt sidecar per audio.
-# Resumable: an audio whose sidecar already exists is skipped, so a killed run loses nothing.
+# chat_transcribe.py — batch speech-to-text over an extracted chat export; one .txt transcript beside each audio.
+# Resumable: an audio whose transcript already exists is skipped, so a killed run loses nothing.
 from __future__ import annotations
 import sys, pathlib, subprocess, time
 
@@ -26,7 +26,7 @@ def audios(root: pathlib.Path) -> list[pathlib.Path]:
     return sorted(p for p in root.rglob("*.opus"))
 
 
-def sidecar(path: pathlib.Path) -> pathlib.Path:
+def transcript_of(path: pathlib.Path) -> pathlib.Path:
     return path.with_suffix(".opus.txt")
 
 
@@ -45,13 +45,13 @@ def run(root: pathlib.Path, prompt: str, model=None) -> int:
     files = audios(root)
     lengths = {p: duration(p) for p in files}
     total = sum(lengths.values())
-    todo = [p for p in files if not sidecar(p).exists()]
+    todo = [p for p in files if not transcript_of(p).exists()]
     print(f"{len(files)} áudios · {total / 60:.1f} min de áudio · {len(todo)} a fazer", flush=True)
     whisper = model if model is not None else stt.model()
     started, done_audio, written = time.time(), 0.0, 0
     for i, path in enumerate(todo, 1):
         text = stt.run(path, whisper, prompt)
-        sidecar(path).write_text(text or REJECTED, encoding="utf-8", newline='\n')
+        transcript_of(path).write_text(text or REJECTED, encoding="utf-8", newline='\n')
         written += 1
         done_audio += lengths[path]
         elapsed = time.time() - started

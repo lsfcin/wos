@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 
 from conftest import WORKSPACE_ROOT
+from file_law import load_limits
 from platform_law import interpreter, rel
 
 # Any file under a subtree carrying a CONTEXT.md chain; its content is irrelevant.
@@ -187,7 +188,7 @@ def test_no_bare_print_survives_in_a_write_gate(source: str) -> None:
     ("first-line-gate.py", "CONTEXT.md", "# t\nno blockquote\n",
      "CONTEXT.md DESCRIPTION MISSING"),
     ("size-gate.py", "big.py", "# big\n" + "x = 1\n" * 400, "SIZE GATE"),
-    ("size-gate.py", "wide.py", "# wide\nx = '" + "a" * 19000 + "'\n", "characters"),
+    ("size-gate.py", "wide.py", "# wide\nx = '" + "a" * load_limits()["BLOCK_CHARS"] + "'\n", "characters"),
 ])
 def test_a_write_rejection_lands_on_stderr(tmp_path: Path, gate, name, content, reason) -> None:
     r = _run_gate(f"core/hooks/checks/{gate}", {

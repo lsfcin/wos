@@ -103,6 +103,24 @@ def _off_by_env() -> set:
     return {s.strip() for s in os.environ.get(OFF_ENV, '').split(',') if s.strip()}
 
 
+def needs(row: dict) -> list:
+    """The features this one cannot work without — the `needs` column, `-` meaning none."""
+    return [n for n in row.get('needs', '-').split(',') if n and n != '-']
+
+
+def _live(name: str, toggles: dict, off: set, rows: dict, seen: set) -> bool:
+    """Switched on, and so is everything it needs. A cycle is not followed twice: `seen` answers on.
+
+    A feature whose need is off is off itself (2026-09-26): pdf-twin-reads kept refusing PDFs on a
+    clone with no `pdf` to make the twin, and blocked forever with nothing tracking the unlocking read.
+    """
+    if name in seen:
+        return True
+    if name in off or toggles.get(name, 'on') == 'off':
+        return False
+    return all(_live(n, toggles, off, rows, seen | {name}) for n in needs(rows.get(name, {})))
+
+
 def is_enabled(name: str) -> bool:
     """Is this feature live right now?
 
@@ -110,9 +128,8 @@ def is_enabled(name: str) -> bool:
     enforcing because someone mistyped a row. A feature nobody declared behaves exactly as it did
     before this module existed, so wiring a gate can only ever be safe.
     """
-    if name in _off_by_env():
-        return False
-    live = load_profile()['toggle'].get(name, 'on') != 'off'
+    rows = {r['name']: r for r in load_registry()}
+    live = _live(name, load_profile()['toggle'], _off_by_env(), rows, set())
     # THE ONE PLACE A FEATURE OF ANY GROUP CAN BE COUNTED. Every switched feature — hook, tool,
     # skill, flow, norm — passes through here, which is why the scoreboard hangs off this line
     # rather than off thirty call sites. Recorded only when live: a feature that is off did not

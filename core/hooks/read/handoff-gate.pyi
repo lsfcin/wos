@@ -1,0 +1,9 @@
+from _typeshed import Incomplete
+
+OUTPUTS: Incomplete
+NAME: Incomplete
+TOOL: str
+
+def handoffs_in(command: str) -> list[str]: ...
+def refuse(key: str) -> int: ...
+def main() -> int: ...

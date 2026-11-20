@@ -1,0 +1,8 @@
+# Reference for readability-of-node-link-vs-matrix-graphs
+key: readability-of-node-link-vs-matrix-graphs
+title: "Readability of Node-Link vs Matrix Graphs"
+url: "https://journals.sagepub.com/doi/10.1057/palgrave.ivs.9500092"
+level: A
+section: "Tooling, visualization & evaluation"
+contributions:
+  - "(Ghoniem et al., 2005) — matrix views beat node-link graphs past ~20 nodes."

@@ -10,9 +10,7 @@ Write commit messages terse and exact. Conventional Commits format. No fluff. Wh
 - `<type>(<scope>): <imperative summary>` — `<scope>` optional
 - Types: `feat`, `fix`, `refactor`, `perf`, `docs`, `test`, `chore`, `build`, `ci`, `style`, `revert`
 - Imperative mood: "add", "fix", "remove" — not "added", "adds", "adding"
-- ≤50 chars when possible, hard cap 72 — **git's own numbers, not this workspace's**: `git log
-  --oneline` and every forge truncate there, so `core/hooks/limits.env` does not own them and
-  changing them here would only disagree with the tools that render the log
+- ≤50 chars when possible, hard cap 72 — **git's own numbers, not this workspace's**: `git log --oneline` and every forge truncate there, so `core/hooks/limits.env` does not own them and changing them here would only disagree with the tools that render the log
 - No trailing period
 - Match project convention for capitalization after the colon
 
@@ -55,10 +53,8 @@ Diff: breaking API change
 
 ## Auto-Clarity
 
-Always include body for: breaking changes, security fixes, data migrations, anything reverting a prior commit. Never
-compress these into subject-only — future debuggers need the context.
+Always include body for: breaking changes, security fixes, data migrations, anything reverting a prior commit. Never compress these into subject-only — future debuggers need the context.
 
 ## Boundaries
 
-Only generates the commit message. Does not run `git commit`, does not stage files, does not amend. Output the message
-as a code block ready to paste. "stop caveman commit" or "normal mode": revert to verbose commit style.
+Only generates the commit message. Does not run `git commit`, does not stage files, does not amend. Output the message as a code block ready to paste. "stop caveman commit" or "normal mode": revert to verbose commit style.

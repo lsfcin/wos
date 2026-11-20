@@ -11,38 +11,22 @@ core/run tools/notes/notion apply --account personal ops.json          # update 
 core/run tools/notes/notion text --account personal <block-id> mes.md  # rewrite one block's text
 ```
 
-**`apply` is the boundary; `text` is the convenience over it** — the same split as
-[`../docs/`](../docs/CONTEXT.md). The contrast with `gdocs` is the part worth knowing: **Notion
-addresses a block by id, and an id does not shift when a neighbour changes.** So a batch has no
-index algebra and no highest-first rule — order matters only between `append`s. What `apply` does
-guarantee is that **every call is built before the first one is sent**, so a typo in operation 9
-cannot land operations 1 through 8.
+**`apply` is the boundary; `text` is the convenience over it** — the same split as [`../docs/`](../docs/CONTEXT.md). The contrast with `gdocs` is the part worth knowing: **Notion addresses a block by id, and an id does not shift when a neighbour changes.** So a batch has no index algebra and no highest-first rule — order matters only between `append`s. What `apply` does guarantee is that **every call is built before the first one is sent**, so a typo in operation 9 cannot land operations 1 through 8.
 
 `text` reads a file written with `**bold**` and `[label](url)` and rewrites one block from it.
-Named inline links are the house format for a class calendar — a bare `mention/link_preview` chip
-renders without a label, so it cannot say which deck it points at.
+Named inline links are the house format for a class calendar — a bare `mention/link_preview` chip renders without a label, so it cannot say which deck it points at.
 
-**`read` prints block ids on purpose** — every write in the Notion API addresses a block by id, so
-reading a page hands back the handles for editing it, the same contract as
-[`../slides/`](../slides/CONTEXT.md) `read`. It takes a page or a database, since Notion has no
-single endpoint for either.
+**`read` prints block ids on purpose** — every write in the Notion API addresses a block by id, so reading a page hands back the handles for editing it, the same contract as [`../slides/`](../slides/CONTEXT.md) `read`. It takes a page or a database, since Notion has no single endpoint for either.
 
-Notion has no headless consent flow — the secret is minted inside Lucas's account at
-[my-integrations](https://www.notion.so/my-integrations) and a page is connected to it one at a
-time, his only two clicks. Auth recovery, the builtin-pipe storage rule, and the family-wide
-protocol: [`../SPECS.md`](../SPECS.md).
+Notion has no headless consent flow — the secret is minted inside Lucas's account at [my-integrations](https://www.notion.so/my-integrations) and a page is connected to it one at a time, his only two clicks. Auth recovery, the builtin-pipe storage rule, and the family-wide protocol: [`../SPECS.md`](../SPECS.md).
 
-**A 404 is a sharing failure until proven otherwise.** Notion returns the same code for "not
-connected to this integration" and "no such id," and the first is by far the more common cause:
-content stays invisible to an integration it hasn't been shared with. `not_shared_text` leads
-with that reading on purpose.
+**A 404 is a sharing failure until proven otherwise.** Notion returns the same code for "not connected to this integration" and "no such id," and the first is by far the more common cause:
+content stays invisible to an integration it hasn't been shared with. `not_shared_text` leads with that reading on purpose.
 
 Notion has no read/write token split (AD-11's exception, [`core/SPECS.md`](../../SPECS.md)):
-capabilities are chosen when the integration is created, so one secret already carries the
-strongest grant.
+capabilities are chosen when the integration is created, so one secret already carries the strongest grant.
 
-`VERSION` in `notion_core.py` pins the API contract — Notion breaks by version, not by date, and a
-bump can change the shape of a database response.
+`VERSION` in `notion_core.py` pins the API contract — Notion breaks by version, not by date, and a bump can change the shape of a database response.
 
 <!-- routing:start -->
 ## Routing

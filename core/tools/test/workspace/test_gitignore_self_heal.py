@@ -25,6 +25,7 @@ def _make_fixture(tmp_path: Path) -> Path:
     (tmp_path / "core" / "excluded").mkdir()
     (tmp_path / "core" / "excluded" / "CONTEXT.md").write_text("excluded\n", encoding="utf-8", newline='\n')
     (tmp_path / "core" / "ownrepo" / ".git").mkdir(parents=True)
+    (tmp_path / "core" / "ownrepo" / ".git" / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8", newline="\n")
     (tmp_path / "core" / "ownrepo" / "CONTEXT.md").write_text("ownrepo\n", encoding="utf-8", newline='\n')
     return tmp_path
 

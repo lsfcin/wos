@@ -20,7 +20,7 @@ DEFAULT_PROMPT = ("Oi, tudo bem? Olha, é o seguinte: eu ia te falar sobre aquil
 
 
 def transcript_in(folder: pathlib.Path) -> pathlib.Path | None:
-    """The one .txt WhatsApp writes. Sidecars we produce are `.opus.txt`, never plain `.txt`."""
+    """The one .txt WhatsApp writes. Transcripts we produce are `.opus.txt`, never plain `.txt`."""
     found = [p for p in folder.iterdir()
              if p.suffix == TRANSCRIPT_SUFFIX and not p.name.endswith(".opus.txt")]
     return found[0] if len(found) == 1 else None

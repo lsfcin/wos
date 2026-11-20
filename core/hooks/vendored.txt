@@ -26,7 +26,15 @@ academy/administration/pda/template_extracted/*
 # deleted, so the exemption expires with the directory. CONTEXT.md is ours and is not exempt.
 brain/drafts/metodologia-*.md
 brain/drafts/context-folding-report.md
+# Lucas's own words from the taste interview, verbatim: the raw data the taste criteria are
+# distilled from. Cutting them to a cap would edit the evidence.
+brain/drafts/taste-*.md
 
 # The BCC grade as SIGAA served it, saved from the browser — it carries its own
 # `saved from url=` banner. A first-line comment of ours would be a claim we wrote it.
 academy/administration/coordenacao-lc/novo-ppc-bcc/Nova Grade*.html
+coordenacao-lc/novo-ppc-bcc/Nova Grade*.html
+
+# Upstream legal and institutional documents (laws, MEC/CNE resolutions)
+academy/administration/coordenacao-lc/novo-ppc-bcc/Documentos/*
+coordenacao-lc/novo-ppc-bcc/Documentos/*

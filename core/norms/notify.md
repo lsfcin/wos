@@ -1,8 +1,6 @@
 ---
 name: notify
-description: What only Lucas can do reaches him on a channel he opens, written in his language.
+description: What Lucas must see lands in the last message of the turn, written in his language.
 ---
 
-WHEN ONLY LUCAS'S HANDS UNBLOCK IT — a consent screen, a credential only he re-exports — say it on
-the channel too: `core/run tools/notify/telegram "<uma linha, em pt-br>"`. It waits for him; it never
-fetches him. Not for progress, not for anything he is sitting there watching.
+WHAT LUCAS MUST SEE — his hands needed, a background job done or stalled — goes in one pt-br line in the LAST message of the turn; text between tool calls can vanish in the VS Code chat. Telegram (`core/run tools/notify/telegram`) is off by default; only when Lucas turns it on for the session (ruled 2026-10-26).

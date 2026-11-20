@@ -1,0 +1,8 @@
+# Reference for hierarchical-edge-bundles
+key: hierarchical-edge-bundles
+title: "Hierarchical Edge Bundles"
+url: "https://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Holten06.pdf"
+level: A
+section: "Tooling, visualization & evaluation"
+contributions:
+  - "(Holten, 2006) — visual bundling of cross-tree dependencies."

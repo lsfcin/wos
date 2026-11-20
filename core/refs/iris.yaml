@@ -1,0 +1,8 @@
+# Reference for iris
+key: iris
+title: "iris"
+url: "https://github.com/brijr/iris"
+level: C
+section: "Context engineering & progressive disclosure"
+contributions:
+  - "[src: web:instagram.com via gittrend.io] CLI e servidor MCP em Rust de captura de tela para coding agents (espera fontes/DOM/animações, seletores, viewports mobile) — assessment task tracked in core/ROADMAP.md e brain/goals/workspace-os.md [eval-iris-mcp]"

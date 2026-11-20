@@ -1,5 +1,5 @@
 # web
-> Reach the open web: search, fetch a page as text, browse and search code hosts.
+> Reach the open web: search, fetch a page as text, browse and search code hosts, render a page as PNG.
 
 <!-- routing:start -->
 ## Routing
@@ -11,4 +11,5 @@
 | [`fetch`](fetch) | fetch a URL and return readable plain text; falls back to raw for non-HTML |
 | [`hf`](hf) | query HuggingFace Hub metadata and file contents; returns JSON |
 | [`search`](search) | unified web search; Exa (keyed) by default, ddgr (no-key) fallback; returns normalized JSON array [{title, url, abstract, score?}] |
+| [`shoot`](shoot) | render a local HTML page in headless Chromium and save it as PNG; prints the written paths as a JSON array |
 <!-- routing:end -->

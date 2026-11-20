@@ -1,8 +1,8 @@
 from _typeshed import Incomplete
 from pathlib import Path
 
-REPORT: Incomplete
+STATE: Incomplete
 LISTS: Incomplete
 
-def collect(files: list, repo: Path = ..., promoting: str = '') -> dict: ...
+def collect(files: list, repo: Path = ...) -> dict: ...
 def main(argv: list | None = None) -> int: ...

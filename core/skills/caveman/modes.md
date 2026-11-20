@@ -1,8 +1,6 @@
 # Caveman — intensity levels, worked
 
-Loaded by [`SKILL.md`](SKILL.md) when setting or explaining a level. `hooks/activate.js` reads this
-file at session start and **filters it down to the active level**, so a session pays for one set of
-examples, not six.
+Loaded by [`SKILL.md`](SKILL.md) when setting or explaining a level. `hooks/activate.js` reads this file at session start and **filters it down to the active level**, so a session pays for one set of examples, not six.
 
 ## Levels
 
@@ -26,8 +24,7 @@ examples, not six.
 
 ## Example — "Explain database connection pooling."
 
-- lite: "Connection pooling reuses open connections instead of creating new ones per request. Avoids repeated handshake
-  overhead."
+- lite: "Connection pooling reuses open connections instead of creating new ones per request. Avoids repeated handshake overhead."
 - full: "Pool reuse open DB connections. No new connection per request. Skip handshake overhead."
 - ultra: "Pool = reuse DB conn. Skip handshake → fast under load."
 - wenyan-full: "池reuse open connection。不每req新開。skip handshake overhead。"
@@ -35,5 +32,4 @@ examples, not six.
 
 ## Aliases
 
-`wenyan-full` is stored in the flag file as `wenyan` — the canonical label shown to the model is
-`wenyan-full`. `off` / `stop` / `disable` all clear the flag.
+`wenyan-full` is stored in the flag file as `wenyan` — the canonical label shown to the model is `wenyan-full`. `off` / `stop` / `disable` all clear the flag.

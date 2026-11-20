@@ -26,7 +26,7 @@ code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.92em;
   border:1px solid var(--line); border-radius:999px; color:var(--dim); background:var(--card); }
 .tabs input:checked + label { color:var(--bg); background:var(--fg); border-color:var(--fg); }
 .panel { display:none; }
-#t-matrix:checked ~ .p-matrix, #t-spine:checked ~ .p-spine, #t-mass:checked ~ .p-mass { display:block; }
+#t-matrix:checked ~ .p-matrix, #t-routing:checked ~ .p-routing, #t-mass:checked ~ .p-mass { display:block; }
 .scroll { overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:var(--card);
   padding:12px; }
 table.matrix { border-collapse:collapse; font-size:12px; }
@@ -51,10 +51,10 @@ table.findings td.n { text-align:right; font-variant-numeric:tabular-nums; color
 .legend { color:var(--dim); font-size:12px; margin:10px 0 4px; }
 .key { margin-right:16px; white-space:nowrap; }
 .note { color:var(--dim); font-size:12px; max-width:80ch; margin:8px 0 0; }
-svg.spine text { font-size:12px; fill:var(--fg); }
-svg.spine circle { fill:var(--accent); }
-svg.spine .d0 circle, svg.spine .d1 circle { fill:var(--fg); }
-svg.spine .link { fill:none; stroke:var(--line); stroke-width:1.2; }
+svg.routing text { font-size:12px; fill:var(--fg); }
+svg.routing circle { fill:var(--accent); }
+svg.routing .d0 circle, svg.routing .d1 circle { fill:var(--fg); }
+svg.routing .link { fill:none; stroke:var(--line); stroke-width:1.2; }
 svg.treemap text { font-size:12px; fill:#fff; font-weight:500; }
 svg.treemap text.sub { font-size:10px; font-weight:400; opacity:.8; }
 svg.treemap rect { stroke:var(--bg); stroke-width:1; }
@@ -106,7 +106,7 @@ footer b { color:var(--fg); font-weight:600; }
 """
 
 TABS = (('matrix', 'enforcement', 'what is wired where'),
-        ('spine', 'routing', 'how an agent walks the tree'),
+        ('routing', 'routing', 'how an agent walks the tree'),
         ('mass', 'mass', 'how much of it there is'))
 
 
@@ -148,7 +148,7 @@ def render(panels: dict, coverage: dict, scope: dict, summary: str = '',
     for key, _label, _hint in (t for t in TABS if t[0] in panels):
         drawing, prose = panels[key]
         panel_heading = {'matrix': 'features against the sites that enforce them',
-                         'spine': 'the routing chain, three levels deep',
+                         'routing': 'the routing chain, three levels deep',
                          'mass': 'tracked bytes per directory'}[key]
         body.append(_panel(key, panel_heading, drawing) + prose + '</section>')
 

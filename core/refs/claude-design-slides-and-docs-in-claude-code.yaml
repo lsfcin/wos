@@ -1,0 +1,8 @@
+# Reference for claude-design-slides-and-docs-in-claude-code
+key: claude-design-slides-and-docs-in-claude-code
+title: "Claude Design, Slides and Docs in Claude Code"
+url: "https://support.claude.com/en/articles/14604416-get-started-with-claude-design"
+level: V
+section: "Model level, cost & execution interface"
+contributions:
+  - "(Anthropic) — geração integrada de UI mockups (/design), slides e docs no terminal e preview lateral a partir do contexto do repositório."

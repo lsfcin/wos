@@ -1,4 +1,4 @@
-# streamkit.py — shared streaming-test scaffolding: an async-generator fake backend and a clock.
+# streamkit.py — shared streaming-test kit: an async-generator fake backend and a clock.
 # The suite had no async-generator fake at all before F4 — every backend was faked at the pure
 # parser boundary or by monkeypatching `dispatch.turn` as a plain coroutine, neither of which can
 # exercise "events arrive over time". This is that missing boundary.

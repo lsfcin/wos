@@ -1,7 +1,12 @@
-# Usage: core/run tools/links/cfpages <cmd> [args] — named short links: add, find, rm, build, check
+# Usage: core/run tools/links/cfpages <cmd> [args] — named short links: add, find, rm, build, check; publish a course page
 import argparse
+import json
 import pathlib
+import re
+import subprocess
 import sys
+import unicodedata
+import urllib.request
 
 _HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
@@ -11,12 +16,14 @@ import tool_law  # noqa: E402
 tool_law.require('link-shortener')
 
 import links_core  # noqa: E402
+import pages  # noqa: E402
 
 ROOT = _HERE.parents[2]
 # Under outputs/ and not code/: it holds no source, only what `build` regenerates from links.txt,
 # and code/ is for software projects — which is exactly the scope the Git Flow branch gate covers.
 # Losing this clone costs one `gh repo clone`; the map it is built from is the versioned half.
 PUBLISH = ROOT / 'outputs' / 'links'
+PROJECT = 'lucassf'  # the Cloudflare Pages project serving lucassf.pages.dev
 
 # The published site is redirects and nothing else. An index listing every short name would hand a
 # stranger the whole map, which is the one thing the private-subtree refusal exists to prevent —
@@ -44,6 +51,80 @@ def cmd_rm(short_name: str) -> None:
     print(f"  still live until: core/run tools/links/cfpages build --push")
 
 
+def cmd_pull(publish: pathlib.Path) -> None:
+    """Browser edits and student deliveries come home, and are committed alone, by path."""
+    written = pages.pull(publish)
+    if not written:
+        return
+    # a course lives in its own repo (academy/teaching is one), so each file commits where it is tracked
+    repos: dict[str, list[str]] = {}
+    for p in written:
+        print(f"from the site: {p.relative_to(ROOT)}")
+        top = subprocess.run(['git', 'rev-parse', '--show-toplevel'], cwd=p.parent,
+                             capture_output=True, text=True, encoding='utf-8', check=True).stdout.strip()
+        repos.setdefault(top, []).append(str(p))
+    for top, paths in repos.items():
+        # by path: another session may hold staged work in the same index (core/hooks/git/SPECS.md)
+        subprocess.run(['git', 'add', '--', *paths], cwd=top, check=True)
+        done = subprocess.run(['git', 'commit', '-q', '-m', 'chore(links): edits made on the site come home',
+                               '--', *paths], cwd=top)
+        if done.returncode:
+            print(f"  written but NOT committed in {top} — the commit gate refused; commit by hand", file=sys.stderr)
+
+
+def _env(path: pathlib.Path) -> dict:
+    lines = path.read_text(encoding='utf-8').splitlines() if path.exists() else []
+    return dict(l.split('=', 1) for l in lines if '=' in l and not l.startswith('#'))
+
+
+def cmd_secrets(push: bool) -> None:
+    """The site's secrets, assembled from the workspace's segredos.env files — the workspace owns them,
+    the host only holds a copy. TURMAS pairs each student row of a page's <!-- painel:dados-… --> blocks
+    (the same rows the site reads its slots from) with the MATRICULA_<NAME> line of that course's
+    segredos.env (accents, dots and spaces folded). A course page with an env but no rows refuses:
+    skipping it silently once shipped a TURMAS without ai4good, and every delivery failed."""
+    own = _env(_HERE / 'segredos.env')
+    turmas = {}
+    for page in sorted(pages.CLASSES.glob('*/disciplina.md')):
+        env = _env(page.parent / 'segredos.env')
+        blocks = re.findall(r'<!--\s*painel:dados-[\w-]+[^\n]*\n([\s\S]*?)-->', page.read_text(encoding='utf-8'))
+        names = list(dict.fromkeys(l.split(':', 1)[0].strip() for b in blocks for l in b.splitlines() if ':' in l))
+        if not env or not any(k.startswith('MATRICULA_') for k in env):
+            continue
+        if not names:
+            raise SystemExit(f"{page.parent.name}: segredos.env has matrículas but the page has no painel:dados rows")
+        key = lambda n: 'MATRICULA_' + re.sub(r'\W+', '_', unicodedata.normalize('NFKD', n).encode('ascii', 'ignore').decode()).strip('_').upper()
+        missing = [n for n in names if key(n) not in env]
+        if missing:
+            raise SystemExit(f"{page.parent.name}: no {', '.join(key(n) for n in missing)} in segredos.env")
+        duplas = [d.split('+') for d in env.get('DUPLAS', '').split(',') if d]
+        turmas[page.parent.name] = {'matriculas': {n: env[key(n)].strip() for n in names}, 'duplas': duplas}
+    values = {'EDIT_PASSWORD': own.get('EDIT_PASSWORD', ''), 'GITHUB_TOKEN': own.get('GITHUB_TOKEN', ''),
+              'TURMAS': json.dumps(turmas, ensure_ascii=False), 'ENIGMA_SECRET': own.get('ENIGMA_SECRET', '')}
+    # A preview deploy plays enigmas on its own store and page branches, never on the class's.
+    preview = {'ENIGMA_STORE_BRANCH': 'enigmas-teste', 'ENIGMA_PAGE_BRANCH': 'feature/enigmas-sistema'}
+    if not push:
+        print("# paste each into the host's secret store, or rerun with --push")
+        for k, v in values.items():
+            print(f"{k}={v}")
+        return
+    # Cloudflare Pages reads secrets at deploy time: set them, then redeploy the production branch.
+    api = f"https://api.cloudflare.com/client/v4/accounts/{own['CLOUDFLARE_ACCOUNT']}/pages/projects/{PROJECT}"
+    def call(method: str, url: str, body: dict | None = None) -> dict:
+        req = urllib.request.Request(url, method=method, data=json.dumps(body).encode() if body else None,
+                                     headers={'Authorization': f"Bearer {own['CLOUDFLARE_TOKEN']}",
+                                              'Content-Type': 'application/json'})
+        with urllib.request.urlopen(req) as res:
+            return json.loads(res.read().decode('utf-8'))
+    env_vars = {k: {'type': 'secret_text', 'value': v} for k, v in values.items()}
+    plain = {k: {'type': 'plain_text', 'value': v} for k, v in preview.items()}
+    call('PATCH', api, {'deployment_configs': {'production': {'env_vars': env_vars},
+                                               'preview': {'env_vars': {**env_vars, **plain}}}})
+    print(f"set {', '.join(values)} on {PROJECT} (preview also {', '.join(preview)})")
+    call('POST', f"{api}/deployments")
+    print("  redeploying — live in ~1 min")
+
+
 def cmd_build(publish: pathlib.Path, push: bool) -> None:
     rows = links_core.load()
     findings = links_core.check(rows)
@@ -59,22 +140,38 @@ def cmd_build(publish: pathlib.Path, push: bool) -> None:
             f"  It is the publish repo — create it, then rerun:\n"
             f"    gh repo create lsf-links --public --clone {publish}"
         )
+    if push:
+        pages.production(publish)  # before pull: a pull on the wrong branch writes into the wrong place
+        cmd_pull(publish)  # a push behind the site is refused, and a browser edit would be lost
     (publish / '_redirects').write_text(links_core.redirects(rows), encoding="utf-8", newline="\n")
     (publish / 'index.html').write_text(INDEX, encoding="utf-8", newline="\n")
     print(f"Wrote {len(rows)} redirect(s) to {publish}/_redirects")
     if not push:
         print("  --push to commit and deploy")
         return
-    import subprocess
-    subprocess.run(['git', 'add', '_redirects', 'index.html'], cwd=publish, check=True)
-    # Nothing staged means nothing to COMMIT, never nothing to push: a commit made by an earlier
-    # run that failed at the push is exactly the state where the site is still stale.
-    if subprocess.run(['git', 'diff', '--cached', '--quiet'], cwd=publish).returncode:
-        subprocess.run(['git', 'commit', '-m', f'{len(rows)} redirects'], cwd=publish, check=True)
-    # -u origin HEAD: the same call works on the first push, when there is no upstream yet, and on
-    # every one after. A publish repo is re-cloned often enough that "first push" is not a one-off.
-    subprocess.run(['git', 'push', '-u', 'origin', 'HEAD'], cwd=publish, check=True)
+    pages.push(publish, ['_redirects', 'index.html'], f'{len(rows)} redirects')
     print(f"  pushed — Cloudflare Pages deploys in ~30s, then {links_core.base()}/<name> is live")
+
+
+def cmd_publish(page: pathlib.Path, publish: pathlib.Path) -> None:
+    pages.production(publish)
+    cmd_pull(publish)  # before redraw and mirror, or the workspace copy lands over a browser edit
+    for name in pages.redraw(page):
+        print(f"redrew {page.name} with {name}")
+    copied = pages.mirror(page, publish)
+    course = copied[0].parent.name
+    pages.push(publish, [publish / course], f"atualiza {course}/{page.stem}")
+    main_target = copied[0]
+    artefacts = copied[1:]
+    if page.stem in ("disciplina", "index"):
+        web_url = f"{links_core.base()}/{course}"
+    else:
+        web_url = f"{links_core.base()}/{course}/{page.stem}"
+    raw_url = f"{links_core.base()}/{main_target.relative_to(publish).as_posix()}"
+    print(f"web: {web_url} · raw: {raw_url}")
+    if artefacts:
+        print(f"artefatos: {len(artefacts)} sincronizado(s)")
+    print("  pushed — Cloudflare Pages deploys in ~30s")
 
 
 def cmd_check() -> None:
@@ -108,6 +205,16 @@ def main():
 
     sub.add_parser("check")
 
+    ps = sub.add_parser("secrets", help="print the site's secrets, built from the workspace's segredos.env files")
+    ps.add_argument("--push", action="store_true", help="set them on the Pages project and redeploy")
+
+    pl = sub.add_parser("pull", help="bring browser edits and student deliveries home; publish and build run it first")
+    pl.add_argument("--dir", dest="publish", default=str(PUBLISH))
+
+    pp = sub.add_parser("publish", help="redraw, mirror and push a course page and its artefatos/")
+    pp.add_argument("page", help="academy/teaching/classes/<course>/<file>.md")
+    pp.add_argument("--dir", dest="publish", default=str(PUBLISH))
+
     args = p.parse_args()
     try:
         if   args.cmd == "add":   cmd_add(args.short_name, args.url, args.owner, args.home)
@@ -115,8 +222,11 @@ def main():
         elif args.cmd == "rm":    cmd_rm(args.short_name)
         elif args.cmd == "build": cmd_build(pathlib.Path(args.publish), args.push)
         elif args.cmd == "check": cmd_check()
+        elif args.cmd == "pull":  cmd_pull(pathlib.Path(args.publish))
+        elif args.cmd == "secrets": cmd_secrets(args.push)
+        elif args.cmd == "publish": cmd_publish(pathlib.Path(args.page), pathlib.Path(args.publish))
         else:                     p.print_help()
-    except links_core.Refused as e:
+    except (links_core.Refused, pages.Refused) as e:
         # A refusal already names its own fix — printing a traceback over it buries the fix.
         print(e, file=sys.stderr)
         raise SystemExit(1)

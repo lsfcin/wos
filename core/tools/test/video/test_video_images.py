@@ -62,11 +62,12 @@ def test_metadata_passes_cookies_when_present(monkeypatch, tmp_path):
 
 
 def test_download_images_filters_and_caps(tmp_path):
-    for i in range(12):
+    for i in range(25):
         (tmp_path / f"{i:02d}.jpg").write_bytes(b"x")
     (tmp_path / "meta.json").write_text("{}", encoding='utf-8', newline='\n')
     paths = vi.download_images("u", runner=lambda a: FakeProc(), workdir=tmp_path)
     assert len(paths) == vi.MAX_IMAGES
+    assert vi.MAX_IMAGES == 20
     assert all(p.suffix == ".jpg" for p in paths)
 
 

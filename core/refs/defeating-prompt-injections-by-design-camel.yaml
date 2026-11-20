@@ -1,0 +1,8 @@
+# Reference for defeating-prompt-injections-by-design-camel
+key: defeating-prompt-injections-by-design-camel
+title: "Defeating Prompt Injections by Design (CaMeL)"
+url: "https://arxiv.org/abs/2503.18813"
+level: P
+section: "Agent memory & security"
+contributions:
+  - "(Google DeepMind, 2025) — data/code capability separation."

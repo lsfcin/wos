@@ -1,0 +1,8 @@
+# Reference for memory-poisoning-in-llm-agents
+key: memory-poisoning-in-llm-agents
+title: "Memory Poisoning in LLM Agents"
+url: "https://arxiv.org/abs/2606.04329"
+level: P
+section: "Agent memory & security"
+contributions:
+  - "(arXiv 2606.04329, 2026-06) — untrusted inputs persist across sessions via compaction channels."

@@ -2,21 +2,12 @@
 > What the routing generator writes into an authored document, and where every file's one-line
 > description has to come from.
 
-Companion to [`CONTEXT.md`](CONTEXT.md), which routes into this directory. Moved out of
-[`../SPECS.md`](../SPECS.md) on 2026-09-05: the enforcement layer's spec had grown to 376 lines
-against a 200 cap, and a rule about what a generator writes belongs beside the generator rather than
-in the root's law.
+Companion to [`CONTEXT.md`](CONTEXT.md), which routes into this directory. Moved out of [`../SPECS.md`](../SPECS.md) on 2026-09-05: the enforcement layer's spec had grown to 376 lines against a 200 cap, and a rule about what a generator writes belongs beside the generator rather than in the root's law.
 
 ## The `CONTEXT.md` routing block
 
-`context_synchronizer.py` runs on every edit (via `post-edit.sh`, which also re-syncs the parent
-directory) and every commit, keeping each directory's `## Routing` block true unmaintained: it
-**adds** a new file, taking its description from the first source that answers — the first-line
-comment (code, below any shebang), a module docstring's first line (`.py`), `description:`
-frontmatter then the line-2 `> ` blurb (`.md`), or the ` — ` usage comment (extensionless scripts);
-**removes** entries for deleted files; **links** interfaces to their source; **folds** a leaf
-directory under `FOLD_FILES` into the parent block and **links** one at or above it; **warns** when a
-directory exceeds `WARN_FILES` direct files. Those are two numbers because they are two questions —
+`context_synchronizer.py` runs on every edit (via `post-edit.sh`, which also re-syncs the parent directory) and every commit, keeping each directory's `## Routing` block true unmaintained: it **adds** a new file, taking its description from the first source that answers — the first-line comment (code, below any shebang), a module docstring's first line (`.py`), `description:` frontmatter then the line-2 `> ` blurb (`.md`), or the ` — ` usage comment (extensionless scripts);
+**removes** entries for deleted files; **links** interfaces to their source; **folds** a leaf directory under `FOLD_FILES` into the parent block and **links** one at or above it; **warns** when a directory exceeds `WARN_FILES` direct files. Those are two numbers because they are two questions —
 *substantial enough to route to* is not *too crowded to read* (2026-09-06, [`limits.env`](../limits.env)).
 
 **Never edit inside the `<!-- routing:start/end -->` sentinels** — the next sync overwrites it.

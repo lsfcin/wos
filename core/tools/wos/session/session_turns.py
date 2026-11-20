@@ -7,12 +7,13 @@
 # with `output_tokens` identical across every record of an id. `session_log.walk()` deduped on
 # `requestId` from the start and has a test for it; `usage` ran its own loop and did not.
 import json
+import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from session_cost import UNPRICED, priced, turn_components
-from session_log import output_chars
+from session_log import output_chars, project_name
 
 
 def trusted_model(event: dict, model: str) -> str:
@@ -36,6 +37,7 @@ def trusted_model(event: dict, model: str) -> str:
 	return model
 
 ROOT = Path.home() / '.claude' / 'projects'
+CODEX_ROOT = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex'))) / 'sessions'
 
 # Logged output is known in characters; only the whole turn is known in tokens. Declared, not
 # derived: the obvious calibration — responses carrying no thinking block — measures 1.6 chars/tok,
@@ -44,8 +46,23 @@ ROOT = Path.home() / '.claude' / 'projects'
 CHARS_PER_TOKEN = 3.6
 
 
-def paths_for(project: str, session: str = '') -> list:
+def paths_for(project: str, session: str = '', provider: str = 'claude') -> list:
 	"""The transcripts to read, or exit with the name that was not found."""
+	if provider == 'codex':
+		paths = []
+		for path in sorted(CODEX_ROOT.rglob('*.jsonl')):
+			if session and not path.stem.endswith(session):
+				continue
+			try:
+				with path.open(encoding='utf-8') as handle:
+					meta = json.loads(next(handle)).get('payload', {})
+			except (OSError, ValueError, StopIteration):
+				continue
+			if meta.get('id') and project_name(meta.get('cwd', '')) == project:
+				paths.append(path)
+		return paths
+	if provider != 'claude':
+		raise ValueError(f'unsupported transcript provider: {provider}')
 	directory = ROOT / project
 	if not directory.is_dir():
 		sys.exit(f'no such project: {directory}')
@@ -55,6 +72,69 @@ def paths_for(project: str, session: str = '') -> list:
 		if not paths:
 			sys.exit(f'no such session: {session}')
 	return paths
+
+
+def events(path: Path):
+	"""Translate recorded local Codex responses; leave Claude records unchanged."""
+	with path.open(encoding='utf-8', errors='replace') as handle:
+		authoritative = any('"token_usage_record"' in line for line in handle)
+	model, sid, content, total_seen, count = '', path.stem, [], None, 0
+	with path.open(encoding='utf-8', errors='replace') as handle:
+		for line in handle:
+			try:
+				event = json.loads(line)
+			except json.JSONDecodeError:
+				continue
+			kind, payload = event.get('type'), event.get('payload') or {}
+			if kind == 'session_meta':
+				sid = payload.get('id', sid)
+			elif kind == 'turn_context':
+				model = payload.get('model', '')
+			elif kind == 'response_item':
+				item = payload.get('type')
+				if item == 'message':
+					body = [{'type': 'text', 'text': b.get('text', '')} for b in payload.get('content', [])
+					        if b.get('type') in ('input_text', 'output_text')]
+					if payload.get('role') == 'assistant':
+						content.extend(body)
+					else:
+						yield {'type': 'user', 'message': {'content': body}, 'timestamp': event.get('timestamp')}
+				elif item in ('function_call', 'custom_tool_call'):
+					arguments = payload.get('arguments', payload.get('input', ''))
+					try:
+						arguments = json.loads(arguments)
+					except (ValueError, TypeError):
+						arguments = {'command': arguments}
+					content.append({'type': 'tool_use', 'id': payload.get('call_id'),
+					                'name': payload.get('name'), 'input': arguments})
+				elif item in ('function_call_output', 'custom_tool_call_output'):
+					output = payload.get('output', '')
+					yield {'type': 'user', 'timestamp': event.get('timestamp'), 'message': {'content': [
+					    {'type': 'tool_result', 'tool_use_id': payload.get('call_id'), 'content': output,
+					     'is_error': isinstance(output, str) and 'Command blocked by PreToolUse hook:' in output}]}}
+			elif kind == 'token_usage_record' or (kind == 'event_msg' and payload.get('type') == 'token_count' and not authoritative):
+				info = payload.get('info') or {}
+				usage = payload.get('usage') if kind == 'token_usage_record' else info.get('last_token_usage')
+				if not usage:
+					continue
+				key = payload.get('response_id')
+				if not authoritative:
+					total = info.get('total_token_usage')
+					if not total or total == total_seen:
+						continue
+					total_seen = total
+					count += 1
+					key = f'{sid}:{count}'
+				cached, written = usage.get('cached_input_tokens', 0), usage.get('cache_write_input_tokens', 0)
+				normal = {'input_tokens': max(0, usage.get('input_tokens', 0) - cached - written),
+				          'cache_read_input_tokens': cached, 'cache_creation_input_tokens': written,
+				          'output_tokens': usage.get('output_tokens', 0)}
+				yield {'type': 'assistant', 'requestId': key, 'timestamp': event.get('timestamp'),
+				       'provider': 'codex', 'session_id': sid,
+				       'message': {'model': model, 'usage': normal, 'content': content}}
+				content = []
+			else:
+				yield event
 
 
 def responses(path: Path, sidechain: bool = False) -> dict:
@@ -67,14 +147,7 @@ def responses(path: Path, sidechain: bool = False) -> dict:
 	of calling this is what `usage` did, and it billed every response 1.97 times.
 	"""
 	merged: dict = {}
-	with path.open(errors='replace', encoding='utf-8') as handle:
-		for line in handle:
-			if '"usage"' not in line:
-				continue
-			try:
-				event = json.loads(line)
-			except json.JSONDecodeError:
-				continue
+	for event in events(path):
 			if event.get('type') != 'assistant' or bool(event.get('isSidechain')) != sidechain:
 				continue
 			message = event.get('message') or {}
@@ -94,13 +167,13 @@ def responses(path: Path, sidechain: bool = False) -> dict:
 	return merged
 
 
-def turns(project: str, session: str = ''):
+def turns(project: str, session: str = '', provider: str = 'claude'):
 	"""Every main-chain API response: (context, cost, model, session, output tok, logged tok).
 
 	One row per *response*, not per transcript record — see this file's header for why that is not
 	the same thing. Logged chars are summed across the response's records, because its content is
 	spread over them; `usage` is read from the first record and never added twice.
 	"""
-	for path in paths_for(project, session):
+	for path in paths_for(project, session, provider):
 		for row in responses(path).values():
 			yield tuple(row)

@@ -160,7 +160,7 @@ def test_reading_a_tool_s_source_is_not_that_tool_printing(project):
 	name = project({'s1': [
 		*call('t1', 'Bash', {'command': 'sed -n 1,200p core/tools/wos/roundup'}, 'a' * 500),
 		*call('t2', 'Bash', {'command': 'grep -n STATE core/tools/wos/roundup'}, 'b' * 100),
-		*call('t3', 'Bash', {'command': 'python3 core/tools/wos/roundup --leave-dirty'}, 'c' * 40),
+		*call('t3', 'Bash', {'command': 'python3 core/tools/wos/roundup --leave .'}, 'c' * 40),
 		*call('t4', 'Bash', {'command': 'git status && core/run tools/wos/size'}, 'd' * 20),
 	]})
 	ranked = dict((n, (c, calls)) for n, c, calls in loudest(name))

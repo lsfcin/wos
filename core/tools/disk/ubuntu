@@ -1,0 +1,119 @@
+# Usage: core/run tools/disk/ubuntu diagnose | clean [--dry-run] — where the disk went, and the safe part of getting it back
+#
+# WHY THIS EXISTS: on 2026-10-24 the root partition reached 100% with 113 GB free on the workspace
+# partition next to it. The disk was never full; the defaults were in the wrong place — every package
+# manager, model hub and editor writes under ~ and /var, which sit on the small partition. Finding
+# that took a session of du calls. This is that session as one command, so the next time is a reading.
+#
+# WHY clean NEVER RUNS sudo: it deletes only what a tool regenerates on its own (package caches,
+# thumbnails, editor leftovers the editor itself marked obsolete). The system half — apt, journal,
+# snap revisions, flatpak runtimes, old kernels — needs root, so it is PRINTED for Lucas to paste,
+# never run: a monthly cron job holding root is a worse risk than a full disk.
+#
+# WHY THE LEAF IS NAMED ubuntu: apt, snap and flatpak are the provider. A second machine runs another
+# system, and its leaf sits beside this one (core/tools/SPECS.md § Naming).
+import argparse
+import json
+import pathlib
+import shutil
+import subprocess
+import sys
+
+_HERE = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE.parent))
+import tool_law  # noqa: E402
+
+tool_law.require('disk')
+
+HOME = pathlib.Path.home()
+GB = 1024 ** 3
+# Where the bytes went on 2026-10-24, in the order they were found. A new consumer is one line here.
+WATCH = ('~/.cache', '~/.npm', '~/.config/Code', '~/.vscode', '~/.nvm', '~/.local', '~/ComfyUI',
+         '/var/cache/apt', '/var/lib/flatpak', '/var/log', '/var/lib/kdump', '/opt', '/usr/local/lib')
+SAFE = (('uv cache', ['uv', 'cache', 'clean']),
+        ('pip cache', [sys.executable, '-m', 'pip', 'cache', 'purge']),   # the venv has pip; cron's PATH may not
+        ('npm cache', ['npm', 'cache', 'clean', '--force']))
+SUDO = """sudo apt clean && sudo apt autoremove --purge -y \\
+&& sudo journalctl --vacuum-size=200M \\
+&& snap list --all | awk '/disabled/{print $1, $3}' | while read n r; do sudo snap remove "$n" --revision="$r"; done \\
+&& flatpak uninstall --unused -y && sudo rm -f /var/crash/*.crash && df -h /"""
+
+
+def size(path: pathlib.Path) -> int:
+    done = subprocess.run(['du', '-xsb', str(path)], capture_output=True, text=True, encoding='utf-8', errors='replace')
+    return int(done.stdout.split()[0]) if done.stdout else 0
+
+
+def free(path) -> str:
+    u = shutil.disk_usage(path)
+    return f'{u.used / u.total:4.0%} used, {u.free / GB:6.1f} GB free of {u.total / GB:5.0f}'
+
+
+def diagnose() -> int:
+    print('PARTITIONS')
+    for p in ('/', HOME, HOME / 'workspace'):
+        if pathlib.Path(p).exists():
+            print(f'  {str(p):28} {free(p)}')
+    print('\nCONSUMERS (on the partition of their path)')
+    rows = [(size(p), p) for p in (pathlib.Path(w).expanduser() for w in WATCH) if p.exists()]
+    rows += [(size(p), p) for p in (HOME / '.cache').iterdir() if not p.is_symlink()]
+    for n, p in sorted(rows, reverse=True)[:20]:
+        print(f'  {n / GB:6.1f} GB  {p}')
+    print('\nLINKED OUT TO THE WORKSPACE (already off this partition)')
+    for p in [HOME / '.cache/huggingface', *(HOME / 'ComfyUI/models').glob('*')]:
+        if p.is_symlink():
+            print(f'  {p} -> {p.readlink()}')
+    snaps = subprocess.run(['snap', 'list', '--all'], capture_output=True, text=True, encoding='utf-8', errors='replace').stdout
+    kernels = list(pathlib.Path('/boot').glob('vmlinuz-*'))
+    print(f'\nSYSTEM  disabled snap revisions: {snaps.count("disabled")} · kernels in /boot: {len(kernels)}')
+    big = subprocess.run(['find', str(HOME), '-xdev', '-type', 'f', '-size', '+500M', '-printf', '%s\t%p\n'],
+                         capture_output=True, text=True, encoding='utf-8', errors='replace').stdout.splitlines()
+    print('\nFILES OVER 500 MB IN ~')
+    for line in sorted(big, key=lambda l: -int(l.split('\t')[0]))[:10]:
+        n, p = line.split('\t', 1)
+        print(f'  {int(n) / GB:6.1f} GB  {p}')
+    return 0
+
+
+def obsolete_extensions() -> list[pathlib.Path]:
+    """What VS Code itself marked obsolete and would delete on its next restart."""
+    marks = HOME / '.vscode/extensions/.obsolete'
+    try:
+        names = json.loads(marks.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return []
+    return [p for p in (HOME / '.vscode/extensions' / n for n in names) if p.is_dir()]
+
+
+def clean(dry: bool) -> int:
+    before = shutil.disk_usage(HOME).free
+    paths = [HOME / '.cache/thumbnails', HOME / '.config/Code/CachedExtensionVSIXs', *obsolete_extensions()]
+    for label, cmd in SAFE:
+        if shutil.which(cmd[0]) is None:
+            print(f'  skip   {label}: {cmd[0]} not installed')
+            continue
+        print(f'  {"would" if dry else "run  "}  {" ".join(cmd)}')
+        if not dry:
+            subprocess.run(cmd, capture_output=True)
+    for p in paths:
+        if p.exists():
+            print(f'  {"would" if dry else "rm   "}  {p} ({size(p) / GB:.1f} GB)')
+            if not dry:
+                shutil.rmtree(p, ignore_errors=True)
+    if not dry:
+        print(f'\nfreed {(shutil.disk_usage(HOME).free - before) / GB:.1f} GB · now {free(HOME)}')
+    print('\nThe root half, for Lucas to paste (never run from here):\n' + SUDO)
+    return 0
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(prog='disk/ubuntu')
+    sub = ap.add_subparsers(dest='verb', required=True)
+    sub.add_parser('diagnose')
+    sub.add_parser('clean').add_argument('--dry-run', action='store_true')
+    args = ap.parse_args()
+    return diagnose() if args.verb == 'diagnose' else clean(args.dry_run)
+
+
+if __name__ == '__main__':
+    sys.exit(main())

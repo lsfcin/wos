@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 
 from conftest import WORKSPACE_ROOT
+from platform_law import rel
 
 POSTEDIT = WORKSPACE_ROOT / "core/hooks/postedit/interfaces.sh"
 PRECOMMIT = WORKSPACE_ROOT / "core/hooks/commit/generators.py"
@@ -29,7 +30,7 @@ def _tracked(*patterns: str) -> list[Path]:
 
 
 def _templates(script: Path, name: str) -> list[str]:
-    """Heredoc bodies the script scaffolds into <dir>/<name>."""
+    """Heredoc bodies the script writes into <dir>/<name>."""
     body = script.read_text(encoding="utf-8")
     pattern = re.compile(
         r'cat > "\$dir/' + re.escape(name) + r'" << \'EOF\'\n(.*?)\nEOF', re.DOTALL
@@ -39,7 +40,7 @@ def _templates(script: Path, name: str) -> list[str]:
 
 def test_jsconfig_template_carries_no_emit_keys() -> None:
     templates = _templates(POSTEDIT, "jsconfig.json")
-    assert templates, "postedit/interfaces.sh no longer scaffolds a jsconfig.json"
+    assert templates, "postedit/interfaces.sh no longer writes a jsconfig.json"
     for raw in templates:
         opts = json.loads(raw).get("compilerOptions", {})
         offenders = EMIT_KEYS & set(opts)
@@ -60,7 +61,7 @@ def test_tracked_jsconfigs_carry_no_emit_keys() -> None:
         )
 
 
-def test_scaffolded_tsconfig_with_dot_outdir_declares_exclude() -> None:
+def test_a_written_tsconfig_with_dot_outdir_declares_exclude() -> None:
     """tsc appends outDir to the DEFAULT exclude list, so `"outDir": "."` excludes the
     config's own directory unless exclude is stated — TS18003, zero inputs, no output."""
     for raw in _templates(POSTEDIT, "tsconfig.json"):
@@ -176,3 +177,10 @@ def test_no_generated_stub_sits_in_a_doubled_path() -> None:
         "generated stubs sit inside a mirror of their own path — the output root was "
         "resolved against the wrong anchor:\n  " + "\n  ".join(offenders)
     )
+
+
+def test_no_tracked_stub_outlives_its_source() -> None:
+    # `rm` is no Edit, so only the commit's interfaces stage can take a deleted source's stub along;
+    # four .pyi outlived their tests by days before it did (2026-11-19).
+    orphans = [p for p in _tracked("*.pyi") if not (p.with_suffix(".py").exists() or p.with_suffix("").exists())]
+    assert not orphans, "\n".join(rel(p) for p in orphans)

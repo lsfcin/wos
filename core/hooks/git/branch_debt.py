@@ -10,7 +10,7 @@
 # Warn-only, like every other dashboard section. Widened 2026-08-31 after a hand audit found what
 # the first version could not see: 117 merged local branches, three holding unpromoted work that
 # simply was not checked out, 16 repos ahead of their remote and two with no remote at all.
-# code/SPECS-git.md had stated "unpushed work is invisible work" since July and nothing measured
+# core/hooks/git/SPECS.md had stated "unpushed work is invisible work" since July and nothing measured
 # it — a law nobody counts is a sentence.
 import subprocess
 from pathlib import Path
@@ -83,26 +83,12 @@ def repos(root: Path) -> list:
     return [root]
 
 
-def unmerged_branches(root: Path, promoting: str = '') -> list:
+def unmerged_branches(root: Path) -> list:
     """One line per local branch holding commits its base does not have.
 
     Every local branch, not only the checked-out one: the branch nobody switched back to is
-    exactly the one that holds forgotten work, so asking about HEAD alone asked about the safest
-    branch in the repo. A repo with no base at all is the finding itself — it has nowhere to
-    promote to, which is how a repo on a lone feature branch reported clean.
-
-    `promoting` NAMES THE BRANCH THIS CLOSE IS ABOUT TO MERGE, and excuses it. Without it every
-    close published a finding against its own branch: `roundup` regenerates this block BEFORE it
-    promotes, so the branch was ahead when the check ran and level seconds later — true when
-    written, false when read. Reordering cures nothing, because the artifact is written on the
-    feature branch in order to ride into develop, and after promotion the Git Flow gate leaves no
-    branch to carry it. The cost is that a reader who discounts this section discounts every other
-    finding in it.
-
-    Only `roundup` can answer: it holds the verify verdict, `--no-promote` and the gitflow scope
-    before it regenerates, so it names a branch only when a merge will be attempted. A REFUSED
-    merge then under-reports for one cycle — the better failure, since refusal makes `roundup` exit
-    non-zero and say so, where a false finding every close is silent by design.
+    exactly the one that holds forgotten work. A repo with no base at all is the finding itself —
+    it has nowhere to merge into, which is how a repo on a lone feature branch reported clean.
     """
     signals = []
     for repo in repos(root):
@@ -112,10 +98,7 @@ def unmerged_branches(root: Path, promoting: str = '') -> list:
             signals.append(f'{name} — no main/master/develop to promote into')
             continue
         for branch in _locals(repo):
-            # Only for the repo the close is actually promoting in: `promoting` is one branch name
-            # in one repo, and `repos()` answers for exactly that repo today. Guarding on `base`
-            # too keeps a branch NAMED main from excusing itself.
-            if branch in BASES or (promoting and branch == promoting):
+            if branch in BASES:
                 continue
             ahead = _git(repo, 'rev-list', '--count', f'{base}..{branch}')
             if ahead.isdigit() and int(ahead) > 0:
@@ -147,7 +130,7 @@ def merged_local_branches(root: Path) -> list:
 def unpushed_work(root: Path) -> list:
     """Commits that exist on this disk and nowhere else.
 
-    Two machines share this workspace, so code/SPECS-git.md rules that unpushed work is invisible
+    Two machines share this workspace, so core/hooks/git/SPECS.md rules that unpushed work is invisible
     work; this is that rule as a number. A repo with no remote can never satisfy it and is named
     first. A branch already merged into its base is skipped — it holds nothing unique, and
     merged_local_branches above owns it.

@@ -60,6 +60,10 @@
           {
             "type": "command",
             "command": "sh ${CLAUDE_PROJECT_DIR}/core/run hooks/session/context-meter.py"
+          },
+          {
+            "type": "command",
+            "command": "sh ${CLAUDE_PROJECT_DIR}/core/run hooks/session/downloads.py"
           }
         ]
       }
@@ -97,15 +101,11 @@
           },
           {
             "type": "command",
-            "command": "sh ${CLAUDE_PROJECT_DIR}/core/run hooks/git/branch_marker.py record"
-          },
-          {
-            "type": "command",
             "command": "sh ${CLAUDE_PROJECT_DIR}/core/run hooks/session/mirror-heal.py"
           },
           {
             "type": "command",
-            "command": "sh ${CLAUDE_PROJECT_DIR}/core/run hooks/session/nudges.py"
+            "command": "sh ${CLAUDE_PROJECT_DIR}/core/run hooks/session/reminders.py"
           }
         ]
       }

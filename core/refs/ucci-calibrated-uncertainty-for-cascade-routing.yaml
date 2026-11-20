@@ -1,0 +1,8 @@
+# Reference for ucci-calibrated-uncertainty-for-cascade-routing
+key: ucci-calibrated-uncertainty-for-cascade-routing
+title: "UCCI: Calibrated Uncertainty for Cascade Routing"
+url: "https://arxiv.org/abs/2605.18796"
+level: P
+section: "Model level, cost & execution interface"
+contributions:
+  - "(2026) — escalate on calibrated uncertainty rather than static labels."

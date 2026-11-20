@@ -1,0 +1,8 @@
+# Reference for origin-bound-authority-for-long-term-memory
+key: origin-bound-authority-for-long-term-memory
+title: "Origin-Bound Authority for Long-Term Memory"
+url: "https://arxiv.org/abs/2606.24322"
+level: P
+section: "Agent memory & security"
+contributions:
+  - "(2026-06) — cryptographic provenance tagging for external memory ingest."

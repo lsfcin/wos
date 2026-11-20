@@ -15,6 +15,8 @@ import argparse, datetime, pathlib, re, shutil, subprocess, sys
 _HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
 sys.path.insert(0, str(_HERE.parents[1]))
+sys.path[:0] = [str(_HERE.parents[2] / 'hooks/git'), str(_HERE.parents[2] / 'hooks')]
+import lock  # noqa: E402
 import tool_law  # noqa: E402
 import secret_law  # noqa: E402
 import crossing as core  # noqa: E402
@@ -68,6 +70,7 @@ IGNORE_HEAD = """\
 __pycache__/
 .pytest_cache/
 outputs/
+core/state/
 core/scoreboard.tsv
 core/profile.local.txt
 .claude/skills/*/
@@ -88,11 +91,7 @@ core/profile.local.txt
 # is rewritten in the target by the same generator that wrote it here — correctly, because the
 # public tree has one subdirectory and this one has six. Comparing those bytes makes the file STALE
 # forever and the sync copy it back every run, which is an oscillation rather than a difference.
-#
-# IGNORING A BLOCK IS ONLY SAFE WHILE SOMETHING REWRITES IT THERE, and until 2026-09-17 nothing did:
-# push() used --no-verify, so no generator ever ran in the target, and 34 pointers inside a block
-# aimed at files the floor refuses. That is why sync() now calls rebuild — this regex says a block is
-# NOT COMPARED, and rebuild.py is what earns the right to say it.
+# Ignoring a block is only safe while rebuild.py rewrites it there.
 _BLOCK = re.compile(rb'<!-- \w+:start -->.*?<!-- \w+:end -->', re.S)
 
 
@@ -102,9 +101,7 @@ def _same(source: pathlib.Path, destination: pathlib.Path) -> bool:
 
 
 def _present(target: pathlib.Path) -> set[str]:
-    """What the target holds that the sync owns. The target's own `.gitignore` — written above —
-    answers the rest, and asking git rather than re-deriving it keeps one answer in one place, the
-    same reason `tracked()` asks git on this side."""
+    """What the target holds that the sync owns; the target's own git answers what it ignores."""
     found = {p.relative_to(target).as_posix() for p in target.rglob('*')
              if p.is_file() and '.git' not in p.relative_to(target).parts}
     ignored = subprocess.run(['git', '-C', str(target), 'check-ignore', '--stdin'],
@@ -119,21 +116,17 @@ def sync(rep: core.Report, floor: core.Floor, act: bool) -> int:
         return 1
     if act and check(rep):   # refuse before the first byte, never redact after it
         return 1
+    if act and _take(floor):
+        return 1
     if act:   # first, because it is what decides which of the target's files the sync owns at all
-        # The orphans belong here beside the floor's refusals, and for the same reason: a file no
-        # feature claims is deliberately absent, not missing. Prose that crossed still points at
-        # some of them, and this is what lets the pointer check agree without editing that prose.
-        # SELF is subtracted: ROADMAP.md and ISSUES.md are absent FROM THE SYNC and present in the
-        # target, which writes its own. Listing them here ignored the target's copies, and a repo
-        # whose ISSUES.md git does not carry cannot run the gate that watches writes to it.
+        # Orphans sit beside the floor's refusals: deliberately absent, so prose pointing at them
+        # still passes the pointer check. SELF is subtracted because the target writes its own
+        # ROADMAP.md and ISSUES.md, and git must carry them for its gates to run.
         absent = sorted((set(floor.absent) | rep.orphans) - set(SELF))
         # A refusal holding something let back out is written as its CONTENTS plus the exception,
         # because git will not re-include a file whose parent directory is excluded: `/code` would
-        # have made every aiwbot file the sync just wrote invisible to the target's own git.
-        # EVERY KIND THAT ESCAPES NEEDS ITS EXCEPTION, not just `root`. This read `floor.roots`
-        # alone until 2026-09-17, so the first `file` let out of an absent tree stayed ignored in
-        # the target: `_present` asks the target's git, git said code/CONTEXT.md was not there, and
-        # every run recopied it as MISSING. An oscillation, and one no verdict named as such.
+        # have made every aiwbot file the sync just wrote invisible to the target's own git. Every
+        # kind that escapes (root, tree, file) needs its exception, or it oscillates as MISSING.
         lines = []
         for path in absent:
             dirs = sorted(r for r in floor.roots + floor.trees if r.startswith(path + '/'))
@@ -161,8 +154,7 @@ def sync(rep: core.Report, floor: core.Floor, act: bool) -> int:
     failed = []
     if act:
         _modes(floor, rep.crossing)
-        # LAST, and only on a real sync: the generators read the tree the copy just finished
-        # writing, and running them over a half-copied tree would publish a table of it.
+        # LAST: generators over a half-copied tree would publish a table of it.
         failed = rebuild.generators(floor.target)
     for verdict, name in verdicts + [('FAILED', line) for line in failed]:
         print(f'  {verdict:8} {name}')
@@ -174,9 +166,7 @@ def sync(rep: core.Report, floor: core.Floor, act: bool) -> int:
 
 
 def _modes(floor: core.Floor, names: set[str]) -> None:
-    """Carry the executable bit through the INDEX, not the filesystem. A working tree on a mount
-    that reports 777 for everything says nothing, and what a clone gets is the index: core/run
-    landed 100644 in the target, so the one command that runs everything could not be run."""
+    """The executable bit goes through the INDEX: a mount reporting 777 says nothing, a clone gets the index."""
     source = subprocess.run(['git', '-C', str(core.ROOT), 'ls-files', '-s'],
                             capture_output=True, text=True, encoding='utf-8', check=True)
     runnable = [line.split('\t', 1)[1] for line in source.stdout.split('\n')
@@ -187,13 +177,17 @@ def _modes(floor: core.Floor, names: set[str]) -> None:
                         *wanted], check=True)
 
 
-# THE SYNC COMMITS UNDER THE SAME GIT FLOW AS EVERY OTHER REPO UNDER code/, and no longer bypasses
-# it. `--no-verify` was here because gitflow_gate covers any repo under code/ — this target included
-# — and the target sits on `master`, so a direct commit is refused. The bypass bought that refusal
-# off and took the WHOLE pre-commit pipeline with it: the generators, the gates, and the target's own
-# verify suite, which is the one thing that has ever caught a defect invisible from this side. So the
-# branch is made instead of the gate being dodged, and the two merges land by --no-ff, which is the
-# MERGE_HEAD exit gitflow_gate already grants the sanctioned integration step.
+# THE TARGET IS A GOVERNED REPO: the sync's first write takes its branch lock like any other, so a
+# refused commit leaves a branch its session still holds, never one the lock refuses to everyone.
+def _take(floor: core.Floor) -> int:
+    refusal, note = lock.verdict(floor.target / 'sync', lock.env_session())
+    if refusal or note:
+        print(refusal or note)
+    return 1 if refusal else 0
+
+
+# THE SYNC COMMITS UNDER THE TARGET'S FULL PIPELINE, never `--no-verify`: its suite is the one
+# outside reader that has caught defects invisible from here. Both merges are --no-ff: a release.
 FLOW = ('develop', 'master')
 
 
@@ -203,8 +197,10 @@ def push(floor: core.Floor) -> int:
     if not subprocess.run(git + ['diff', '--cached', '--quiet']).returncode:
         print('nothing to push: the target already matches')
         return 0
-    branch = f'feature/sync-{datetime.datetime.now():%Y%m%d-%H%M}'
-    subprocess.run(git + ['checkout', '-b', branch], check=True)
+    branch = lock.out(floor.target, 'branch', '--show-current')
+    if branch in lock.SHARED:   # a person, whom the lock never gates: branch here instead
+        branch = f'feature/sync-{datetime.datetime.now():%Y%m%d-%H%M}'
+        subprocess.run(git + ['checkout', '-b', branch], check=True)
     # NOT check=True, and NOT --no-verify: a refusal here is the target's own pipeline saying the
     # sync produced something it will not carry, which is the signal this call exists to surface.
     if subprocess.run(git + ['commit', '-m',
@@ -216,7 +212,11 @@ def push(floor: core.Floor) -> int:
         subprocess.run(git + ['checkout', into], check=True)
         subprocess.run(git + ['merge', '--no-ff', '-m', f'sync: merge {branch}', branch], check=True)
     subprocess.run(git + ['push', 'origin', *FLOW], check=True)
+    subprocess.run(git + ['checkout', FLOW[0]], check=True)
     subprocess.run(git + ['branch', '-d', branch], check=True)
+    if lock.out(floor.target, 'ls-remote', '--heads', 'origin', branch):   # post-commit pushed it
+        subprocess.run(git + ['push', 'origin', '--delete', branch], check=True)
+    lock.release(floor.target, lock.env_session())
     return 0
 
 

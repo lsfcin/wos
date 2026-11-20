@@ -10,8 +10,10 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
 from copilot_shared import (
+    COMMAND_KEYS,
     build_payload,
     collect_paths,
+    first_string,
     load_input,
     run_script,
 )
@@ -48,6 +50,13 @@ def main() -> int:
     data = load_input()
     workspace_root = Path(data.get("cwd") or os.getcwd()).resolve()
     tool_input = data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {}
+    command = first_string(tool_input, COMMAND_KEYS)
+    if command:
+        # The branch gate re-records after this session's own git switch (b20261110).
+        run_script(HOOKS / "dispatch.py", {"command": command, "hook_event_name": "PostToolUse"},
+                   "Bash", workspace_root, via_env=True)
+        emit_allow()
+        return 0
     paths = collect_paths(workspace_root, tool_input)
     if not paths:
         emit_allow()

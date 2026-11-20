@@ -21,10 +21,11 @@
 #            § Portability's *no check falsely greens*. A check that cannot fail is not a check.
 #   import   the python module it provides, or - for anything not imported by our code.
 #            THIS IS THE JOIN KEY: test_deps.py fails on any third-party import missing from here.
-#   check    HOW to ask whether the dep is here, as `<verb>:<arg>`. Three verbs, dispatched in
+#   check    HOW to ask whether the dep is here, as `<verb>:<arg>`. Four verbs, dispatched in
 #            core/tools/wos/deps:
 #              import:<module>      import it with this clone's interpreter (platform_law)
 #              venv-script:<name>   a console script installed INTO the venv (platform_law)
+#              venv-import:<venv>:<module>  import it in a SIBLING venv — .venv-pdf's engines
 #              cmd:<command>        a binary on PATH; run from the workspace root
 #            IT USED TO BE A RAW SHELL COMMAND, and 17 of 27 rows spelled the POSIX venv bin directory -- a
 #            directory that is `.venv/Scripts` on Windows. So on any clone but the authoring one
@@ -51,21 +52,27 @@ mypy	pip	-	venv-script:stubgen	interface-stubs	-	interface stubs stop regenerati
 pyyaml	pip	yaml	import:yaml	latex	-	core/tools/paper/terms dies on import, so the pre-commit term-consistency gate silently skips every paper
 requests	pip	requests	import:requests	notes-notion	-	core/tools/notes/notion cannot reach the API
 anthropic	pip	anthropic	import:anthropic	mail	-	gmail attachment + triage paths lose their model calls
-pillow	pip	PIL	import:PIL	asset-inspect	-	core/tools/assets/inspect cannot open an image; the video OCR and VLM paths lose frame handling
+pillow	pip	PIL	import:PIL	asset-inspect	-	core/tools/assets/inspect cannot open an image; video OCR, the shared describer and every PDF figure lose image handling
+playwright	pip	playwright	import:playwright	web-search	-	core/tools/web/shoot dies on import, so no HTML page or design artboard becomes a PNG; the module alone is not enough — without `python -m playwright install chromium` it fails at launch with "Executable doesn't exist"
 google-auth	pip	google	import:google.oauth2.credentials	google-auth	-	every Google-backed tool (mail, calendar, files, slides, forms, docs) fails before it reaches the network
 google-auth-oauthlib	pip	google_auth_oauthlib	import:google_auth_oauthlib	google-auth	-	the first-run OAuth consent flow cannot start, so no account can be added
 google-api-python-client	pip	googleapiclient	import:googleapiclient	google-auth	-	mail, calendar, files, slides, forms and docs have no API client to call
+python-pptx	pip	pptx	import:pptx	slides	-	core/tools/slides/pptx cannot build a template, so no new master or layout can reach Google Slides (the Slides API cannot create either)
+python-docx	pip	docx	import:docx	docs	-	core/tools/docs/docx cannot fill or read a .docx form table, so an ementa (or any SIGAA-shaped form) must be retyped by hand into the template
+lxml	pip	lxml	import:lxml	slides	-	core/tools/slides/pptx cannot rewrite a theme or add a master; python-pptx pulls it in, but the generator edits the XML with it directly
 yt-dlp	pip	-	venv-script:yt-dlp	video-text	-	core/tools/video/video returns nothing for every video link
 gallery-dl	pip	-	venv-script:gallery-dl	video-text	-	image posts and Instagram carousels fall back to yt-dlp, which reports "No video formats found" — reads like an auth failure, is not one
 secretstorage	pip	-	import:secretstorage	video-text	-	yt-dlp cannot decrypt the Brave cookie DB and fails with "failed to decrypt cookie (AES-CBC) ... Possibly the key is wrong?" — reads like a wrong password, is a missing module. Cost a full session to diagnose.
 faster-whisper	pip	faster_whisper	import:faster_whisper	video-text	-	local transcription (level speech) is unavailable; the tool stops at captions
-pytesseract	pip	pytesseract	import:pytesseract	video-text	-	burned-in text OCR (level ocr) is unavailable
-torch	pip	torch	import:torch	video-text	-	the visual captioning level cannot load a model
-transformers	pip	transformers	import:transformers	video-text	-	the visual captioning level cannot load a model
-accelerate	pip	-	import:accelerate	video-text	-	visual captioning loads without device_map and either runs on CPU or exhausts VRAM
+pytesseract	pip	pytesseract	import:pytesseract	video-text	-	burned-in text OCR (level ocr) is unavailable, and every PDF figure is described without its own text to check against
+docling	binary	docling	venv-import:.venv-pdf:docling	pdf	-	core/run tools/pdf/docling stops with ".venv-pdf is missing" or an engine traceback, so no PDF gets a twin; scans and tables have no other reader here
+pymupdf4llm	binary	pymupdf4llm	venv-import:.venv-pdf:pymupdf4llm	pdf	-	core/run tools/pdf/pymupdf fails on every PDF, and the CPU path for born-digital PDFs is gone
+uv	binary	-	cmd:uv --version	pdf	-	.venv-pdf cannot be created, so the install line the pdf tools print cannot run
+tesseract-ocr-por	apt	-	cmd:tesseract --list-langs 2>&1 | grep -qx por	pdf	-	OCR reads Portuguese as English: accents vanish, so the figure cross-check flags good descriptions and a scan's audit coverage drops for no real loss
 pypandoc-binary	pip	-	cmd:pandoc --version	latex	-	core/tools/paper/parse cannot read .docx or .pptx — it falls through to the plain-text arm and returns mojibake rather than an error
-poppler-utils	apt	-	cmd:pdftotext -v	latex	-	core/tools/paper/parse cannot read a PDF, which is its most common input
+poppler-utils	apt	-	cmd:pdftotext -v	pdf	-	core/tools/pdf cannot read a PDF's metadata, text layer or embedded images, and --review cannot render a page; gmail's PDF attachments go unsummarized, and slides preview/sample render nothing (they ask pdf/poppler)
 ffmpeg	system	-	cmd:ffmpeg -version	video-text	-	audio extraction and frame sampling fail, so the speech and ocr levels cannot start
+adb	binary	-	cmd:adb version	phone	-	core/run tools/phone/adb stops on its first call with "No such file or directory": no screenshot, no prefs edit (it ships with the Android SDK platform-tools, see code/apptime/SETUP.md)
 tesseract-ocr	apt	-	cmd:tesseract --version	video-text	-	pytesseract imports fine and then fails at call time — the module is the wrapper, this is the engine
 ddgr	apt	-	cmd:ddgr --version	web-search	-	the fallback backend is gone, so a missing or rate-limited Exa key leaves no search at all
 nodejs	binary	-	cmd:node --version	opencode-plugin	-	the opencode policy plugin cannot load, and every npm/npx-backed gate below loses its runtime
@@ -75,3 +82,4 @@ rtk	binary	-	cmd:rtk --version	rtk-compaction	-	tool output reaches the context 
 gh	system	-	cmd:gh auth status	github-auth	-	auto-push fails on every feature/* commit, /roundup cannot promote, and the agent loses PRs and issues
 arxiv-api	service	-	cmd:core/run tools/paper/papers quantum --n 1	latex	-	core/tools/paper/papers returns {"error": "The read operation timed out"} on its DEFAULT arm, so a sota or scout run silently loses arXiv and falls back to web search — the JSON still parses, it just has no results
 semantic-scholar-api	service	-	cmd:core/run tools/paper/papers quantum --n 1 --ss	latex	-	core/tools/paper/papers --ss returns {"error": "HTTP Error 429: "}, so a run loses the venue, peer_reviewed and citations fields the tool exists to supply and has to establish venue by fetching every page by hand
+rclone	binary	-	cmd:rclone version	drive	-	core/run tools/files/onedrive cannot move a file: no .pptx reaches PowerPoint online and none comes back, so every deck edit waits on a hand upload

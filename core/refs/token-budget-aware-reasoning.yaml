@@ -1,0 +1,8 @@
+# Reference for token-budget-aware-reasoning
+key: token-budget-aware-reasoning
+title: "Token-Budget-Aware Reasoning"
+url: "https://aclanthology.org/2412.18547"
+level: A
+section: "Model level, cost & execution interface"
+contributions:
+  - "(ACL Findings 2025) — dynamic per-task budgets beat fixed caps; wrong budgets degrade accuracy."

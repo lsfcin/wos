@@ -1,0 +1,9 @@
+# The conversion engines for core/tools/pdf, installed into .venv-pdf and never into .venv: docling pulls
+# torch and ~120 packages, and the workspace venv stays light for every hook that starts on it.
+# Versions are the ones the 2026-09-25 bake-off measured (core/experiments/pdf-engine.md).
+# Install: core/tools/pdf/CONTEXT.md § Install.
+docling==2.130.0
+torch==2.14.0
+pymupdf4llm==1.28.2
+pymupdf-layout==1.28.2
+pillow

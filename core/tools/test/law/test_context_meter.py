@@ -79,6 +79,23 @@ def test_missing_or_unreadable_transcript_is_silent(tmp_path):
     assert transcript.last_context(str(garbage)) == 0
 
 
+def test_agy_transcript_context_and_compaction(tmp_path):
+    s1 = json.dumps({'step_index': 0, 'source': 'USER_EXPLICIT', 'type': 'USER_INPUT', 'content': 'hi'})
+    s2 = json.dumps({'step_index': 1, 'source': 'SYSTEM', 'type': 'CHECKPOINT', 'content': '# Resuming...'})
+    s3 = json.dumps({'step_index': 2, 'source': 'MODEL', 'type': 'PLANNER_RESPONSE', 'content': 'x' * 3600})
+    path = tmp_path / 'agy.jsonl'
+    path.write_text(f'{s1}\n{s2}\n{s3}\n', encoding='utf-8', newline='\n')
+    assert transcript.is_compacted(str(path)) is False
+    assert transcript.last_context(str(path)) >= 1000
+
+    s4 = json.dumps({'step_index': 100, 'source': 'SYSTEM', 'type': 'CHECKPOINT', 'content': 'compacted'})
+    s5 = json.dumps({'step_index': 101, 'source': 'MODEL', 'type': 'PLANNER_RESPONSE', 'content': 'y' * 360})
+    path.write_text(f'{s1}\n{s2}\n{s3}\n{s4}\n{s5}\n', encoding='utf-8', newline='\n')
+    assert transcript.is_compacted(str(path)) is True
+    assert transcript.last_context(str(path)) < 500
+
+
+
 def test_each_threshold_announces_once(tmp_path, monkeypatch):
     state = tmp_path / 'state.txt'
     monkeypatch.setattr(context_meter, 'state_file', lambda _sid: str(state))
@@ -113,7 +130,7 @@ def test_both_messages_name_roundup_and_nothing_else():
 
 
 def test_the_warn_message_stays_ignorable():
-    """The first nudge exists to be ignorable — see brain/SPECS.md § Rationale. It may name
+    """The first reminder exists to be ignorable — see core/hooks/brain/SPECS.md § Rationale. It may name
     /roundup, but it must also say, in as many words, that finishing instead is fine."""
     limits = context_meter.load_limits()
     text = context_meter.message(limits['CTX_WARN'] + 4_000, limits['CTX_WARN'], limits['CTX_LOUD'])
@@ -147,7 +164,7 @@ def test_the_handoff_artifact_is_not_an_uppercase_type():
     is a closed allowlist, so the resume prompt must be an instance: HANDOFF.md is off that
     allowlist, which is why it never existed despite a .gitignore line inherited for it."""
     skill = (WORKSPACE_ROOT / 'core/skills/handoff.md').read_text(encoding='utf-8')
-    written = re.findall(r'outputs/[\w.-]+\.md', skill)
+    written = re.findall(r'outputs/[\w.<>-]+\.md', skill)
     assert written, 'core/skills/handoff.md no longer names the file it writes'
     for path in set(written):
         name = path.rsplit('/', 1)[-1]
@@ -171,3 +188,33 @@ def test_the_meter_never_spawns_a_session():
     assert 'subprocess' not in source, (
         'the meter reaches a process only through notify.py, which owns the timeout and the '
         'failure stance — spawning one here would be a second copy of both')
+
+
+def test_codex_context_uses_last_input_not_cumulative_or_cached_twice(tmp_path):
+    info = {'last_token_usage': {'input_tokens': 1000, 'cached_input_tokens': 900},
+            'total_token_usage': {'input_tokens': 900000}, 'model_context_window': 258400}
+    event = json.dumps({'type': 'event_msg', 'payload': {'type': 'token_count', 'info': info}})
+    path = _transcript(tmp_path, [event])
+    assert transcript.last_context(path) == 1000
+    assert transcript.context_limit(path) == 258400
+    compacted = json.dumps({'type': 'compacted', 'payload': {'message': 'summary'}})
+    path = _transcript(tmp_path, [event, compacted])
+    assert transcript.last_context(path) == 0 and transcript.is_compacted(path)
+    path = _transcript(tmp_path, [event, compacted, event])
+    assert transcript.last_context(path) == 1000
+
+
+def test_codex_meter_emits_native_facts_once_without_claude_cost_claims(tmp_path, monkeypatch, capsys):
+    info = {'last_token_usage': {'input_tokens': 150000}, 'model_context_window': 258400}
+    path = _transcript(tmp_path, [json.dumps({'type': 'event_msg', 'payload': {'type': 'token_count', 'info': info}})])
+    raw = {'transcript_path': path}  # Native events need not carry a model stamp.
+    monkeypatch.setattr(context_meter, 'parse_stdin', lambda: (raw, '', {}, 'native', str(tmp_path)))
+    monkeypatch.setattr(context_meter, 'state_file', lambda _sid: str(tmp_path / 'meter.txt'))
+    monkeypatch.setattr(context_meter.notify, 'tell', lambda _text: None)
+    context_meter.main()
+    first = capsys.readouterr().out
+    assert '150,000' in first and '258,400' in first and '/roundup' in first
+    assert '45%' not in first and '2x' not in first
+    assert len(first.strip()) <= 240
+    context_meter.main()
+    assert not capsys.readouterr().out

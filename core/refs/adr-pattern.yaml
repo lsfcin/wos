@@ -1,0 +1,8 @@
+# Reference for adr-pattern
+key: adr-pattern
+title: "ADR Pattern"
+url: "https://adr.github.io/"
+level: C
+section: "Legidade, vocabulário e registros de decisão"
+contributions:
+  - "(Nygard) — immutable record per decision (Status/Context/Decision/Consequences); superseding over editing history."

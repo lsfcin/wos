@@ -1,0 +1,8 @@
+# Reference for how-memory-management-impacts-llm-agents
+key: how-memory-management-impacts-llm-agents
+title: "How Memory Management Impacts LLM Agents"
+url: "https://arxiv.org/abs/2505.16067"
+level: A
+section: "Agent memory & security"
+contributions:
+  - "(ACL 2025) — memory management policy dominates agent performance over raw capacity."

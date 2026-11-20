@@ -162,8 +162,8 @@ def main() -> int:
         return 1
     if root:
         if not (root / 'refs' / 'CONTEXT.md').exists():
-            print(f'💬 SCAFFOLD: refs/CONTEXT.md missing — run:')
-            print(f'   python3 {Path(__file__).parent}/paper-scaffold.py adapt {root}')
+            print(f'💬 TEMPLATE: refs/CONTEXT.md missing — run:')
+            print(f'   python3 {Path(__file__).parent}/paper-template.py adapt {root}')
         try:
             regenerate_labels(root)
         except Exception as e:

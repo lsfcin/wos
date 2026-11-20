@@ -1,0 +1,64 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "wos_hook_root=\"$PWD\"; while [ ! -f \"$wos_hook_root/core/run\" ]; do [ \"$wos_hook_root\" != / ] || exit 1; wos_hook_root=$(dirname \"$wos_hook_root\"); done; sh \"$wos_hook_root/core/run\" hooks/codex/policy.py"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "wos_hook_root=\"$PWD\"; while [ ! -f \"$wos_hook_root/core/run\" ]; do [ \"$wos_hook_root\" != / ] || exit 1; wos_hook_root=$(dirname \"$wos_hook_root\"); done; sh \"$wos_hook_root/core/run\" hooks/codex/policy.py"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "wos_hook_root=\"$PWD\"; while [ ! -f \"$wos_hook_root/core/run\" ]; do [ \"$wos_hook_root\" != / ] || exit 1; wos_hook_root=$(dirname \"$wos_hook_root\"); done; sh \"$wos_hook_root/core/run\" hooks/codex/policy.py"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "wos_hook_root=\"$PWD\"; while [ ! -f \"$wos_hook_root/core/run\" ]; do [ \"$wos_hook_root\" != / ] || exit 1; wos_hook_root=$(dirname \"$wos_hook_root\"); done; sh \"$wos_hook_root/core/run\" hooks/codex/policy.py"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "wos_hook_root=\"$PWD\"; while [ ! -f \"$wos_hook_root/core/run\" ]; do [ \"$wos_hook_root\" != / ] || exit 1; wos_hook_root=$(dirname \"$wos_hook_root\"); done; sh \"$wos_hook_root/core/run\" hooks/codex/policy.py"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "wos_hook_root=\"$PWD\"; while [ ! -f \"$wos_hook_root/core/run\" ]; do [ \"$wos_hook_root\" != / ] || exit 1; wos_hook_root=$(dirname \"$wos_hook_root\"); done; sh \"$wos_hook_root/core/run\" hooks/codex/policy.py"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -8,7 +8,7 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-# NAMED, NEVER INHERITED — the law is core/tools/test/workspace/test_encoding_ratchet.py. This
+# NAMED, NEVER INHERITED — the law is workspace/ceilings/test_encoding_ceiling.py. This
 # report prints `→`, and a console codepage cannot encode it: the tool dies mid-report, after doing
 # all the work. The gates get this from core/run; a tool invoked directly says it itself.
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -90,14 +90,21 @@ def main() -> None:
 	args = sys.argv[1:]
 	project = args[args.index('--project') + 1] if '--project' in args else project_name()
 	session = args[args.index('--session') + 1] if '--session' in args else ''
-	rows = list(turns(project, session))
+	provider = args[args.index('--provider') + 1] if '--provider' in args else 'claude'
+	rows = list(turns(project, session, provider))
 	if not rows:
 		sys.exit(f'{project}: no assistant turns with usage')
+	if provider == 'codex':
+		print('Recorded local Codex usage; cost is Standard API-equivalent, not a subscription bill.\n'
+		      'Price mode is Standard for comparison. Logged output tokens are estimated from characters.')
 	if session:
 		brief(rows)
 		return
 
 	total = sum(sum(comp.values()) for _c, comp, _m, _s, _o, _l in rows)
+	if not total:
+		brief(rows)
+		return
 	by_model: dict = defaultdict(float)
 	by_model_out: dict = defaultdict(float)
 	by_model_turns: dict = defaultdict(int)
@@ -137,7 +144,8 @@ def main() -> None:
 	for name in COMPONENTS:
 		cost = by_component[name]
 		if cost:
-			print(f'  {LABELS[name]:<28} ${cost:9,.2f}  {cost / total:5.1%}')
+			label = 'cache write' if provider == 'codex' and name == 'write_5m' else LABELS[name]
+			print(f'  {label:<28} ${cost:9,.2f}  {cost / total:5.1%}')
 	# Splitting the output line matters because only one half is re-read. `unlogged` is a residual,
 	# not a measurement: thinking is billed here but its text is never written to the transcript,
 	# and anything else the transcript drops lands in this number too.

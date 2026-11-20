@@ -55,11 +55,18 @@
 # checks/write_payload.py so neither re-derives the payload. No row carries a `-`.
 #
 # moment	capability	order	path	class	feature
+pre	shell	5	read/handoff-gate.py	blocks	handoff-gate
 pre	shell	10	read/bash-context-gate.py	blocks	context-chain
+pre	shell	15	git/lock-gate.py	blocks	branch-lock
 pre	shell	20	checks/heredoc-gate.py	informs	heredoc-gate
+pre	shell	30	read/pdf-gate.py	blocks	pdf-twin-reads
+pre	read	5	read/handoff-gate.py	blocks	handoff-gate
 pre	read	10	read/context-gate.py	blocks	context-chain
 pre	read	20	read/pre-read.py	blocks	interface-first-reads
+pre	read	30	read/pdf-gate.py	blocks	pdf-twin-reads
+pre	write	5	read/handoff-gate.py	blocks	handoff-gate
 pre	write	10	read/context-gate.py	blocks	context-chain
+pre	write	15	git/lock-gate.py	blocks	branch-lock
 pre	write	20	checks/first-line-gate.py	blocks	first-line-comment
 pre	write	25	checks/size-gate.py	blocks	line-limit
 pre	write	30	facade/facade-scan.py	informs	facade-discipline

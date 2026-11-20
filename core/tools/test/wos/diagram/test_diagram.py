@@ -13,7 +13,7 @@ import diagram_data as data
 import diagram_health as health
 import diagram_matrix as matrix_form
 import diagram_overview as overview_form
-import diagram_spine as spine_form
+import diagram_routing as routing_form
 import diagram_treemap as mass_form
 import feature_law as law
 import tool_law
@@ -142,9 +142,9 @@ def test_the_treemap_tiles_its_whole_area():
     assert abs(covered - mass_form.WIDTH * mass_form.HEIGHT) < 1
 
 
-def test_the_spine_stops_at_its_depth_and_says_so():
+def test_the_routing_tree_stops_at_its_depth_and_says_so():
     """Overview first: the whole tree at once is the hairball the cap exists to prevent, and a cap
     that hides what it cut is the same lie as dropping a node."""
     nodes, edges, _coverage = data.containment()
-    html = spine_form.render(nodes, edges, max_depth=1)
+    html = routing_form.render(nodes, edges, max_depth=1)
     assert 'sit deeper than level 1' in html
